@@ -1,0 +1,20 @@
+.header-breadcrumbs {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.header-breadcrumbs .ant-breadcrumb {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.header-breadcrumbs .ant-breadcrumb ol {
+  flex-wrap: nowrap;
+}
+
+.header-breadcrumbs .ant-breadcrumb li {
+  white-space: nowrap;
+}

@@ -1,0 +1,35 @@
+{
+  "schema": "cottage-capability-pack-v1",
+  "id": "official.evidence-research",
+  "name": "官方示例：证据研究",
+  "version": "1.0.0",
+  "description": "将研究问题拆解、检索、取证和报告写作串成可复核的轻量研究流程。",
+  "capabilities": [
+    {
+      "id": "official.evidence-research.web",
+      "domain": "integration",
+      "tools": ["webSearch", "fetchWebPage"],
+      "inputTypes": ["text"],
+      "outputTypes": ["text", "json"],
+      "riskLevel": "external",
+      "plannerHints": "对研究问题进行多轮搜索、阅读一手来源并保留可追溯引用。"
+    },
+    {
+      "id": "official.evidence-research.report",
+      "domain": "core",
+      "tools": ["writeFile"],
+      "inputTypes": ["text"],
+      "outputTypes": ["text"],
+      "riskLevel": "write",
+      "plannerHints": "将研究发现、证据链接、不确定性与建议保存为 Markdown 报告。"
+    }
+  ],
+  "promptOverlay": "你正在使用「证据研究」能力包。研究前先将问题拆成可检索的子问题；检索结果只用于定位来源，关键结论必须阅读原始页面后再作答。对时效性或高影响结论优先使用一手、权威且日期明确的来源，并至少交叉核对一次。最终把事实、推断和不确定性分开写明，在工作区保存一份含 URL 与访问日期的 Markdown 报告。",
+  "skills": [
+    {
+      "file": "evidence-report-template.md",
+      "content": "---\nname: evidence-research-report\ndescription: 可复核研究报告的模板和取证规则\ntags: [research, web, evidence]\n---\n\n# 证据研究报告模板\n\n## 研究问题\n\n- 要回答的问题：\n- 范围与截至日期：\n- 不纳入的内容：\n\n## 核心发现\n\n用结论句列出发现；每项结论后附来源编号。\n\n## 证据与分析\n\n对每项结论说明：来源说了什么、为何可信、是否有冲突证据，以及哪些部分属于推断。\n\n## 限制与待验证项\n\n列出来源缺失、数据过期、样本偏差或无法访问的内容。\n\n## 参考来源\n\n- [1] 标题 — URL — 发布日期（如有）— 访问日期\n\n## 取证规则\n\n- 搜索摘要不能作为唯一证据。\n- 不确定时写明不确定，不补造事实或来源。\n- 引用链接应直接指向支持结论的页面，而不是搜索结果页。\n"
+    }
+  ],
+  "suggestedTools": []
+}

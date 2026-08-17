@@ -1,0 +1,26 @@
+{
+  "schema": "cottage-capability-pack-v1",
+  "id": "official.document-review",
+  "name": "官方示例：文档审校",
+  "version": "1.0.0",
+  "description": "为 Markdown、方案和说明文档提供先诊断、后小步修改、再回报的审校工作流。",
+  "capabilities": [
+    {
+      "id": "official.document-review.workflow",
+      "domain": "core",
+      "tools": ["readFile", "searchFiles", "editFile"],
+      "inputTypes": ["text"],
+      "outputTypes": ["text"],
+      "riskLevel": "write",
+      "plannerHints": "审校文档的结构、表达、一致性与链接；先阅读和诊断，再作最小修改。"
+    }
+  ],
+  "promptOverlay": "你正在使用「文档审校」能力包。处理文档任务时，先完整阅读目标文件并说明发现的问题；修改时保持原意与原有语气，只进行能解决问题的最小改动。涉及结构调整、删除段落或同时修改多个文件时，先给出方案并征求确认。完成后简要列出改动、未改动的疑点以及建议的后续检查。",
+  "skills": [
+    {
+      "file": "review-checklist.md",
+      "content": "---\nname: document-review-checklist\ndescription: 文档审校的检查单与交付规范\ntags: [writing, review, documentation]\n---\n\n# 文档审校检查单\n\n## 执行顺序\n\n1. 用 `readFile` 阅读全文；多文件文档先用 `searchFiles` 了解关联内容。\n2. 区分事实错误、表达问题、结构问题和格式问题，避免把个人偏好当成错误。\n3. 先报告影响阅读或准确性的高优先级问题；小问题可以合并处理。\n4. 用 `editFile` 小步修改，保留原有术语、链接和作者语气。\n5. 交付时说明修改内容、原因和仍需作者确认的地方。\n\n## 核对项\n\n- [ ] 标题层级连续，段落主题清晰\n- [ ] 同一概念、产品名和缩写前后一致\n- [ ] 结论有足够上下文或依据\n- [ ] 列表、代码块、链接和路径格式正确\n- [ ] 没有为追求“润色”而改变原意\n"
+    }
+  ],
+  "suggestedTools": []
+}

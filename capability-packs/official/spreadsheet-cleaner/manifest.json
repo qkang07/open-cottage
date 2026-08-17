@@ -1,0 +1,26 @@
+{
+  "schema": "cottage-capability-pack-v1",
+  "id": "official.spreadsheet-cleaner",
+  "name": "官方工具包：表格清洗",
+  "version": "1.0.0",
+  "description": "分析 CSV/XLSX 的空行、重复值、列类型和格式问题，生成清洗后的新表格与变更摘要。",
+  "capabilities": [
+    {
+      "id": "official.spreadsheet-cleaner.workflow",
+      "domain": "office",
+      "tools": ["readSpreadsheet", "writeSpreadsheet"],
+      "inputTypes": ["spreadsheet", "json"],
+      "outputTypes": ["spreadsheet", "json", "text"],
+      "riskLevel": "write",
+      "plannerHints": "清洗 CSV 或 Excel：空行、重复行、日期、数字、列名和缺失值。"
+    }
+  ],
+  "promptOverlay": "仅当用户要求清洗、规范化、去重或整理 CSV/XLSX 时使用本包。开始前用 readSpreadsheet 检查表头、数据范围和样例，给出将执行的规则及受影响行数预估。默认另存为 `<原名>-cleaned.xlsx`，禁止覆盖原文件；只有用户明确要求时才原位修改。不得擅自猜测缺失值、合并含义不明的列或删除业务上可能有效的异常值。写入后重新读取关键区域验证，并同时保存一份同名 `-cleaning-report.md`，记录规则、行数变化、异常项和未处理问题。",
+  "skills": [
+    {
+      "file": "spreadsheet-cleaning-playbook.md",
+      "content": "---\nname: spreadsheet-cleaning-playbook\ndescription: CSV/XLSX 清洗规则、确认点和交付格式\ntags: [spreadsheet, csv, cleanup]\n---\n\n# 表格清洗手册\n\n## 前置条件\n\n在聊天页的“模型与能力”中开启 **办公文档**，否则无法使用 `readSpreadsheet` 和 `writeSpreadsheet`。\n\n## 可直接使用的请求\n\n- `清洗 data.csv：去空行、按全部列去重、统一日期为 YYYY-MM-DD，另存为 data-cleaned.xlsx`\n- `检查 sales.xlsx 的 Sheet1，先报告问题，不要写入`\n- `把 contacts.xlsx 的邮箱列转小写并去重，保留第一次出现的记录`\n\n## 默认安全规则\n\n1. 先读表头、范围和样例，再确定规则。\n2. 对删除重复行、类型转换和填补缺失值分别计数。\n3. 不把空字符串、0、false 和缺失值混为一谈。\n4. 不覆盖原文件；输出新表和 Markdown 清洗报告。\n5. 写入后重新读取表头、首尾样例和总行数进行复核。\n"
+    }
+  ],
+  "suggestedTools": ["readSpreadsheet", "writeSpreadsheet"]
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Open Cottage — Sandbox Preview</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; overflow: hidden; }
+      body { background: #fff; }
+      #sandbox-frame {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        border: none;
+      }
+      #fallback {
+        display: none;
+        padding: 24px;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #666;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="sandbox-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals"></iframe>
+    <div id="fallback">等待内容加载…</div>
+    <script>
+      (function () {
+        var frame = document.getElementById('sandbox-frame');
+        var fallback = document.getElementById('fallback');
+        var received = false;
+
+        window.addEventListener('message', function (event) {
+          if (received) return;
+          var data = event.data;
+          if (!data || typeof data !== 'object') return;
+          if (data.type !== 'cottage-sandbox-html') return;
+          received = true;
+          fallback.style.display = 'none';
+          frame.style.display = 'block';
+          frame.srcdoc = data.html;
+        });
+
+        // 超时提示
+        setTimeout(function () {
+          if (!received) {
+            frame.style.display = 'none';
+            fallback.style.display = 'block';
+            fallback.textContent = '未收到预览内容，可能窗口已被阻止。';
+          }
+        }, 5000);
+      })();
+    </script>
+  </body>
+</html>

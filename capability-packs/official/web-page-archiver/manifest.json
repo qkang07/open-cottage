@@ -1,0 +1,35 @@
+{
+  "schema": "cottage-capability-pack-v1",
+  "id": "official.web-page-archiver",
+  "name": "官方工具包：网页资料归档",
+  "version": "1.0.0",
+  "description": "读取一个或多个网页，将摘要、关键信息、来源和访问日期保存为可检索的 Markdown 资料卡。",
+  "capabilities": [
+    {
+      "id": "official.web-page-archiver.fetch",
+      "domain": "integration",
+      "tools": ["fetchWebPage"],
+      "inputTypes": ["text"],
+      "outputTypes": ["text", "json"],
+      "riskLevel": "external",
+      "plannerHints": "网页归档、保存网页、整理链接、建立资料库。"
+    },
+    {
+      "id": "official.web-page-archiver.write",
+      "domain": "core",
+      "tools": ["mkdir", "writeFile"],
+      "inputTypes": ["text", "json"],
+      "outputTypes": ["text"],
+      "riskLevel": "write",
+      "plannerHints": "将网页内容整理成带来源元数据的 Markdown 资料卡。"
+    }
+  ],
+  "promptOverlay": "仅当用户要求归档、保存、摘录或整理网页资料时使用本包。先用 fetchWebPage 读取用户提供的 URL；如果提供多个 URL，逐个处理并分别记录失败项。默认保存到 references/，文件名使用页面主题的英文或拼音短名。资料卡必须包含标题、原始 URL、访问日期、三到七条要点、适用场景和相关链接。以摘要和结构化笔记为主，不大段复制原文。目标文件已存在时先询问是覆盖、另存还是合并。完成后返回成功文件和失败 URL 清单。",
+  "skills": [
+    {
+      "file": "web-archive-format.md",
+      "content": "---\nname: web-page-archive-format\ndescription: 网页资料卡格式与网页批量归档规则\ntags: [web, archive, research]\n---\n\n# 网页资料归档\n\n## 可直接使用的请求\n\n- `把这个网页归档到 references/：<URL>`\n- `整理这 3 个链接，每个生成一份 Markdown，并做一个 index.md`\n- `更新 references/ 中这篇资料卡，保留我写的备注：<URL>`\n\n## 单页资料卡格式\n\n```markdown\n---\nsource: https://example.com\naccessed: YYYY-MM-DD\ntitle: 页面标题\n---\n\n# 页面标题\n\n## 一句话摘要\n\n## 关键信息\n\n- 要点\n\n## 适用场景\n\n## 相关链接\n```\n\n## 批量归档\n\n多个 URL 应分别生成文件，并额外生成 `index.md`，列出标题、来源、归档文件和处理状态。抓取失败时保留 URL 与错误原因，不创建伪内容。\n"
+    }
+  ],
+  "suggestedTools": []
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Open Cottage logo">
+  <path
+    d="M 16 108 L 16 56 Q 16 44 26 36 L 52 18 Q 60 13 68 18 L 94 36 Q 104 44 104 56 L 104 108"
+    fill="none"
+    stroke="#607b66"
+    stroke-width="16"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M 60 46 C 60 62 68 70 84 70 C 68 70 60 78 60 94 C 60 78 52 70 36 70 C 52 70 60 62 60 46 Z"
+    fill="#c97a3d"
+  />
+</svg>

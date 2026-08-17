@@ -1,0 +1,40 @@
+export {
+  captureHistoryVersion,
+  createManualCheckpoint,
+  deleteAllFileHistory,
+  deleteFileHistoryRevision,
+  deleteHistoryVersion,
+  enforceHistoryLimits,
+  garbageCollectHistory,
+  getHistoryPoolStats,
+  initializeHistory,
+  isBinaryPath,
+  listFileHistory,
+  listHistoryFilesSummary,
+  listHistoryVersions,
+  loadHistoryMeta,
+  loadHistorySnapshot,
+  readFileVersionBytes,
+  readFileVersionText,
+  restoreFile,
+  restoreTree,
+} from './historyService';
+export {
+  flushCheckpoint,
+  getPendingMutatedPaths,
+  initHistory,
+  resetAutoCheckpoint,
+  trackManualEdit,
+  trackMutation,
+} from './autoCheckpoint';
+export { shouldTrack, matchesAny, filterTrackedFiles } from './ignore';
+export type {
+  HistoryChangeType,
+  HistoryDeleteResult,
+  HistoryFileState,
+  HistoryFileSummary,
+  HistoryFileVersionSummary,
+  HistoryMeta,
+  HistoryPoolStats,
+  HistoryVersionSummary,
+} from './types';

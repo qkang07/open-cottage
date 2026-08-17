@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="moss" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cottage · 品牌主题色实验室</title>
+<style>
+/* ============ Theme Tokens ============ */
+:root {
+  --radius: 10px;
+  --transition: .35s cubic-bezier(.4,0,.2,1);
+}
+
+/* 雾麻 · 苔绿 — 当前生产配色（Quiet Design）
+   99% 灰白中性，苔绿仅出现在交互态；Gold 仅品牌装饰；5 色语义体系 */
+[data-theme="moss"] {
+  --primary: #607B66; --primary-hover: #4C6452; --primary-light: #EFF2F0;
+  --accent: #C5A76E; --accent-soft: #F7F3EC;
+  --bg: #F7F7F4; --surface: #FFFFFF; --surface-2: #F1F1ED;
+  --text: #252925; --text-2: #747A75; --border: #E1E2DC;
+  --success: #4F8A5B; --warning: #C97A3D; --error: #C75B5B;
+  --energy: #C97A3D;
+  --glow: rgba(96,123,102,.12);
+  --theme-name: "雾麻 · 苔绿";
+}
+[data-theme="moss"][data-mode="dark"] {
+  --primary: #607B66; --primary-hover: #73917A; --primary-light: #242B25;
+  --accent: #D0B67E; --accent-soft: #241F14;
+  --bg: #101210; --surface: #171917; --surface-2: #0B0D0B;
+  --text: #E8EAE7; --text-2: #8E948E; --border: #3A403A;
+  --success: #7FAD8A; --warning: #D4965C; --error: #D48484;
+  --energy: #D4965C;
+  --glow: rgba(143,173,150,.14);
+}
+
+[data-theme="forest"] {
+  --primary: #3E6B48; --primary-hover: #31563A; --primary-light: #EAF3EC;
+  --accent: #D6B56E; --accent-soft: #F5EDDA;
+  --bg: #F8F7F3; --surface: #FFFFFF; --surface-2: #F1F0EB;
+  --text: #2E2E2E; --text-2: #6B6B65; --border: #E3E1D9;
+  --success: #4F8A5B; --warning: #D08B39; --error: #C75B5B;
+  --energy: #D08B39;
+  --glow: rgba(62,107,72,.12);
+  --theme-name: "森林绿 · 暖金";
+}
+[data-theme="forest"][data-mode="dark"] {
+  --primary: #6FAF7E; --primary-hover: #8AC496; --primary-light: #1C2E21;
+  --accent: #D6B56E; --accent-soft: #2E2817;
+  --bg: #171B18; --surface: #1F2520; --surface-2: #272E28;
+  --text: #E9E8E3; --text-2: #9BA39B; --border: #333B34;
+  --success: #6FAF7E; --warning: #D9A05B; --error: #D47B7B;
+  --energy: #D9A05B;
+  --glow: rgba(111,175,126,.1);
+}
+
+[data-theme="wood"] {
+  --primary: #9A6B43; --primary-hover: #7E5636; --primary-light: #F3EAE0;
+  --accent: #D9B382; --accent-soft: #F7EDDD;
+  --bg: #F7F1E8; --surface: #FFFCF7; --surface-2: #EFE7DA;
+  --text: #3A3128; --text-2: #7D7062; --border: #E5D9C8;
+  --success: #6E8F5E; --warning: #C08A3E; --error: #B85C5C;
+  --energy: #C08A3E;
+  --glow: rgba(154,107,67,.12);
+  --theme-name: "暖木色 · 工坊";
+}
+[data-theme="wood"][data-mode="dark"] {
+  --primary: #C99A6B; --primary-hover: #D9AF82; --primary-light: #2C2218;
+  --accent: #D9B382; --accent-soft: #302618;
+  --bg: #1C1712; --surface: #251F18; --surface-2: #2E261D;
+  --text: #EDE6DB; --text-2: #A89A88; --border: #3D3428;
+  --success: #8FB07E; --warning: #D4A45E; --error: #CC7A7A;
+  --energy: #D4A45E;
+  --glow: rgba(201,154,107,.1);
+}
+
+[data-theme="sage"] {
+  --primary: #6F8F72; --primary-hover: #5C7A5F; --primary-light: #EDF3ED;
+  --accent: #B8C7B0; --accent-soft: #EDF2E9;
+  --bg: #F5F7F2; --surface: #FFFFFF; --surface-2: #ECEFE8;
+  --text: #333833; --text-2: #6E766C; --border: #DFE4DA;
+  --success: #5E8A64; --warning: #C49A4E; --error: #BC6363;
+  --energy: #C49A4E;
+  --glow: rgba(111,143,114,.12);
+  --theme-name: "鼠尾草 · 北欧";
+}
+[data-theme="sage"][data-mode="dark"] {
+  --primary: #93B296; --primary-hover: #A8C4AA; --primary-light: #1E271F;
+  --accent: #B8C7B0; --accent-soft: #252E24;
+  --bg: #181B17; --surface: #20241F; --surface-2: #282D26;
+  --text: #E7EAE5; --text-2: #98A196; --border: #343B32;
+  --success: #7FAF85; --warning: #CFA95E; --error: #CF7E7E;
+  --energy: #CFA95E;
+  --glow: rgba(147,178,150,.1);
+}
+
+[data-theme="pine"] {
+  --primary: #264033; --primary-hover: #1B3026; --primary-light: #E8EFEA;
+  --accent: #B98A52; --accent-soft: #F4EBDD;
+  --bg: #FBFAF6; --surface: #FFFFFF; --surface-2: #F2F1EA;
+  --text: #263229; --text-2: #5F6B60; --border: #E0DFD5;
+  --success: #3E7A50; --warning: #B98A52; --error: #B05858;
+  --energy: #B98A52;
+  --glow: rgba(38,64,51,.1);
+  --theme-name: "深墨绿 · 黄铜";
+}
+[data-theme="pine"][data-mode="dark"] {
+  --primary: #7BAA8C; --primary-hover: #92BEA2; --primary-light: #16241C;
+  --accent: #C9A066; --accent-soft: #2B2315;
+  --bg: #131815; --surface: #1B211D; --surface-2: #232A25;
+  --text: #E4E8E3; --text-2: #8FA093; --border: #2E3830;
+  --success: #5E9A70; --warning: #C9A066; --error: #C47272;
+  --energy: #C9A066;
+  --glow: rgba(123,170,140,.1);
+}
+
+[data-theme="ember"] {
+  --primary: #3E6B48; --primary-hover: #31563A; --primary-light: #EAF3EC;
+  --accent: #D08B39; --accent-soft: #F8EDDD;
+  --bg: #F8F7F3; --surface: #FFFFFF; --surface-2: #F1F0EB;
+  --text: #2E2E2E; --text-2: #6B6B65; --border: #E3E1D9;
+  --success: #4F8A5B; --warning: #D08B39; --error: #C75B5B;
+  --energy: #D08B39;
+  --glow: rgba(208,139,57,.12);
+  --theme-name: "森林绿 · 暖橙活力";
+}
+[data-theme="ember"][data-mode="dark"] {
+  --primary: #6FAF7E; --primary-hover: #8AC496; --primary-light: #1C2E21;
+  --accent: #E0A050; --accent-soft: #2E2415;
+  --bg: #171B18; --surface: #1F2520; --surface-2: #272E28;
+  --text: #E9E8E3; --text-2: #9BA39B; --border: #333B34;
+  --success: #6FAF7E; --warning: #E0A050; --error: #D47B7B;
+  --energy: #E0A050;
+  --glow: rgba(224,160,80,.1);
+}
+
+[data-theme="lake"] {
+  --primary: #2B6E68; --primary-hover: #215852; --primary-light: #E7F2F0;
+  --accent: #C9A24B; --accent-soft: #F6EFDC;
+  --bg: #F6F8F7; --surface: #FFFFFF; --surface-2: #EDF1F0;
+  --text: #29322F; --text-2: #627069; --border: #DCE4E1;
+  --success: #47875F; --warning: #C0883C; --error: #BC5D5D;
+  --energy: #C0883C;
+  --glow: rgba(43,110,104,.12);
+  --theme-name: "湖畔青 · 原木";
+}
+[data-theme="lake"][data-mode="dark"] {
+  --primary: #63B0A8; --primary-hover: #7DC3BB; --primary-light: #152A28;
+  --accent: #D4B264; --accent-soft: #2B2513;
+  --bg: #151A19; --surface: #1D2322; --surface-2: #252C2A;
+  --text: #E5E9E7; --text-2: #92A19B; --border: #313B38;
+  --success: #63A878; --warning: #D09B52; --error: #D07878;
+  --energy: #D09B52;
+  --glow: rgba(99,176,168,.1);
+}
+
+[data-theme="indigo"] {
+  --primary: #3F5180; --primary-hover: #324167; --primary-light: #EAEFF7;
+  --accent: #C69A4E; --accent-soft: #F6EFDF;
+  --bg: #F7F7F5; --surface: #FFFFFF; --surface-2: #F0F0EC;
+  --text: #2B2E35; --text-2: #666B76; --border: #E0E1E4;
+  --success: #4D8761; --warning: #C08A3E; --error: #BC5D5D;
+  --energy: #C08A3E;
+  --glow: rgba(63,81,128,.12);
+  --theme-name: "靛蓝工坊 · 工装";
+}
+[data-theme="indigo"][data-mode="dark"] {
+  --primary: #8399C8; --primary-hover: #9BADDB; --primary-light: #1A2133;
+  --accent: #D4AC62; --accent-soft: #2B2514;
+  --bg: #15171D; --surface: #1D2028; --surface-2: #252932;
+  --text: #E6E8ED; --text-2: #969DAB; --border: #313644;
+  --success: #6BA57C; --warning: #D09B52; --error: #D07878;
+  --energy: #D09B52;
+  --glow: rgba(131,153,200,.1);
+}
+
+[data-theme="olive"] {
+  --primary: #5D6240; --primary-hover: #4A4E33; --primary-light: #EFF0E6;
+  --accent: #C4944F; --accent-soft: #F6EFDF;
+  --bg: #F8F7F2; --surface: #FFFFFF; --surface-2: #F1F0E8;
+  --text: #2F3128; --text-2: #6C6E5E; --border: #E2E1D4;
+  --success: #55804D; --warning: #B9873E; --error: #B55A50;
+  --energy: #B9873E;
+  --glow: rgba(93,98,64,.12);
+  --theme-name: "橄榄工装 · 实用";
+}
+[data-theme="olive"][data-mode="dark"] {
+  --primary: #A3A878; --primary-hover: #B5BA8C; --primary-light: #232418;
+  --accent: #CFA45C; --accent-soft: #2A2413;
+  --bg: #171812; --surface: #1F2019; --surface-2: #272820;
+  --text: #E8E8DF; --text-2: #9CA08C; --border: #35372A;
+  --success: #75A468; --warning: #C99850; --error: #CB756B;
+  --energy: #C99850;
+  --glow: rgba(163,168,120,.1);
+}
+
+[data-theme="plum"] {
+  --primary: #66405E; --primary-hover: #52334B; --primary-light: #F2EAF0;
+  --accent: #C49A5C; --accent-soft: #F6EFDF;
+  --bg: #F9F7F6; --surface: #FFFFFF; --surface-2: #F2EFED;
+  --text: #332C31; --text-2: #75686F; --border: #E6DFE2;
+  --success: #52805C; --warning: #BE8844; --error: #B85858;
+  --energy: #BE8844;
+  --glow: rgba(102,64,94,.12);
+  --theme-name: "暮梅紫 · 暮色";
+}
+[data-theme="plum"][data-mode="dark"] {
+  --primary: #B07EA6; --primary-hover: #C294B8; --primary-light: #271A24;
+  --accent: #D0A968; --accent-soft: #2B2314;
+  --bg: #191517; --surface: #211C1F; --surface-2: #292327;
+  --text: #EAE5E7; --text-2: #A3969D; --border: #383035;
+  --success: #6FA27A; --warning: #CE9C56; --error: #CE7676;
+  --energy: #CE9C56;
+  --glow: rgba(176,126,166,.1);
+}
+
+/* ============ Base ============ */
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  transition: background var(--transition), color var(--transition);
+  min-height: 100vh; overflow-x: hidden;
+}
+h1,h2,h3,.display {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+/* ambient background texture */
+body::before {
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, var(--glow), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 110%, var(--glow), transparent);
+  transition: background var(--transition);
+}
+
+/* ============ Header ============ */
+.topbar {
+  position: sticky; top:0; z-index:100;
+  display:flex; align-items:center; gap:16px;
+  padding: 14px 32px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition), border-color var(--transition);
+}
+.logo-mark {
+  width:36px; height:36px; flex-shrink:0;
+  transition: transform .3s ease;
+}
+.logo-mark:hover { transform: translateY(-2px) rotate(-3deg); }
+.brand { display:flex; flex-direction:column; line-height:1.15; }
+.brand-name { font-size:19px; font-weight:700; letter-spacing:.02em; }
+.brand-tag { font-size:11px; color:var(--text-2); letter-spacing:.06em; }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.mode-toggle {
+  display:flex; align-items:center; gap:8px;
+  background: var(--surface-2); border:1px solid var(--border);
+  border-radius: 20px; padding: 5px 14px; cursor:pointer;
+  font-size:13px; color:var(--text-2);
+  transition: all .25s ease;
+}
+.mode-toggle:hover { border-color: var(--primary); color: var(--primary); }
+.mode-toggle .icon { font-size:15px; }
+
+/* ============ Theme Rail ============ */
+.theme-rail {
+  position:relative; z-index:1;
+  display:flex; gap:10px; flex-wrap:wrap;
+  padding: 20px 32px 8px;
+}
+.theme-chip {
+  display:flex; align-items:center; gap:10px;
+  padding: 9px 16px 9px 10px;
+  border-radius: 12px; border: 2px solid var(--border);
+  background: var(--surface); cursor:pointer;
+  transition: all .25s ease; user-select:none;
+}
+.theme-chip:hover { transform: translateY(-2px); box-shadow: 0 6px 16px var(--glow); }
+.theme-chip.active {
+  border-color: var(--primary);
+  box-shadow: 0 4px 20px var(--glow), inset 0 0 0 1px var(--primary);
+}
+.chip-dots { display:flex; }
+.chip-dots span {
+  width:20px; height:20px; border-radius:50%;
+  border: 2px solid var(--surface);
+  margin-left:-6px; transition: transform .2s ease;
+}
+.chip-dots span:first-child { margin-left:0; }
+.theme-chip:hover .chip-dots span { transform: scale(1.1); }
+.chip-label { font-size:13px; font-weight:600; white-space:nowrap; }
+.chip-sub { font-size:11px; color:var(--text-2); }
+
+/* ============ Layout ============ */
+.main { position:relative; z-index:1; display:grid; grid-template-columns: 1fr 340px; gap:28px; padding: 24px 32px 48px; max-width:1400px; margin:0 auto; }
+@media (max-width:1080px) { .main { grid-template-columns:1fr; } }
+
+/* ============ App Mockup ============ */
+.mockup {
+  border-radius: 16px; overflow:hidden;
+  border:1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 12px 48px var(--glow), 0 2px 8px rgba(0,0,0,.04);
+  display:grid; grid-template-columns: 218px 1fr 240px;
+  min-height: 560px;
+  transition: background var(--transition), border-color var(--transition);
+}
+@media (max-width:860px) { .mockup { grid-template-columns: 1fr; } .mock-sidebar,.mock-preview{ display:none; } }
+
+/* sidebar */
+.mock-sidebar {
+  background: var(--surface-2); border-right:1px solid var(--border);
+  padding:16px 12px; display:flex; flex-direction:column; gap:4px;
+  transition: background var(--transition), border-color var(--transition);
+}
+.mock-sidebar .side-title {
+  font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--text-2); padding:8px 10px 6px;
+}
+.side-item {
+  display:flex; align-items:center; gap:9px;
+  padding:8px 10px; border-radius:8px; font-size:13px;
+  color:var(--text-2); cursor:pointer; transition: all .2s ease;
+}
+.side-item:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); color:var(--text); }
+.side-item.active {
+  background: var(--primary-light); color: var(--primary); font-weight:600;
+}
+.side-item .dot { width:7px; height:7px; border-radius:50%; }
+.side-spacer { flex:1; }
+.side-user {
+  display:flex; align-items:center; gap:9px; padding:10px;
+  border-top:1px solid var(--border); margin-top:8px;
+}
+.avatar {
+  width:28px; height:28px; border-radius:50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700;
+}
+
+/* chat area */
+.mock-chat { display:flex; flex-direction:column; }
+.chat-header {
+  display:flex; align-items:center; gap:10px;
+  padding:13px 18px; border-bottom:1px solid var(--border);
+  transition: border-color var(--transition);
+}
+.chat-header h3 { font-size:14px; font-weight:600; font-family:inherit; }
+.status-pill {
+  margin-left:auto; display:flex; align-items:center; gap:6px;
+  font-size:11px; font-weight:600; padding:4px 10px; border-radius:12px;
+  background: color-mix(in srgb, var(--energy) 14%, transparent);
+  color: var(--energy);
+}
+.status-pill .pulse {
+  width:7px; height:7px; border-radius:50%; background:var(--energy);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.4; transform:scale(.7);} }
+
+.chat-body { flex:1; padding:18px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+.msg { max-width:82%; animation: msgIn .4s ease both; }
+.msg.user { align-self:flex-end; }
+.msg.ai { align-self:flex-start; }
+.msg-bubble {
+  padding:11px 15px; border-radius:14px; font-size:13.5px; line-height:1.6;
+  transition: background var(--transition);
+}
+.msg.user .msg-bubble {
+  background: var(--primary); color:#fff;
+  border-bottom-right-radius:4px;
+}
+.msg.ai .msg-bubble {
+  background: var(--surface-2); color:var(--text);
+  border-bottom-left-radius:4px; border:1px solid var(--border);
+}
+.msg-meta { font-size:11px; color:var(--text-2); margin-top:5px; padding:0 4px; }
+.msg.user .msg-meta { text-align:right; }
+
+/* tool call card */
+.tool-card {
+  border:1px solid var(--border); border-radius:10px; overflow:hidden;
+  font-size:12px; transition: border-color var(--transition);
+}
+.tool-card-head {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px; background:var(--surface-2);
+  font-weight:600; color:var(--text-2);
+  transition: background var(--transition);
+}
+.tool-card-head .spinner {
+  width:12px; height:12px; border-radius:50%;
+  border:2px solid var(--border); border-top-color:var(--energy);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.tool-card-body { padding:9px 12px; font-family:"Cascadia Code","Fira Code",monospace; font-size:11.5px; color:var(--text-2); line-height:1.7; }
+.tool-ok { color:var(--success); font-weight:600; }
+
+/* thinking indicator */
+.thinking { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-2); padding:2px 4px; }
+.thinking-dots span {
+  display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:var(--energy); margin-right:3px;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.thinking-dots span:nth-child(2){ animation-delay:.15s; }
+.thinking-dots span:nth-child(3){ animation-delay:.3s; }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-5px);} }
+
+/* input bar */
+.chat-input-wrap { padding:14px 18px; border-top:1px solid var(--border); transition: border-color var(--transition); }
+.chat-input {
+  display:flex; align-items:center; gap:10px;
+  border:1.5px solid var(--border); border-radius:12px;
+  padding:10px 14px; background:var(--surface);
+  transition: all .25s ease;
+}
+.chat-input:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px var(--glow); }
+.chat-input input {
+  flex:1; border:none; outline:none; background:transparent;
+  font-size:13.5px; color:var(--text);
+}
+.chat-input input::placeholder { color:var(--text-2); }
+.send-btn {
+  width:32px; height:32px; border-radius:9px; border:none;
+  background:var(--primary); color:#fff; cursor:pointer;
+  display:grid; place-items:center;
+  transition: all .2s ease;
+}
+.send-btn:hover { background:var(--primary-hover); transform:scale(1.06); }
+.send-btn:active { transform:scale(.94); }
+
+/* preview panel */
+.mock-preview {
+  border-left:1px solid var(--border); background:var(--surface-2);
+  padding:14px; display:flex; flex-direction:column; gap:12px;
+  transition: background var(--transition), border-color var(--transition);
+}
+.preview-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--text-2); }
+.code-block {
+  background: var(--bg); border:1px solid var(--border); border-radius:10px;
+  padding:12px; font-family:"Cascadia Code","Fira Code",monospace;
+  font-size:11px; line-height:1.8; overflow-x:auto;
+  transition: background var(--transition);
+}
+.code-block .kw { color:var(--primary); font-weight:600; }
+.code-block .str { color:var(--energy); }
+.code-block .cm { color:var(--text-2); opacity:.7; }
+.btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+.btn {
+  padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600;
+  cursor:pointer; border:1.5px solid transparent; transition: all .2s ease;
+}
+.btn:active { transform:scale(.95); }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-hover); box-shadow:0 4px 12px var(--glow); }
+.btn-outline { background:transparent; border-color:var(--border); color:var(--text); }
+.btn-outline:hover { border-color:var(--primary); color:var(--primary); }
+.btn-ghost { background:var(--primary-light); color:var(--primary); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+.btn-danger { background: color-mix(in srgb, var(--error) 12%, transparent); color:var(--error); }
+.btn-danger:hover { background: color-mix(in srgb, var(--error) 20%, transparent); }
+
+/* badges & alerts */
+.badge-row { display:flex; gap:8px; flex-wrap:wrap; }
+.badge {
+  font-size:11px; font-weight:600; padding:4px 10px; border-radius:10px;
+}
+.badge-success { background:color-mix(in srgb, var(--success) 14%, transparent); color:var(--success); }
+.badge-warning { background:color-mix(in srgb, var(--warning) 14%, transparent); color:var(--warning); }
+.badge-error { background:color-mix(in srgb, var(--error) 14%, transparent); color:var(--error); }
+.badge-primary { background:var(--primary-light); color:var(--primary); }
+.alert {
+  display:flex; align-items:flex-start; gap:9px;
+  padding:10px 13px; border-radius:10px; font-size:12px; line-height:1.5;
+  border:1px solid;
+}
+.alert-warn { background:color-mix(in srgb, var(--warning) 8%, transparent); border-color:color-mix(in srgb, var(--warning) 30%, transparent); color:var(--text); }
+
+/* progress */
+.progress-track { height:6px; border-radius:3px; background:var(--surface-2); border:1px solid var(--border); overflow:hidden; }
+.progress-fill { height:100%; width:68%; border-radius:3px; background:linear-gradient(90deg, var(--primary), var(--accent)); animation: progressAnim 2.5s ease-in-out infinite alternate; }
+@keyframes progressAnim { from{width:52%;} to{width:78%;} }
+
+/* ============ Token Panel ============ */
+.token-panel { display:flex; flex-direction:column; gap:16px; }
+.panel-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:18px; transition: all var(--transition);
+}
+.panel-card h2 { font-size:15px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.token-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.token-item {
+  display:flex; align-items:center; gap:9px;
+  padding:7px 9px; border-radius:9px; cursor:pointer;
+  border:1px solid transparent; transition: all .2s ease;
+}
+.token-item:hover { border-color:var(--border); background:var(--surface-2); }
+.token-item:active { transform:scale(.96); }
+.token-swatch {
+  width:26px; height:26px; border-radius:7px; flex-shrink:0;
+  border:1px solid rgba(0,0,0,.08);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,.3);
+  transition: transform .2s ease;
+}
+.token-item:hover .token-swatch { transform:scale(1.15); }
+.token-info { line-height:1.3; }
+.token-name { font-size:11.5px; font-weight:600; }
+.token-hex { font-size:10.5px; color:var(--text-2); font-family:"Cascadia Code",monospace; }
+.copied-toast {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--text); color:var(--bg); padding:9px 18px; border-radius:10px;
+  font-size:13px; font-weight:600; opacity:0; pointer-events:none;
+  transition: all .3s ease; z-index:999;
+}
+.copied-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* brand quote */
+.quote-card { position:relative; overflow:hidden; }
+.quote-card::after {
+  content:"🏡"; position:absolute; right:-8px; bottom:-14px;
+  font-size:72px; opacity:.07; transform:rotate(-8deg);
+}
+.quote {
+  font-size:17px; font-style:italic; line-height:1.7;
+  color:var(--text); margin-bottom:10px;
+}
+.quote-sub { font-size:12.5px; color:var(--text-2); line-height:1.8; }
+.keyword-tags { display:flex; gap:7px; flex-wrap:wrap; margin-top:13px; }
+.kw-tag {
+  font-size:11px; font-weight:600; padding:4px 11px; border-radius:14px;
+  background:var(--primary-light); color:var(--primary);
+  transition: all .2s ease; cursor:default;
+}
+.kw-tag:hover { transform:translateY(-2px); box-shadow:0 3px 10px var(--glow); }
+
+/* gradient strip */
+.gradient-strip {
+  height:10px; border-radius:5px; margin-top:14px;
+  background: linear-gradient(90deg, var(--primary), var(--accent), var(--energy));
+  transition: background var(--transition);
+}
+
+@keyframes msgIn { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+.msg:nth-child(1){ animation-delay:.05s; } .msg:nth-child(2){ animation-delay:.15s; }
+.msg:nth-child(3){ animation-delay:.25s; } .msg:nth-child(4){ animation-delay:.35s; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="topbar">
+  <svg class="logo-mark" viewBox="0 0 36 36" fill="none">
+    <path d="M18 4L4 15h4v14h20V15h4L18 4z" fill="var(--primary)" opacity=".9"/>
+    <rect x="14.5" y="20" width="7" height="9" rx="1" fill="var(--bg)"/>
+    <rect x="8" y="17" width="5" height="5" rx="1" fill="var(--accent)"/>
+    <rect x="23" y="17" width="5" height="5" rx="1" fill="var(--accent)"/>
+    <rect x="22" y="6" width="3" height="7" rx="1" fill="var(--primary)" opacity=".6"/>
+    <circle cx="18" cy="14" r="2.5" fill="var(--energy)" opacity=".85"/>
+  </svg>
+  <div class="brand">
+    <span class="brand-name display">Cottage</span>
+    <span class="brand-tag">品牌主题色实验室 · Theme Lab</span>
+  </div>
+  <div class="topbar-right">
+    <button class="mode-toggle" onclick="toggleMode()">
+      <span class="icon" id="modeIcon">🌙</span>
+      <span id="modeLabel">暗色模式</span>
+    </button>
+  </div>
+</header>
+
+<!-- Theme Rail -->
+<nav class="theme-rail" id="themeRail"></nav>
+
+<!-- Main -->
+<main class="main">
+  <!-- App Mockup -->
+  <section class="mockup">
+    <!-- Sidebar -->
+    <aside class="mock-sidebar">
+      <div class="side-title">工作区</div>
+      <div class="side-item active"><span class="dot" style="background:var(--primary)"></span>我的小屋</div>
+      <div class="side-item"><span class="dot" style="background:var(--accent)"></span>前端重构</div>
+      <div class="side-item"><span class="dot" style="background:var(--energy)"></span>数据报告</div>
+      <div class="side-item"><span class="dot" style="background:var(--text-2)"></span>周报草稿</div>
+      <div class="side-spacer"></div>
+      <div class="side-title">能力包</div>
+      <div class="side-item">⌨️ Coding</div>
+      <div class="side-item">🌐 Web 自动化</div>
+      <div class="side-item">📊 图表</div>
+      <div class="side-user">
+        <div class="avatar">Y</div>
+        <div style="font-size:12px;"><b>yuanq</b><br><span style="color:var(--text-2);font-size:11px;">本地 · 安全</span></div>
+      </div>
+    </aside>
+
+    <!-- Chat -->
+    <div class="mock-chat">
+      <div class="chat-header">
+        <h3>帮我重构登录模块</h3>
+        <div class="status-pill"><span class="pulse"></span>Agent 运行中</div>
+      </div>
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="msg-bubble">帮我把登录模块改成 JWT 方案，保持现有接口兼容。</div>
+          <div class="msg-meta">14:32</div>
+        </div>
+        <div class="msg ai">
+          <div class="msg-bubble">好的，我先分析现有的 <b>auth.ts</b> 结构，然后制定迁移方案。</div>
+          <div class="msg-meta">Cottage Agent · 14:32</div>
+        </div>
+        <div class="msg ai">
+          <div class="tool-card">
+            <div class="tool-card-head"><span class="spinner"></span>read_file — src/auth.ts</div>
+            <div class="tool-card-body">
+              <span class="tool-ok">✓ 已完成</span> · 142 行 · 3.2k tokens
+            </div>
+          </div>
+        </div>
+        <div class="msg ai">
+          <div class="thinking">
+            <span class="thinking-dots"><span></span><span></span><span></span></span>
+            正在规划迁移步骤…
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-wrap">
+        <div class="chat-input">
+          <span style="color:var(--text-2);font-size:15px;">✦</span>
+          <input type="text" placeholder="描述你想做的事… (Enter 发送)" />
+          <button class="send-btn">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M1.7 8.7l5.3 5.3V10c4 0 6.3 1.3 7.3 4 .7-4.7-1.6-9.7-7.3-11.3v-1L1.7 7.3z" transform="rotate(-45 8 8)"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <aside class="mock-preview">
+      <div class="preview-title">组件预览</div>
+      <div class="btn-row">
+        <button class="btn btn-primary">运行</button>
+        <button class="btn btn-ghost">预览</button>
+        <button class="btn btn-outline">取消</button>
+        <button class="btn btn-danger">终止</button>
+      </div>
+      <div class="badge-row">
+        <span class="badge badge-success">✓ 构建成功</span>
+        <span class="badge badge-warning">⚠ 2 警告</span>
+        <span class="badge badge-error">✕ 1 错误</span>
+        <span class="badge badge-primary">v2.4.0</span>
+      </div>
+      <div class="code-block">
+<span class="cm">// cottage.config.ts</span>
+<span class="kw">export default</span> {
+  agent: <span class="str">"local-first"</span>,
+  sandbox: <span class="str">"browser"</span>,
+  theme: <span class="str">"cottage"</span>,
+}
+      </div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:4px;">上下文用量 · 68%</div>
+      <div class="progress-track"><div class="progress-fill"></div></div>
+      <div class="alert alert-warn">
+        <span>⚠️</span>
+        <span>API 额度剩余 12%，建议切换到本地模型继续长任务。</span>
+      </div>
+    </aside>
+  </section>
+
+  <!-- Token Panel -->
+  <aside class="token-panel">
+    <div class="panel-card">
+      <h2>🎨 色彩令牌 <span style="font-size:11px;font-weight:400;color:var(--text-2);font-family:sans-serif;">点击复制</span></h2>
+      <div class="token-grid" id="tokenGrid"></div>
+      <div class="gradient-strip"></div>
+    </div>
+    <div class="panel-card quote-card">
+      <h2>🪵 品牌定位</h2>
+      <p class="quote">"A place where ideas become reality."</p>
+      <p class="quote-sub">Cottage 不强调「智能」，而强调「创造」。它是你的 AI 工作室——温暖、安静、可以长时间专注工作的地方。</p>
+      <div class="keyword-tags">
+        <span class="kw-tag">温暖 Warm</span>
+        <span class="kw-tag">安静 Quiet</span>
+        <span class="kw-tag">创造 Craft</span>
+        <span class="kw-tag">专注 Focus</span>
+        <span class="kw-tag">工作室 Studio</span>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="copied-toast" id="toast">已复制 ✓</div>
+
+<script>
+const THEMES = [
+  { id:'moss',   name:'雾麻 · 苔绿', sub:'当前生产配色', dots:['#607B66','#C5A76E','#F7F7F4'] },
+  { id:'forest', name:'森林绿 · 暖金', sub:'首选方案', dots:['#3E6B48','#D6B56E','#F8F7F3'] },
+  { id:'ember',  name:'森林绿 · 暖橙', sub:'AI 活力感', dots:['#3E6B48','#D08B39','#F8F7F3'] },
+  { id:'lake',   name:'湖畔青 · 原木', sub:'湖畔小屋', dots:['#2B6E68','#C9A24B','#F6F8F7'] },
+  { id:'indigo', name:'靛蓝工坊 · 工装', sub:'匠人丹宁', dots:['#3F5180','#C69A4E','#F7F7F5'] },
+  { id:'pine',   name:'深墨绿 · 黄铜', sub:'专业工具', dots:['#264033','#B98A52','#FBFAF6'] },
+  { id:'sage',   name:'鼠尾草 · 北欧', sub:'MUJI 质感', dots:['#6F8F72','#B8C7B0','#F5F7F2'] },
+  { id:'olive',  name:'橄榄工装 · 实用', sub:'工坊实用', dots:['#5D6240','#C4944F','#F8F7F2'] },
+  { id:'wood',   name:'暖木色 · 工坊', sub:'木屋与壁炉', dots:['#9A6B43','#D9B382','#F7F1E8'] },
+  { id:'plum',   name:'暮梅紫 · 暮色', sub:'优雅创作者', dots:['#66405E','#C49A5C','#F9F7F6'] },
+];
+
+const TOKEN_KEYS = [
+  ['--primary','Primary'],['--primary-hover','Hover'],['--primary-light','Light'],
+  ['--accent','Accent'],['--bg','Background'],['--surface','Surface'],
+  ['--text','Text'],['--text-2','Text 2'],['--border','Border'],
+  ['--success','Success'],['--warning','Warning'],['--error','Error'],
+];
+
+const rail = document.getElementById('themeRail');
+THEMES.forEach(t => {
+  const chip = document.createElement('div');
+  chip.className = 'theme-chip' + (t.id === 'moss' ? ' active' : '');
+  chip.dataset.theme = t.id;
+  chip.innerHTML = `
+    <div class="chip-dots">${t.dots.map(c=>`<span style="background:${c}"></span>`).join('')}</div>
+    <div><div class="chip-label">${t.name}</div><div class="chip-sub">${t.sub}</div></div>`;
+  chip.onclick = () => setTheme(t.id);
+  rail.appendChild(chip);
+});
+
+function setTheme(id) {
+  document.documentElement.dataset.theme = id;
+  document.querySelectorAll('.theme-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.theme === id));
+  renderTokens();
+}
+
+function toggleMode() {
+  const html = document.documentElement;
+  const next = html.dataset.mode === 'light' ? 'dark' : 'light';
+  html.dataset.mode = next;
+  document.getElementById('modeIcon').textContent = next === 'light' ? '🌙' : '☀️';
+  document.getElementById('modeLabel').textContent = next === 'light' ? '暗色模式' : '亮色模式';
+  setTimeout(renderTokens, 60);
+}
+
+function renderTokens() {
+  const grid = document.getElementById('tokenGrid');
+  const style = getComputedStyle(document.documentElement);
+  grid.innerHTML = TOKEN_KEYS.map(([key, label]) => {
+    const val = style.getPropertyValue(key).trim();
+    return `<div class="token-item" onclick="copyHex('${val}')" title="点击复制 ${val}">
+      <div class="token-swatch" style="background:var(${key})"></div>
+      <div class="token-info"><div class="token-name">${label}</div><div class="token-hex">${val}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function copyHex(hex) {
+  navigator.clipboard.writeText(hex).then(() => {
+    const toast = document.getElementById('toast');
+    toast.textContent = `已复制 ${hex} ✓`;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1400);
+  });
+}
+
+renderTokens();
+</script>
+</body>
+</html>

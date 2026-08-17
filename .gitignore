@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build
+dist/
+dist-ssr/
+*.local
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite
+.vite/
+
+# Test / coverage
+coverage/
+
+# Misc
+.cache/
+.temp/
+tmp/
+
+# Cottage runtime data (workspace-local: history, index, traces, packs)
+.cottage/
+
+# Qoder runtime data (workspace-local: history, index, traces, packs)
+.qoder/
+
+# Local editor and package-manager caches
+.cursor/
+.pnpm-store/
+
+# Reference code: third-party projects downloaded for study only.
+# Must never be committed or treated as part of this codebase.
+/opencode/
+/opencode-*/
+/reference/

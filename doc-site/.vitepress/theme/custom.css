@@ -1,0 +1,170 @@
+:root {
+  /* 对齐 frontend/src/index.css — Mist Linen & Moss */
+  --cottage-primary: #607b66;
+  --cottage-accent: #607b66;
+  --cottage-accent-hover: #4c6452;
+  --cottage-accent-muted: #82987f;
+  --cottage-accent-bg: #f0f4f1;
+  --cottage-accent-bg-strong: #e5ece7;
+  --cottage-accent-border: rgba(96, 123, 102, 0.22);
+  --cottage-gold: #c5a76e;
+  --cottage-energy: #c97a3d;
+  --cottage-ink: #252925;
+  --cottage-ink-soft: #4c514d;
+  --cottage-muted: #747a75;
+  --cottage-bg: #f7f7f4;
+  --cottage-surface: #ffffff;
+
+  --oc-accent: var(--cottage-accent);
+  --oc-line: color-mix(in srgb, var(--oc-accent) 18%, var(--vp-c-divider));
+  --oc-soft: var(--cottage-accent-bg);
+  /* 与产品一致：系统无衬线，不用宋体 / 衬线装饰体 */
+  --oc-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  --oc-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'Segoe UI Mono', monospace;
+
+  --vp-font-family-base: var(--oc-sans);
+  --vp-font-family-mono: var(--oc-mono);
+
+  --vp-c-brand-1: #607b66;
+  --vp-c-brand-2: #4c6452;
+  --vp-c-brand-3: #82987f;
+  --vp-c-brand-soft: rgba(96, 123, 102, 0.14);
+  --vp-button-brand-bg: #607b66;
+  --vp-button-brand-hover-bg: #4c6452;
+  --vp-button-brand-active-bg: #3f5444;
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    #607b66 10%,
+    #82987f 55%,
+    #c5a76e 100%
+  );
+}
+
+.dark {
+  --cottage-primary: #849e8b;
+  --cottage-accent: #8ba896;
+  --cottage-accent-hover: #9bb5a1;
+  --cottage-accent-muted: #7a8c7d;
+  --cottage-accent-bg: #1a211c;
+  --cottage-accent-bg-strong: #222a24;
+  --cottage-accent-border: rgba(132, 158, 139, 0.26);
+  --cottage-gold: #c4aa72;
+  --cottage-energy: #c9854e;
+  --cottage-ink: #d4d7d3;
+  --cottage-ink-soft: #a3a8a3;
+  --cottage-muted: #7a807a;
+  --cottage-bg: #101210;
+  --cottage-surface: #171917;
+
+  --oc-accent: var(--cottage-accent);
+  --oc-soft: var(--cottage-accent-bg);
+  --vp-c-brand-1: #8ba896;
+  --vp-c-brand-2: #9bb5a1;
+  --vp-c-brand-3: #849e8b;
+  --vp-c-brand-soft: rgba(139, 168, 150, 0.16);
+  --vp-button-brand-bg: #607b66;
+  --vp-button-brand-hover-bg: #4c6452;
+  --vp-button-brand-active-bg: #3f5444;
+}
+
+.vp-doc h1 {
+  font-family: var(--oc-sans);
+  letter-spacing: -0.01em;
+  font-weight: 650;
+}
+
+.vp-doc h2 {
+  font-family: var(--oc-sans);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* 示例说法块 */
+.oc-prompt {
+  margin: 1rem 0 1.5rem;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--oc-soft);
+  border: 1px solid var(--oc-line);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--vp-c-text-1);
+}
+
+.oc-prompt__label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--oc-accent);
+  margin-bottom: 6px;
+}
+
+/* 核心指南采用文章式节奏：场景开场、过程停顿、自然的下一步。
+   三种面板同一视觉族：苔绿软底 + 圆角，靠左边线 / 细边框 / 顶部分线区分位置。 */
+.oc-story-lead {
+  margin: 1.3rem 0 2.25rem;
+  padding: 1rem 1.25rem 1.1rem;
+  border-left: 3px solid var(--oc-accent);
+  border-radius: 10px;
+  background: var(--oc-soft);
+}
+
+/* 需带 .vp-doc 前缀：否则标签 margin 会被 VitePress 的 .vp-doc p 覆盖，
+   面板顶部多出空白；中文标签不加宽字距。 */
+.vp-doc .oc-story-lead__label,
+.vp-doc .oc-story-beat__title,
+.vp-doc .oc-next-reading__label {
+  margin: 0 0 0.5rem;
+  color: var(--oc-accent);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.oc-story-lead__body > :first-child,
+.oc-story-beat__body > :first-child { margin-top: 0; }
+.oc-story-lead__body > :last-child,
+.oc-story-beat__body > :last-child { margin-bottom: 0; }
+.oc-story-lead__body { max-width: 42rem; color: var(--vp-c-text-1); font-size: 1.06rem; line-height: 1.85; }
+
+.oc-story-beat {
+  margin: 1.7rem 0;
+  padding: 0.9rem 1.05rem;
+  border: 1px solid var(--oc-line);
+  border-radius: 10px;
+  background: var(--oc-soft);
+}
+
+.oc-story-beat__body { color: var(--vp-c-text-2); font-size: 0.95rem; line-height: 1.72; }
+
+.oc-next-reading {
+  margin: 2.5rem 0 0;
+  padding: 1.05rem 1.25rem 1.15rem;
+  border-top: 1px solid var(--oc-line);
+  border-radius: 0 0 10px 10px;
+  background: color-mix(in srgb, var(--oc-soft) 55%, transparent);
+}
+
+.oc-next-reading__body { margin: 0 0 0.7rem; color: var(--vp-c-text-2); line-height: 1.65; }
+.oc-next-reading__link { color: var(--oc-accent); font-weight: 700; text-decoration: none; }
+.oc-next-reading__link:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .oc-story-lead { margin-bottom: 1.8rem; padding: 1rem; }
+  .oc-story-lead__body { font-size: 1rem; }
+  .oc-next-reading { padding: 1rem; }
+}
+
+/* 首页去掉默认 VP 内容区上下多余空白 */
+.VPPage:has(.oc-home) .container {
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+.VPPage:has(.oc-home) {
+  padding-bottom: 0;
+}

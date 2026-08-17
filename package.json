@@ -1,0 +1,21 @@
+{
+  "name": "open-cottage-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Root workspace scripts for Open Cottage",
+  "scripts": {
+    "dev": "cd frontend && pnpm dev",
+    "dev:service": "cd cottage-service-go && go run .",
+    "dev:proxy": "cd llm-proxy && npm start",
+    "dev:docs": "cd doc-site && pnpm run dev",
+    "install:frontend": "cd frontend && pnpm install",
+    "install:proxy": "cd llm-proxy && npm install",
+    "install:docs": "cd doc-site && pnpm install",
+    "install:all": "pnpm run install:frontend & pnpm run install:proxy & pnpm run install:docs",
+    "build": "cd frontend && pnpm build",
+    "build:public": "cd frontend && pnpm build:public",
+    "build:full": "cd frontend && pnpm build:full",
+    "build:docs": "cd doc-site && pnpm run build"
+  }
+}

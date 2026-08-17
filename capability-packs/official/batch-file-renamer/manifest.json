@@ -1,0 +1,36 @@
+{
+  "schema": "cottage-capability-pack-v1",
+  "id": "official.batch-file-renamer",
+  "name": "官方工具包：批量文件重命名",
+  "version": "1.0.0",
+  "description": "按前缀、序号、日期或统一命名规则批量重命名文件，强制先预览映射并确认。",
+  "capabilities": [
+    {
+      "id": "official.batch-file-renamer.preview",
+      "domain": "core",
+      "tools": ["listFiles", "statFile", "exists"],
+      "inputTypes": ["text", "binary"],
+      "outputTypes": ["text", "json"],
+      "riskLevel": "read",
+      "plannerHints": "扫描待重命名文件并生成原名到新名的预览映射。"
+    },
+    {
+      "id": "official.batch-file-renamer.apply",
+      "domain": "core",
+      "tools": ["rename", "move"],
+      "inputTypes": ["text", "binary", "json"],
+      "outputTypes": ["text", "json"],
+      "riskLevel": "destructive",
+      "requiresApproval": true,
+      "plannerHints": "用户确认映射后执行批量文件重命名；不得覆盖现有目标。"
+    }
+  ],
+  "promptOverlay": "仅当用户要求批量重命名文件时使用本包。第一阶段只扫描目标目录并生成完整的“原路径 → 新路径”表格，说明排序依据、编号位数、扩展名处理和冲突情况；此阶段禁止调用 rename 或 move。必须获得用户对该映射的明确确认后才能执行。默认保留扩展名、保持文件所在目录、不覆盖已存在目标，也不处理隐藏目录、依赖目录或版本控制元数据。执行后逐项核对结果并报告成功、跳过与失败项。",
+  "skills": [
+    {
+      "file": "rename-rules.md",
+      "content": "---\nname: batch-file-rename-rules\ndescription: 批量重命名的预览、冲突检查和执行规则\ntags: [files, rename, batch]\n---\n\n# 批量文件重命名\n\n## 可直接使用的请求\n\n- `把 assets 里的图片按 product-001、product-002 重命名，按原文件名排序，先预览`\n- `把 reports/ 下的文件统一加 2026-08- 前缀，只处理 PDF`\n- `把这些文件名里的空格替换为连字符，保持其他部分不变，先列映射`\n\n## 必须遵守\n\n1. 明确目标目录、匹配范围、排序方式、命名模板和编号起点。\n2. 生成完整映射后检查重复目标、现有目标和大小写冲突。\n3. 用户明确确认前不得执行任何重命名。\n4. 默认保留扩展名，不移动目录，不覆盖目标。\n5. 执行后输出成功、跳过、失败三类清单。\n\n若重命名可能破坏 Markdown 链接或代码引用，应在确认前主动提醒用户。\n"
+    }
+  ],
+  "suggestedTools": []
+}

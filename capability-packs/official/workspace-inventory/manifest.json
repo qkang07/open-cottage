@@ -1,0 +1,35 @@
+{
+  "schema": "cottage-capability-pack-v1",
+  "id": "official.workspace-inventory",
+  "name": "官方工具包：工作区盘点",
+  "version": "1.0.0",
+  "description": "扫描目录结构、入口文档与常见配置，生成项目概况、重点文件和风险提示清单。",
+  "capabilities": [
+    {
+      "id": "official.workspace-inventory.scan",
+      "domain": "core",
+      "tools": ["listFiles", "listDirectory", "statFile", "getDirectorySize", "readFile", "searchFiles"],
+      "inputTypes": ["text", "code", "json", "binary"],
+      "outputTypes": ["text", "json"],
+      "riskLevel": "read",
+      "plannerHints": "盘点工作区、了解陌生项目、统计目录、找入口文件和风险文件。"
+    },
+    {
+      "id": "official.workspace-inventory.report",
+      "domain": "core",
+      "tools": ["writeFile"],
+      "inputTypes": ["text", "json"],
+      "outputTypes": ["text"],
+      "riskLevel": "write",
+      "plannerHints": "把工作区盘点结果保存为 Markdown 报告。"
+    }
+  ],
+  "promptOverlay": "仅当用户要求盘点、梳理、介绍或接手工作区时使用本包。先查看顶层结构和数量级，再读取 README、包管理配置、环境变量示例、入口脚本和与用户目标直接相关的少量文件；不要递归通读依赖目录、构建产物或隐藏运行数据。默认只创建 WORKSPACE-INVENTORY.md，不修改其他文件。报告必须区分已确认事实、合理推断和未验证事项，并列出建议首先阅读的文件。不要执行构建或测试，除非用户明确要求。",
+  "skills": [
+    {
+      "file": "inventory-report.md",
+      "content": "---\nname: workspace-inventory-report\ndescription: 工作区盘点的范围控制和报告模板\ntags: [workspace, audit, onboarding]\n---\n\n# 工作区盘点\n\n## 可直接使用的请求\n\n- `盘点当前工作区，生成 WORKSPACE-INVENTORY.md，不要修改其他文件`\n- `只盘点 frontend/，告诉我入口、依赖、启动方式和高风险目录`\n- `找出占空间最大的目录和疑似可清理项，但不要删除任何东西`\n\n## 报告结构\n\n1. 工作区用途与当前状态\n2. 顶层目录职责\n3. 技术栈、入口与已验证命令\n4. 配置文件和环境变量\n5. 重点阅读路径\n6. 风险、疑点和未验证事项\n7. 建议的下一步\n\n## 边界\n\n默认忽略 `.git`、`node_modules`、构建产物和缓存目录。任何“可清理项”都只能作为建议列出，未经用户确认不得删除或移动。\n"
+    }
+  ],
+  "suggestedTools": []
+}

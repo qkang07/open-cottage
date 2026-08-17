@@ -1,0 +1,716 @@
+:root {
+ /*
+   * Cottage design tokens — Mist Linen & Moss palette
+   * 品牌色：呼吸苔绿 #607B66 · 亚麻暖金 #C5A76E · 琥珀警示 #C97A3D
+   *
+   * 安静设计原则（Quiet Design）：
+   * - 界面 99% 保持灰白中性，苔绿仅出现在 Hover / Selection / Current Step / Running；
+   *   当绿色出现时，用户自然知道"这里值得关注"。
+   * - Gold 少用：仅 Logo / Workspace / Premium / Folder / Badge / Memory 等品牌装饰，
+   *   不用于按钮、Tab、选中态，避免商务感。
+   * - 语义色控制在 5 色：Neutral / Primary / Success / Warning / Danger，
+   *   其余层次用透明度区分。工具软件颜色越少越高级。
+   */
+
+  /* Text */
+  --cottage-ink: #252925;
+  --cottage-ink-soft: #4c514d;
+  --cottage-muted: #747a75;
+  /* 折叠面板等内容区次级正文：比 muted 再浅一档 */
+  --cottage-ink-muted: #959b96;
+
+  /* Surfaces — 雾白与浅亚麻中性色，避免大面积泛绿 */
+  --cottage-bg: #f7f7f4;
+  --cottage-surface: #ffffff;
+  --cottage-surface-sunken: #f1f1ed;
+
+  /* Borders — 弱化线条：发丝线更浅，结构性分隔用 subtle 档 */
+  --cottage-border: #e7e8e3;
+  --cottage-border-strong: #d3d6ce;
+  --cottage-border-subtle: #efefe9;
+
+  /* Interactive — breathing moss (+10% luminance over button green), reserved for actions and selection */
+  --cottage-accent-bg: #f0f4f1;
+  --cottage-accent-bg-strong: #e5ece7;
+  --cottage-accent-border: rgba(96, 123, 102, 0.22);
+  --cottage-primary: #607b66;
+  --cottage-accent: #607b66;
+  --cottage-accent-hover: #4c6452;
+  --cottage-accent-muted: #82987f;
+
+  /* Brand secondary — warm gold (brand ornament only) & energy */
+  --cottage-gold: #c5a76e;
+  --cottage-gold-bg: rgba(197, 167, 110, 0.13);
+  --cottage-energy: #c97a3d;
+
+  --cottage-success: #4f8a5b;
+  --cottage-warning: #c97a3d;
+  --cottage-danger: #c75b5b;
+  --cottage-warning-bg: rgba(201, 122, 61, 0.10);
+  --cottage-danger-bg: rgba(199, 91, 91, 0.10);
+  --cottage-scrollbar-thumb: rgba(76, 81, 77, 0.26);
+  --cottage-scrollbar-thumb-hover: rgba(76, 81, 77, 0.40);
+  --cottage-scrollbar-track: transparent;
+
+  /* Risk semantics — for tool call coloring (mirrors CapabilityRiskLevel) */
+  --cottage-risk-read: var(--cottage-muted);
+  --cottage-risk-read-bg: transparent;
+  --cottage-risk-write: var(--cottage-accent);
+  --cottage-risk-write-bg: var(--cottage-accent-bg);
+  --cottage-risk-external: var(--cottage-warning);
+  --cottage-risk-external-bg: rgba(201, 122, 61, 0.10);
+  --cottage-risk-destructive: var(--cottage-danger);
+  --cottage-risk-destructive-bg: rgba(199, 91, 91, 0.10);
+
+  /* Status semantics — task / step / orchestration state indicators */
+  --cottage-status-done: var(--cottage-success);
+  --cottage-status-done-bg: rgba(79, 138, 91, 0.12);
+  --cottage-status-doing: var(--cottage-ink-soft);
+  --cottage-status-doing-bg: var(--cottage-surface-sunken);
+  --cottage-status-pending: var(--cottage-border-strong);
+  --cottage-status-pending-bg: transparent;
+  --cottage-status-failed: var(--cottage-danger);
+  --cottage-status-failed-bg: rgba(199, 91, 91, 0.10);
+  --cottage-text-strike: var(--cottage-muted);
+
+  /* Code / preview surface */
+  --cottage-preview-bg: var(--cottage-surface);
+
+  /* Diff viewer */
+  --cottage-diff-add: var(--cottage-success);
+  --cottage-diff-add-bg: rgba(79, 138, 91, 0.18);
+  --cottage-diff-add-seg: rgba(79, 138, 91, 0.32);
+  --cottage-diff-del: var(--cottage-danger);
+  --cottage-diff-del-bg: var(--cottage-danger-bg);
+  --cottage-diff-del-seg: rgba(199, 91, 91, 0.32);
+
+  /* Context usage ring levels */
+  --cottage-ring-medium: var(--cottage-warning);
+  --cottage-ring-high: var(--cottage-danger);
+
+  /* File explorer type icon colors */
+  --cottage-icon-folder: var(--cottage-gold);
+  --cottage-icon-image: var(--cottage-success);
+  --cottage-icon-video: #722ed1;
+  --cottage-icon-spreadsheet: #389e0d;
+  --cottage-icon-presentation: #d4380d;
+  --cottage-icon-pdf: var(--cottage-danger);
+  --cottage-icon-archive: var(--cottage-muted);
+
+  /* Drag-drop target highlight */
+  --cottage-drop-target: var(--cottage-accent);
+  --cottage-drop-target-bg: rgba(96, 123, 102, 0.10);
+
+  /* Timeline event type colors — 5-color system: neutral/positive/info/warning/danger */
+  --cottage-tl-neutral: #4a5568;
+  --cottage-tl-positive: #47755a;
+  --cottage-tl-info: #2c4a6e;
+  --cottage-tl-warning: #96622e;
+  --cottage-tl-danger: #a03048;
+  --cottage-tl-muted: var(--cottage-muted);
+
+  /* Spacing — 4px grid */
+  --cottage-space-xs: 4px;
+  --cottage-space-sm: 8px;
+  --cottage-space-md: 12px;
+  --cottage-space-lg: 16px;
+  --cottage-space-xl: 24px;
+
+  /* Radius — unified control chrome (matches .sidebar-layout-toggle-btn) */
+  --cottage-radius-control: 7px;
+  --cottage-radius: var(--cottage-radius-control);
+  --cottage-radius-sm: var(--cottage-radius-control);
+  --cottage-radius-md: var(--cottage-radius-control);
+  --cottage-radius-lg: var(--cottage-radius-control);
+  --cottage-radius-panel: var(--cottage-radius-control);
+
+  /* Typography — naive font scale */
+  --cottage-font-xs: 12px;
+  --cottage-font-sm: 13px;
+  --cottage-font-md: 14px;
+  --cottage-font-lg: 15px;
+  --cottage-font-xl: 16px;
+  --cottage-line-height: 1.6;
+  --cottage-line-height-tight: 1.5;
+
+  /* Layout */
+  --cottage-panel-header-height: 46px;
+  --cottage-control-height: 28px;
+  --cottage-control-inner-height: calc(var(--cottage-control-height) - 8px);
+  --cottage-panel-padding-x: var(--cottage-space-sm);
+  --cottage-panel-padding-y: var(--cottage-space-sm);
+  --cottage-panel-chrome-padding: var(--cottage-space-sm);
+  --cottage-settings-padding-x: 28px;
+  --cottage-settings-form-max-width: 640px;
+  /* 表单靠左；过宽时左边距可略增，但不超过此值 */
+  --cottage-settings-form-margin-left-max: 48px;
+  /* 聊天历史 + 输入区内容列最大宽度（与设置列表区接近） */
+  --cottage-chat-content-max-width: 880px;
+
+  /* Shadows — 柔和多层光影，带一点光感抬升（墨色调，不用纯黑） */
+  --cottage-shadow-sm: 0 1px 2px rgba(31, 35, 41, 0.04),
+    0 2px 6px rgba(31, 35, 41, 0.03);
+  --cottage-shadow-card: 0 1px 2px rgba(31, 35, 41, 0.04),
+    0 3px 8px rgba(31, 35, 41, 0.04),
+    0 10px 24px rgba(31, 35, 41, 0.04);
+  --cottage-shadow-card-hover: 0 2px 4px rgba(31, 35, 41, 0.05),
+    0 8px 24px rgba(31, 35, 41, 0.07);
+  --cottage-shadow-md: 0 2px 4px rgba(31, 35, 41, 0.04),
+    0 8px 16px rgba(31, 35, 41, 0.06),
+    0 18px 36px rgba(31, 35, 41, 0.05);
+  --cottage-shadow-lg: 0 4px 8px rgba(31, 35, 41, 0.05),
+    0 16px 40px rgba(31, 35, 41, 0.1);
+  /* 大面板（如主栏）的环境抬升阴影 */
+  --cottage-shadow-panel: 0 0 1px rgba(31, 35, 41, 0.07),
+    0 6px 24px rgba(31, 35, 41, 0.05);
+
+  /* Light — 顶部内侧高光与页面环境微光（克制的暖金 + 苔绿氛围） */
+  --cottage-highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --cottage-primary-btn-shadow: 0 1px 2px rgba(76, 100, 82, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --cottage-bg-glow:
+    radial-gradient(
+      1100px 420px at 22% -140px,
+      rgba(197, 167, 110, 0.055),
+      transparent 70%
+    ),
+    radial-gradient(
+      900px 380px at 86% -120px,
+      rgba(96, 123, 102, 0.05),
+      transparent 70%
+    );
+
+  font-family:
+    v-sans,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'PingFang SC',
+    'Helvetica Neue',
+    sans-serif;
+  font-size: var(--cottage-font-md);
+  line-height: var(--cottage-line-height);
+  font-weight: 400;
+  color: var(--cottage-ink);
+  background: var(--cottage-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Element Plus — breathing moss primary scale */
+  --el-color-primary: var(--cottage-primary);
+  --el-color-primary-light-3: #90a295;
+  --el-color-primary-light-5: #b0bdb3;
+  --el-color-primary-light-7: #cfd8d1;
+  --el-color-primary-light-8: #dfe5e0;
+  --el-color-primary-light-9: #eff2f0;
+  --el-color-primary-dark-2: #4d6252;
+
+  --el-color-success: var(--cottage-success);
+  --el-color-success-light-3: #86ad89;
+  --el-color-success-light-5: #a7c5ad;
+  --el-color-success-light-7: #cadcce;
+  --el-color-success-light-8: #dce8de;
+  --el-color-success-light-9: #edf3ef;
+  --el-color-success-dark-2: #3f6e49;
+
+  --el-color-warning: var(--cottage-warning);
+  --el-color-warning-light-3: #d9a373;
+  --el-color-warning-light-5: #e5bc96;
+  --el-color-warning-light-7: #f0d6c0;
+  --el-color-warning-light-8: #f5e4d5;
+  --el-color-warning-light-9: #faf1e9;
+  --el-color-warning-dark-2: #a16231;
+
+  --el-color-danger: var(--cottage-danger);
+  --el-color-danger-light-3: #d88c8c;
+  --el-color-danger-light-5: #e5adad;
+  --el-color-danger-light-7: #f0cece;
+  --el-color-danger-light-8: #f5dede;
+  --el-color-danger-light-9: #faeeee;
+  --el-color-danger-dark-2: #9f4949;
+
+  --el-border-color: var(--cottage-border);
+  --el-border-color-light: #e6e7e2;
+  --el-border-color-lighter: #ecece8;
+  --el-border-color-extra-light: #f4f4f1;
+
+  --el-fill-color-blank: var(--cottage-surface);
+  --el-fill-color-light: var(--cottage-surface-sunken);
+  --el-fill-color-lighter: var(--cottage-surface-sunken);
+  --el-fill-color-extra-light: #f6f6f3;
+
+  --el-text-color-primary: var(--cottage-ink);
+  --el-text-color-regular: var(--cottage-ink-soft);
+  --el-text-color-secondary: var(--cottage-muted);
+  --el-text-color-placeholder: #949daa;
+
+  --el-bg-color: var(--cottage-surface);
+  --el-bg-color-page: var(--cottage-bg);
+  --el-bg-color-overlay: var(--cottage-surface);
+
+  --el-box-shadow: var(--cottage-shadow-md);
+  --el-box-shadow-light: var(--cottage-shadow-sm);
+  --el-box-shadow-lighter: var(--cottage-shadow-sm);
+  --el-box-shadow-dark: var(--cottage-shadow-md);
+
+  --el-border-radius-base: var(--cottage-radius-control);
+  --el-border-radius-small: var(--cottage-radius-control);
+  --el-card-border-radius: var(--cottage-radius-control);
+  --el-font-size-base: var(--cottage-font-md);
+  --el-font-size-small: var(--cottage-font-sm);
+  --el-font-size-large: var(--cottage-font-lg);
+
+  /* Between EP small (24px) and default (32px) — inputs, selects, etc. */
+  --el-component-size: var(--cottage-control-height);
+}
+
+/*
+ * Dark theme — deep charcoal surfaces + solid moss CTAs.
+ * Surfaces stay dark; text / primary / borders carry contrast (not pale fills).
+ * Applied when the theme store toggles `html.dark`. Placed after Element Plus
+ * dark css-vars import (see main.ts) so these remappings win.
+ */
+html.dark {
+  color-scheme: dark;
+
+  /* Text — bright enough on deep charcoal for readable contrast */
+  --cottage-ink: #e8eae7;
+  --cottage-ink-soft: #b9beb9;
+  --cottage-muted: #8e948e;
+  /* 折叠面板等内容区次级正文：比 muted 再淡一档 */
+  --cottage-ink-muted: #6f756f;
+
+  /* Surfaces — deep charcoal (keep dim; contrast comes from ink / primary) */
+  --cottage-bg: #101210;
+  --cottage-surface: #171917;
+  --cottage-surface-sunken: #0b0d0b;
+
+  /* Borders — 弱化线条：层级主要靠表面色差，发丝线退后 */
+  --cottage-border: #323832;
+  --cottage-border-strong: #414841;
+  --cottage-border-subtle: #232823;
+
+  /* Interactive — solid moss for fills (white label); lighter accent for text-on-dark */
+  --cottage-accent-bg: #1a211c;
+  --cottage-accent-bg-strong: #243028;
+  --cottage-accent-border: rgba(143, 173, 150, 0.36);
+  --cottage-primary: #607b66;
+  --cottage-accent: #8fad96;
+  --cottage-accent-hover: #73917a;
+  --cottage-accent-muted: #7d9784;
+
+  /* Brand secondary — warm gold (brand ornament only) & energy */
+  --cottage-gold: #d0b67e;
+  --cottage-gold-bg: rgba(208, 182, 126, 0.14);
+  --cottage-energy: #d4965c;
+
+  --cottage-success: #7fad8a;
+  --cottage-warning: #d4965c;
+  --cottage-danger: #d48484;
+  --cottage-warning-bg: rgba(212, 150, 92, 0.16);
+  --cottage-danger-bg: rgba(212, 132, 132, 0.16);
+  --cottage-scrollbar-thumb: rgba(142, 148, 142, 0.32);
+  --cottage-scrollbar-thumb-hover: rgba(142, 148, 142, 0.48);
+  --cottage-scrollbar-track: transparent;
+
+  /* Risk semantics — dark */
+  --cottage-risk-read: var(--cottage-muted);
+  --cottage-risk-read-bg: transparent;
+  --cottage-risk-write: var(--cottage-accent);
+  --cottage-risk-write-bg: var(--cottage-accent-bg);
+  --cottage-risk-external: var(--cottage-warning);
+  --cottage-risk-external-bg: rgba(212, 150, 92, 0.16);
+  --cottage-risk-destructive: var(--cottage-danger);
+  --cottage-risk-destructive-bg: rgba(212, 132, 132, 0.16);
+
+  /* Status semantics — dark */
+  --cottage-status-done: var(--cottage-success);
+  --cottage-status-done-bg: rgba(127, 173, 138, 0.16);
+  --cottage-status-doing: var(--cottage-ink-soft);
+  --cottage-status-doing-bg: var(--cottage-surface-sunken);
+  --cottage-status-pending: var(--cottage-border-strong);
+  --cottage-status-pending-bg: transparent;
+  --cottage-status-failed: var(--cottage-danger);
+  --cottage-status-failed-bg: rgba(212, 132, 132, 0.16);
+  --cottage-text-strike: var(--cottage-muted);
+
+  /* Code / preview surface — dark */
+  --cottage-preview-bg: var(--cottage-surface);
+
+  /* Diff viewer — dark */
+  --cottage-diff-add: var(--cottage-success);
+  --cottage-diff-add-bg: rgba(127, 173, 138, 0.22);
+  --cottage-diff-add-seg: rgba(127, 173, 138, 0.42);
+  --cottage-diff-del: var(--cottage-danger);
+  --cottage-diff-del-bg: var(--cottage-danger-bg);
+  --cottage-diff-del-seg: rgba(212, 132, 132, 0.45);
+
+  /* Context usage ring levels — dark (inherits warning/danger) */
+
+  /* File explorer type icon colors — dark */
+  --cottage-icon-folder: var(--cottage-gold);
+  --cottage-icon-image: var(--cottage-success);
+  --cottage-icon-video: #b39aef;
+  --cottage-icon-spreadsheet: #7dce4a;
+  --cottage-icon-presentation: #ff8a5c;
+  --cottage-icon-pdf: var(--cottage-danger);
+  --cottage-icon-archive: var(--cottage-muted);
+
+  /* Drag-drop target highlight — dark */
+  --cottage-drop-target: var(--cottage-accent);
+  --cottage-drop-target-bg: rgba(143, 173, 150, 0.16);
+
+  /* Timeline event type colors — dark (5-color system) */
+  --cottage-tl-neutral: #8b9bb4;
+  --cottage-tl-positive: #7fad8a;
+  --cottage-tl-info: #7aabd4;
+  --cottage-tl-warning: #d4965c;
+  --cottage-tl-danger: #d48484;
+  --cottage-tl-muted: var(--cottage-muted);
+
+  /* Shadows — dark 下加深，维持柔和多层光影 */
+  --cottage-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32),
+    0 2px 6px rgba(0, 0, 0, 0.24);
+  --cottage-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32),
+    0 3px 8px rgba(0, 0, 0, 0.28),
+    0 10px 24px rgba(0, 0, 0, 0.24);
+  --cottage-shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.36),
+    0 8px 24px rgba(0, 0, 0, 0.34);
+  --cottage-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.32),
+    0 8px 16px rgba(0, 0, 0, 0.3),
+    0 18px 36px rgba(0, 0, 0, 0.28);
+  --cottage-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.36),
+    0 16px 40px rgba(0, 0, 0, 0.42);
+  --cottage-shadow-panel: 0 0 1px rgba(0, 0, 0, 0.5),
+    0 6px 24px rgba(0, 0, 0, 0.3);
+
+  /* Light — dark 下的微光：更弱的高光与环境氛围 */
+  --cottage-highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --cottage-primary-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --cottage-bg-glow:
+    radial-gradient(
+      1100px 420px at 22% -140px,
+      rgba(208, 182, 126, 0.05),
+      transparent 70%
+    ),
+    radial-gradient(
+      900px 380px at 86% -120px,
+      rgba(143, 173, 150, 0.045),
+      transparent 70%
+    );
+
+  background: var(--cottage-bg);
+  color: var(--cottage-ink);
+
+  /* Element Plus — solid primary fill; light-* stay dark-tinted soft fills */
+  --el-color-primary: var(--cottage-primary);
+  --el-color-primary-light-3: #8fa696;
+  --el-color-primary-light-5: #738976;
+  --el-color-primary-light-7: #3f4c42;
+  --el-color-primary-light-8: #323a34;
+  --el-color-primary-light-9: #242b25;
+  --el-color-primary-dark-2: #4c6452;
+
+  --el-color-success: var(--cottage-success);
+
+  --el-color-warning: var(--cottage-warning);
+  --el-color-warning-light-3: #d4a574;
+  --el-color-warning-light-5: #8a6840;
+  --el-color-warning-light-7: #4a3a28;
+  --el-color-warning-light-8: #3a2e22;
+  --el-color-warning-light-9: #2a221a;
+  --el-color-warning-dark-2: #b88230;
+
+  --el-color-danger: var(--cottage-danger);
+  --el-color-danger-light-3: #d9a0a0;
+  --el-color-danger-light-5: #8a5555;
+  --el-color-danger-light-7: #4a3030;
+  --el-color-danger-light-8: #3a2626;
+  --el-color-danger-light-9: #2a1c1c;
+  --el-color-danger-dark-2: #b86868;
+
+  --el-border-color: var(--cottage-border);
+  --el-border-color-light: #434a43;
+  --el-border-color-lighter: #353b35;
+  --el-border-color-extra-light: #282e28;
+
+  --el-fill-color-blank: var(--cottage-surface);
+  --el-fill-color-light: var(--cottage-surface-sunken);
+  --el-fill-color-lighter: var(--cottage-surface-sunken);
+  --el-fill-color-extra-light: #1c1e1c;
+  --el-fill-color: #1a1c1a;
+
+  --el-text-color-primary: var(--cottage-ink);
+  --el-text-color-regular: var(--cottage-ink-soft);
+  --el-text-color-secondary: var(--cottage-muted);
+  --el-text-color-placeholder: #757c75;
+  --el-text-color-disabled: #5c645c;
+
+  --el-bg-color: var(--cottage-surface);
+  --el-bg-color-page: var(--cottage-bg);
+  --el-bg-color-overlay: var(--cottage-surface);
+  --el-mask-color: rgba(0, 0, 0, 0.7);
+}
+
+html.dark ::selection {
+  background: rgba(143, 173, 150, 0.28);
+  color: var(--cottage-ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+::selection {
+  background: rgba(96, 123, 102, 0.16);
+  color: var(--cottage-ink);
+}
+
+/* Subtle thin scrollbar (global) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cottage-scrollbar-thumb) var(--cottage-scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--cottage-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--cottage-scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--cottage-scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+a {
+  color: var(--cottage-accent);
+}
+
+a:hover {
+  color: var(--cottage-accent-hover);
+}
+
+/* Element Plus component polish */
+.el-button:not(.el-button--small):not(.el-button--large) {
+  height: var(--cottage-control-height);
+}
+
+.el-button + .el-button {
+  margin-left: 0;
+}
+
+.el-dialog__footer,
+.el-drawer__footer,
+.el-message-box__btns {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.el-button:not(.is-circle):not(.is-round) {
+  border-radius: var(--cottage-radius-control);
+}
+
+/* Button group — only outer corners rounded; middle segments stay square */
+.el-button-group > .el-button:not(.is-circle):not(.is-round) {
+  border-radius: 0;
+}
+
+.el-button-group > .el-button:not(.is-circle):not(.is-round):first-child {
+  border-top-left-radius: var(--cottage-radius-control);
+  border-bottom-left-radius: var(--cottage-radius-control);
+}
+
+.el-button-group > .el-button:not(.is-circle):not(.is-round):last-child {
+  border-top-right-radius: var(--cottage-radius-control);
+  border-bottom-right-radius: var(--cottage-radius-control);
+}
+
+.el-button-group > .el-button:not(.is-circle):not(.is-round):only-child {
+  border-radius: var(--cottage-radius-control);
+}
+
+.el-card {
+  border-radius: var(--cottage-radius-control);
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: var(--cottage-radius-control);
+}
+
+/* Select height is driven by __input + wrapper padding, not min-height alone */
+.el-select:not(.el-select--small):not(.el-select--large) .el-select__wrapper {
+  min-height: var(--cottage-control-height);
+  line-height: var(--cottage-control-inner-height);
+}
+
+.el-select:not(.el-select--small):not(.el-select--large) .el-select__input {
+  height: var(--cottage-control-inner-height);
+}
+
+.el-tag {
+  border-radius: var(--cottage-radius-control);
+}
+
+.el-dialog {
+  border-radius: var(--cottage-radius-control);
+}
+
+.el-popover.el-popper {
+  border-radius: var(--cottage-radius-control);
+}
+
+.el-button--primary {
+  --el-button-text-color: #ffffff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-text-color: #ffffff;
+  --el-button-bg-color: var(--cottage-primary);
+  --el-button-border-color: var(--cottage-primary);
+  --el-button-hover-bg-color: var(--cottage-accent-hover);
+  --el-button-hover-border-color: var(--cottage-accent-hover);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+  --el-button-active-border-color: var(--el-color-primary-dark-2);
+  box-shadow: var(--cottage-primary-btn-shadow);
+}
+
+/* Dark: text accents use the lighter moss; solid fills keep --cottage-primary */
+html.dark .el-tabs__item.is-active {
+  color: var(--cottage-accent);
+}
+
+html.dark .el-link.el-link--primary {
+  --el-link-text-color: var(--cottage-accent);
+  --el-link-hover-text-color: var(--cottage-accent-hover);
+}
+
+.el-tabs__active-bar {
+  background-color: var(--cottage-primary);
+}
+
+.el-tabs__item.is-active {
+  color: var(--cottage-primary);
+}
+
+.el-checkbox__input.is-checked .el-checkbox__inner,
+.el-radio__input.is-checked .el-radio__inner {
+  background-color: var(--cottage-primary);
+  border-color: var(--cottage-primary);
+}
+
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--cottage-primary);
+  border-color: var(--cottage-primary);
+}
+
+.el-link.el-link--primary {
+  --el-link-text-color: var(--cottage-primary);
+  --el-link-hover-text-color: var(--cottage-accent-hover);
+}
+
+/* ContextMenuPanel — dropdown / context menu surface */
+.n-dropdown-menu {
+  min-width: 140px;
+  padding: var(--cottage-space-xs) 0;
+  background: var(--cottage-surface);
+  border: 1px solid var(--cottage-border);
+  border-radius: var(--cottage-radius-md);
+  box-shadow: var(--cottage-highlight-top), var(--cottage-shadow-md);
+  overflow: auto;
+  max-height: min(70vh, 480px);
+}
+
+.n-dropdown-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--cottage-space-md);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--cottage-ink-soft);
+  font-size: var(--cottage-font-sm);
+  font-family: inherit;
+  line-height: var(--cottage-line-height-tight);
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.n-dropdown-option:hover:not(:disabled) {
+  background: var(--cottage-accent-bg);
+  color: var(--cottage-ink);
+}
+
+.n-dropdown-option:focus-visible {
+  outline: 2px solid var(--cottage-accent-border);
+  outline-offset: -2px;
+}
+
+.n-dropdown-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.n-dropdown-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  margin-right: var(--cottage-space-sm);
+  font-size: 16px;
+  color: var(--cottage-muted);
+}
+
+.n-dropdown-option-body {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+}
+
+.n-dropdown-divider {
+  height: 1px;
+  margin: var(--cottage-space-xs) 0;
+  background: var(--cottage-border);
+}
+
+.n-dropdown-group-header {
+  padding: var(--cottage-space-xs) var(--cottage-space-md) var(--cottage-space-sm);
+  font-size: var(--cottage-font-xs);
+  font-weight: 500;
+  color: var(--cottage-muted);
+  line-height: 1.4;
+  user-select: none;
+}
