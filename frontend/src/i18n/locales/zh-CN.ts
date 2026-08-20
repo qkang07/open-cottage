@@ -56,6 +56,7 @@ const zhCN = {
     flowDeliveryTitle: '本机交付',
     flowDeliveryDesc: '成果保留在本地',
     openFolder: '打开本地工作区',
+    docs: '使用文档',
     trustLabel: '数据安全承诺',
     trustNoServer: '纯前端，没有服务器',
     trustNoServerTip: '应用完全在浏览器中运行，没有托管你数据的后端服务器，也就不存在第三方服务器泄露或停服的问题。',

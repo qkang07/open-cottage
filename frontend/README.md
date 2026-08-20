@@ -2,6 +2,8 @@
 
 基于 [ARCHITECTURE.md](./ARCHITECTURE.md) 实现的 Cottage 变体：使用 **AI SDK Core + Cottage Agent Runtime + 各厂商公开 API** 作为 Agent 运行时。
 
+**官方入口：[在线 Demo](https://cottage.swimlions.com/) · [官方文档](https://doc.cottage.swimlions.com/)**
+
 ## 技术栈
 
 Vue 3 + Vite 6 + Element Plus + Pinia + AI SDK Core。详见 [ARCHITECTURE.md](./ARCHITECTURE.md)。

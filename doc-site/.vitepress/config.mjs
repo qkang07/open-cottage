@@ -1,5 +1,9 @@
 import { siteLinks } from './site-links.mjs'
 
+const githubIcon = {
+  svg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.02 3.25 9.27 7.76 10.78.57.1.78-.25.78-.55 0-.27-.01-1.17-.02-2.12-3.16.69-3.83-1.34-3.83-1.34-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.52-2.52-.29-5.17-1.26-5.17-5.6 0-1.24.44-2.25 1.17-3.05-.12-.29-.51-1.44.11-3 0 0 .95-.3 3.12 1.17A10.85 10.85 0 0 1 12 6.8c.97 0 1.95.13 2.86.39 2.18-1.47 3.12-1.17 3.12-1.17.62 1.56.23 2.71.11 3 .73.8 1.17 1.81 1.17 3.05 0 4.35-2.65 5.31-5.18 5.6.41.35.77 1.01.77 2.04 0 1.47-.01 2.66-.01 3.02 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5Z"/></svg>',
+}
+
 const guideSidebar = [
   {
     text: '快速上手',
@@ -121,6 +125,9 @@ export default {
     darkModeSwitchLabel: '主题',
     lightModeSwitchTitle: '切换到浅色',
     darkModeSwitchTitle: '切换到深色',
+    socialLinks: siteLinks.source
+      ? [{ icon: githubIcon, link: siteLinks.source, ariaLabel: 'GitHub' }]
+      : [],
 
     nav: [
       { text: '首页', link: '/' },
@@ -148,9 +155,6 @@ export default {
           { text: '编写 Capability Pack', link: '/architecture/pack-authoring' },
           { text: '部署服务', link: '/architecture/cottage-service-deploy' },
           { text: '贡献指南', link: '/architecture/contributing' },
-          ...(siteLinks.source
-            ? [{ text: '开源仓库', link: siteLinks.source, target: '_blank' }]
-            : []),
         ],
       },
     ],
@@ -204,7 +208,6 @@ export default {
               text: 'cottage-service API',
               link: '/reference/cottage-service-api',
             },
-            { text: 'llm-proxy', link: '/reference/llm-proxy' },
           ],
         },
       ],
@@ -222,10 +225,6 @@ export default {
             {
               text: '部署 Cottage Service',
               link: '/architecture/cottage-service-deploy',
-            },
-            {
-              text: '部署 llm-proxy',
-              link: '/architecture/llm-proxy-deploy',
             },
             { text: '贡献指南', link: '/architecture/contributing' },
           ],

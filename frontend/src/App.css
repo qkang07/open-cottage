@@ -777,6 +777,22 @@
   gap: 8px;
 }
 
+.welcome-topbar-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--cottage-radius-control);
+  color: var(--cottage-muted);
+  text-decoration: none;
+}
+
+.welcome-topbar-link:hover {
+  background: var(--cottage-surface);
+  color: var(--cottage-ink);
+}
+
 /* Hero */
 .welcome-hero {
   display: flex;
@@ -1358,10 +1374,22 @@
   color: var(--cottage-muted);
 }
 
+.cottage-sidebar-footer-main,
+.cottage-sidebar-external-links {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.cottage-sidebar-external-links {
+  gap: 2px;
+}
+
 .cottage-sidebar-footer-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
 }
 
 .panel-body {

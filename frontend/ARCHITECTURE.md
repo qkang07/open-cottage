@@ -112,12 +112,11 @@ Open Cottage 是一个 **基于本地文件夹的 Agent 工作平台**：
          ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  LLM 厂商公开 API（OpenAI / Anthropic / Google / DeepSeek / Moonshot …）  │
-│  可选：llm-proxy（注入 Key、CORS、厂商特化）                              │
 │  可选：Cottage Service（网页搜索、浏览器自动化等本地能力）                 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**关键边界：** Agent 始终住在浏览器这一层；下面的 Cottage Service / llm-proxy / MCP 都是**为人设计好的能力接口**，而不是让 LLM 直接摸操作系统。
+**关键边界：** Agent 始终住在浏览器这一层；下面的 Cottage Service / MCP 都是**为人设计好的能力接口**，而不是让 LLM 直接摸操作系统。
 
 ---
 
@@ -420,7 +419,7 @@ draft ──start──► running ◄──resume── paused
 |--------|------|
 | 脚本执行 | Worker + Function，同源主线程 RPC；**非强隔离**，恶意脚本可耗尽资源，仅适合受信 Agent 生成代码 |
 | 文件访问 | 仅限用户授权目录；无法读工作区外路径 |
-| API Key | 仅存浏览器 IndexedDB（`open-cottage-secrets`），不上传；或经 `llm-proxy` 注入 |
+| API Key | 仅存浏览器 IndexedDB（`open-cottage-secrets`），不上传 |
 | Policy | 破坏性操作默认需用户审批；可配置 `requireApprovalFor` |
 | Plan Gate | 首批写/外部调用前必须提交计划，超预算阻止 |
 | HTTPS | File System Access API 要求安全上下文 |

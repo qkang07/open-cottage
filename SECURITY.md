@@ -16,7 +16,6 @@ Open Cottage 在浏览器里运行 Agent，会读写你授权的本地目录、�
 ### API Key 存储
 
 - 各 LLM 厂商 API Key 仅存于浏览器 **IndexedDB**（库名 `open-cottage-secrets`），**不进入**工作空间目录、不写入 `.cottage/config.json`、不上传。
-- 若使用 `llm-proxy`，Key 可改为在代理侧注入，浏览器端留空。
 
 ### 权限闸门
 
@@ -38,16 +37,10 @@ Open Cottage 在浏览器里运行 Agent，会读写你授权的本地目录、�
 - 默认 `COTTAGE_SERVICE_TLS_MODE=auto` 生成自签名证书启用 HTTPS；如关闭 TLS 走 HTTP，请确保仅在单机受信环境。
 - 启用 CORS 以便本地前端直连；部署到非本地环境前请收紧 CORS 与监听地址。
 
-### LLM 反向代理（llm-proxy）
-
-- 用于在服务端注入 API Key、解决 CORS 与厂商特化。
-- 默认 CORS `origin: '*'`，便于本地开发；**生产部署前请收紧**到具体来源。
-- 切勿把含真实 Key 的 `.env` 提交到仓库。
-
 ### 浏览器与传输
 
 - 依赖 HTTPS（File System Access API 要求安全上下文）。开发用 Vite 自带 `basic-ssl` 自签名证书，浏览器首次需手动信任。
-- 与 LLM 厂商 API 的连接走厂商官方 HTTPS 端点；经 `llm-proxy` 时走你自己的部署。
+- 与 LLM 厂商 API 的连接走厂商官方 HTTPS 端点。
 
 ## 已知限制
 

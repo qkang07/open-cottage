@@ -5,6 +5,7 @@ import {
   ChatbubbleOutline,
   DocumentTextOutline,
   FolderOpenOutline,
+  LogoGithub,
   MoonOutline,
   ReaderOutline,
   SettingsOutline,
@@ -20,6 +21,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useThemeStore } from '../../stores/theme';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { officialLinks } from '../../config/officialLinks';
 const emit = defineEmits<{
   openSettings: [];
 }>();
@@ -66,6 +68,28 @@ const steps = computed(() => [
 <template>
   <div class="welcome-page">
     <div class="welcome-topbar">
+      <CottageTooltip :content="t('welcome.docs')" placement="top">
+        <a
+          class="welcome-topbar-link"
+          :href="officialLinks.docs"
+          target="_blank"
+          rel="noreferrer"
+          :aria-label="t('welcome.docs')"
+        >
+          <NIcon :component="DocumentTextOutline" />
+        </a>
+      </CottageTooltip>
+      <CottageTooltip content="GitHub" placement="top">
+        <a
+          class="welcome-topbar-link"
+          :href="officialLinks.source"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub"
+        >
+          <NIcon :component="LogoGithub" />
+        </a>
+      </CottageTooltip>
       <CottageTooltip
         :content="isDark ? t('theme.toLight') : t('theme.toDark')"
         placement="top"

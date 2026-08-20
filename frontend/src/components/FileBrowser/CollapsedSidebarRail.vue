@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import {
   ChevronForwardOutline,
+  DocumentTextOutline,
   FolderOutline,
   HomeOutline,
+  LogoGithub,
   MoonOutline,
   SearchOutline,
   SettingsOutline,
@@ -23,6 +25,7 @@ import { useI18n } from 'vue-i18n';
 import { useSidebarCollapseStore } from '../../stores/sidebarCollapse';
 import { useThemeStore } from '../../stores/theme';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { officialLinks } from '../../config/officialLinks';
 import DebugPanel from '../DebugPanel/DebugPanel.vue';
 import CottageServiceStatusButton from './CottageServiceStatusButton.vue';
 const { t } = useI18n();
@@ -112,6 +115,28 @@ const workspaceFileCount = computed(() => snapshot.value?.files.length ?? 0);
       </CottageTooltip>
     </div>
     <div class="collapsed-sidebar-rail-bottom">
+      <CottageTooltip :content="t('welcome.docs')" placement="right">
+        <a
+          class="collapsed-sidebar-btn"
+          :href="officialLinks.docs"
+          target="_blank"
+          rel="noreferrer"
+          :aria-label="t('welcome.docs')"
+        >
+          <NIcon :component="DocumentTextOutline" />
+        </a>
+      </CottageTooltip>
+      <CottageTooltip content="GitHub" placement="right">
+        <a
+          class="collapsed-sidebar-btn"
+          :href="officialLinks.source"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub"
+        >
+          <NIcon :component="LogoGithub" />
+        </a>
+      </CottageTooltip>
       <CottageTooltip :content="isDark ? t('theme.toLight') : t('theme.toDark')" placement="right">
         <ElButton
           text

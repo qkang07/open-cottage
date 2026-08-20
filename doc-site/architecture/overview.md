@@ -6,7 +6,6 @@
 |------|------|--------|
 | `frontend/` | 浏览器内 Agent 容器与全部 UI | Vue 3 + Vite 6 + Pinia + AI SDK Core + Cottage Agent Runtime |
 | `cottage-service-go/` | 伴随服务（独立分发，托盘 + 控制台） | Go + rod |
-| `llm-proxy/` | 可选 LLM 网关 | Node + Express |
 | `docs/` | 设计白皮书与内部进度 | Markdown |
 | `doc-site/` | **本官方文档站** | VitePress |
 
@@ -25,7 +24,7 @@ Vue UI（欢迎页 → 工作区：文件侧栏 + 聊天，预览按需）
   → Platform Core（capabilities / policy / packs / staging / verify / trace）
   → domains（coding / office …）
   → FSA 工作区 + .cottage/
-  → LLM API 或 llm-proxy / cottage-service
+  → LLM API 或 Cottage Service
 ```
 
 ## 关键思想
@@ -48,5 +47,4 @@ Vue UI（欢迎页 → 工作区：文件侧栏 + 聊天，预览按需）
 
 - [编写 Capability Pack](./pack-authoring)  
 - [部署 Cottage Service](./cottage-service-deploy)  
-- [部署 llm-proxy](./llm-proxy-deploy)  
 - [贡献指南](./contributing)  

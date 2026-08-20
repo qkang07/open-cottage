@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import {
   ChevronBackOutline,
+  DocumentTextOutline,
   HomeOutline,
+  LogoGithub,
   MoonOutline,
   SettingsOutline,
   SunnyOutline } from '@vicons/ionicons5';
@@ -33,6 +35,7 @@ import {
 import { useThemeStore } from '../../stores/theme';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useAgentStore } from '../../stores/agent';
+import { officialLinks } from '../../config/officialLinks';
 import {
   getPendingStagedApproval,
   pendingStagedApprovalRevision,
@@ -284,18 +287,44 @@ watch(
           <FileBrowser @open-settings="openSettings" />
         </div>
         <div class="cottage-sidebar-footer">
-          <CottageTooltip :content="t('layout.aiSettingsTitle')" placement="top" delay="normal">
-            <ElButton
-              text
-              class="cottage-sidebar-settings-btn"
-              @click="openSettings()"
-            >
-              <template #icon>
-                <NIcon :component="SettingsOutline" />
-              </template>
-              {{ t('common.settings') }}
-            </ElButton>
-          </CottageTooltip>
+          <div class="cottage-sidebar-footer-main">
+            <CottageTooltip :content="t('layout.aiSettingsTitle')" placement="top" delay="normal">
+              <ElButton
+                text
+                class="cottage-sidebar-settings-btn"
+                @click="openSettings()"
+              >
+                <template #icon>
+                  <NIcon :component="SettingsOutline" />
+                </template>
+                {{ t('common.settings') }}
+              </ElButton>
+            </CottageTooltip>
+            <div class="cottage-sidebar-external-links">
+              <CottageTooltip :content="t('welcome.docs')" placement="top">
+                <a
+                  class="collapsed-sidebar-btn"
+                  :href="officialLinks.docs"
+                  target="_blank"
+                  rel="noreferrer"
+                  :aria-label="t('welcome.docs')"
+                >
+                  <NIcon :component="DocumentTextOutline" />
+                </a>
+              </CottageTooltip>
+              <CottageTooltip content="GitHub" placement="top">
+                <a
+                  class="collapsed-sidebar-btn"
+                  :href="officialLinks.source"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="GitHub"
+                >
+                  <NIcon :component="LogoGithub" />
+                </a>
+              </CottageTooltip>
+            </div>
+          </div>
           <div class="cottage-sidebar-footer-actions">
             <CottageTooltip
               :content="isDark ? t('theme.toLight') : t('theme.toDark')"

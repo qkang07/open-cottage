@@ -11,8 +11,7 @@
 
 1. **前端**：`cd frontend && pnpm install && pnpm dev` → `https://localhost:5176`  
 2. **伴随服务**（可选）：[部署 Cottage Service](./cottage-service-deploy)
-3. **llm-proxy**（可选）：[部署 llm-proxy](./llm-proxy-deploy)  
-4. 或仓库根目录一键：`start.ps1` / `start.sh`（前端）
+3. 或仓库根目录一键：`start.ps1` / `start.sh`（前端）
 
 ## 开发建议
 

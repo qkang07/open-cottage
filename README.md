@@ -1,39 +1,61 @@
 # Open Cottage
 
-> **在你自己的浏览器里，把自然语言意图稳定地变成可验证的结果。**
->
-> English tagline: _Trustworthy work completion in your own environment._
+> **在你自己的文件夹里，把自然语言意图变成可查看、可审批、可验收的结果。**
 
-Open Cottage 是一个 **以本地文件夹为工作空间、以浏览器为第一层容器** 的通用 Agent 平台。你选定一个本地目录后，Agent 在其中读写文件、生成文档/表格/幻灯片、改造代码、联网搜索，并交付**可核对的结果**——不是只聊天。
+Open Cottage 是一个浏览器优先的本地文件夹 Agent。使用 Chrome 或 Edge 选择已有文件夹作为工作区，配置模型后，便可在这个边界内阅读材料、生成或修改文件，并在预览、diff 和确认步骤中核对结果。
 
-- **本地优先**：所有项目数据落在工作空间内的 `.cottage/` 目录，随工作区可备份、可迁移。
-- **可信任**：API Key 仅存浏览器 IndexedDB；破坏性操作有 Policy 审批闸门；改前先出 Plan。
-- **可插拔**：Platform Core + Domain Pack 架构，办公 / 编程 / 数据分析 是可独立启停的能力包。
-- **通用**：同一套编排轨道服务多种任务类型，不绑死在编程场景。
+**官方入口：[在线 Demo](https://cottage.swimlions.com/) · [官方文档](https://doc.cottage.swimlions.com/)**
 
-> 截图占位（待补充）
+它不要求把项目或资料迁移到云端平台：浏览器负责界面和目录授权，原有本地文件夹仍是工作区；会话、附件和工作区配置保存在该文件夹的 `.cottage/` 目录中，方便随项目一起备份。
 
+---
 
-<!-- 主界面截图 -->
-<!-- ![主界面](docs/images/main-ui.png) -->
+## 它如何工作
 
-> 运行演示 GIF（待补充）
+1. **打开一个本地文件夹**：该目录就是 Agent 的读写边界。
+2. **选择模型与所需能力**：先接入可用模型，再只打开本次任务需要的能力包。
+3. **说明目标和限制**：可以用 `@` 引用工作区文件，明确输出路径与不应改动的范围。
+4. **审阅并验收结果**：查看工具调用、暂存 diff 和文件预览；危险操作会等待你的确认。
 
-<!-- ![演示](docs/images/demo.gif) -->
+小任务可以直接在对话模式中完成。跨多个文件、步骤或能力的任务可切换到计划模式，先生成并批准计划，再在同一会话中继续执行。
+
+---
+
+## 当前公开功能
+
+| 能力 | 说明 |
+|------|------|
+| 本地文件夹工作区 | 通过浏览器目录授权在指定文件夹内工作；会话、附件、工作区配置与外部能力包随 `.cottage/` 保存，API Key 保留在浏览器本地。 |
+| 对话与计划模式 | 对话模式适合问答和小改动；计划模式用于先对齐范围、步骤和验收，再批准执行复杂任务。 |
+| 文件、预览与上下文 | 文件树、文本/文档预览、`@` 文件引用和附件，让已有材料与交付结果都留在同一工作区。 |
+| 暂存审阅与确认 | 写入可先进入暂存区供你查看 diff、逐项应用或丢弃；删除等危险动作会暂停等待允许或拒绝。 |
+| 版本历史 Beta | 可为单个工作区显式开启，查看差异、恢复文件或较早的工作区状态；默认关闭，重要内容仍应自行备份。 |
+| 能力包与扩展 | 基础文件能力始终可用；领域能力可按任务开启，也可安装外部 Capability Pack 或按需连接 MCP。 |
+
+### 内置能力包
+
+| 场景 | 可按需开启的能力 |
+|------|------|
+| 文档与资料 | 办公文档、PDF 处理、图表可视化、图片生成、深度研究 |
+| 代码与工作区 | 代码改造、工作区整理 |
+| 网页任务 | 网页自动化；需要连接 Cottage Service 才可进行截图、动态页面提取和多步交互 |
+
+能力包只是为下一轮对话开放对应工具，不会移动或删除既有文件；不需要时可以关闭。完整说明与操作示例请见[官方文档的能力包介绍](https://doc.cottage.swimlions.com/concepts/capability-packs)。
+
+### Cottage Service（可选）
+
+Open Cottage 的 Agent 和工作区仍在浏览器中。需要更稳定的搜索与抓取、无头浏览器、网页截图或自动化时，可以连接本机或指定机器上的 Cottage Service；普通本地文件、办公和编码任务不以它为前提。详见 [Cottage Service 说明](https://doc.cottage.swimlions.com/concepts/cottage-service-concepts)。
 
 ---
 
 ## 开始使用
 
-Open Cottage 将提供可直接体验的官方 Demo；它是纯前端应用，无需安装客户端、Node.js 或 Go。高级用法可通过本仓库源码自行部署。
+1. 在 Chrome 或 Edge 桌面版打开[官方 Demo](https://cottage.swimlions.com)，或运行自行部署的实例。
+2. 选择一个已有的本地文件夹，并授予浏览器访问权限。
+3. 在设置中配置模型和 API Key；按任务打开所需能力包。
+4. 用自然语言说明目标、输出位置与边界，然后预览并确认生成或修改的文件。
 
-官方 Demo 与开源仓库的公开地址统一维护在文档站 `.vitepress/site-links.mjs`；地址发布前不展示空链接。
-
-1. 在官方 Demo 或自行部署的实例中使用 Chrome / Edge 桌面版
-2. 选择一个本地文件夹作为工作区
-3. 在设置中配置模型和 API Key，并按任务开启所需能力包
-
-详细步骤请见[官方使用指南](doc-site/guide/introduction.md)。如需自行运行站点或参与开发，请阅读下方的「本地开发与启动」。
+需要逐步指引、场景示例和安全说明，请访问[官方文档](https://doc.cottage.swimlions.com)。
 
 ---
 
@@ -41,33 +63,29 @@ Open Cottage 将提供可直接体验的官方 Demo；它是纯前端应用，�
 
 | 目录 | 说明 | 技术栈 |
 |------|------|--------|
-| [`frontend/`](frontend/) | 主应用：浏览器内的 Agent 容器与人机界面 | Vue 3 + Vite 6 + Element Plus + AI SDK Core + Cottage Agent Runtime |
-| [`cottage-service-go/`](cottage-service-go/) | Cottage Service 伴随服务（搜索、抓取、浏览器自动化、LLM 代理） | Go + rod |
-| [`llm-proxy/`](llm-proxy/) | 可选的 LLM 反向代理：统一注入 API Key、处理 CORS、厂商特化 | Node.js + Express |
-| [`docs/`](docs/) | 设计白皮书、路线图与开源准备清单 | Markdown |
-| [`doc-site/`](doc-site/) | 官方文档站点（产品介绍与使用手册） | VitePress |
+| [`frontend/`](frontend/) | 浏览器内的 Agent 容器与用户界面 | Vue 3 + Vite + Element Plus + AI SDK Core + Cottage Agent Runtime |
+| [`cottage-service-go/`](cottage-service-go/) | 可选伴随服务：搜索、抓取、浏览器自动化与 LLM 代理 | Go + rod |
+| [`doc-site/`](doc-site/) | 官方文档站点源码 | VitePress |
 
-详见 [ARCHITECTURE](frontend/ARCHITECTURE.md) 与 [docs/](docs/)。
+开发实现可从 [frontend 架构说明](frontend/ARCHITECTURE.md)、[frontend 子包说明](frontend/README.md) 和 [Cottage Service README](cottage-service-go/README.md) 开始。
 
 ---
 
 ## 本地开发与启动
 
-本节面向需要在本机运行 Open Cottage、部署配套服务或参与开发的用户。日常使用无需执行以下安装和启动步骤。
+本节面向需要自行部署、连接配套服务或参与开发的用户；日常使用可以直接打开官方 Demo。
 
 ### 前置要求
 
-- **Node.js ≥ 20** 与 **pnpm**（frontend）
-- **Go ≥ 1.23**（Cottage Service，可选）
-- 支持 [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) 的 Chromium 系浏览器（Chrome / Edge 桌面版）
-- HTTPS 环境（FSA API 要求安全上下文，开发用 Vite 自带 basic-ssl）
+- Node.js ≥ 20 与 pnpm（frontend）
+- Go ≥ 1.23（仅在运行 Cottage Service 时需要）
+- 支持 [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) 的 Chromium 浏览器，例如 Chrome 或 Edge 桌面版
+- HTTPS 安全上下文（开发服务器已配置 basic-ssl）
 
-### 一键启动（推荐）
-
-安装依赖并启动 frontend：
+### 启动前端
 
 ```powershell
-# Windows
+# Windows：安装 frontend 依赖并启动开发服务器
 .\start.ps1
 ```
 
@@ -76,11 +94,7 @@ Open Cottage 将提供可直接体验的官方 Demo；它是纯前端应用，�
 bash start.sh
 ```
 
-启动后访问 `https://localhost:5176`，按 `Ctrl+C` 停止所有服务。
-
-### 分步启动
-
-#### 1. 启动 frontend
+也可以手动启动：
 
 ```bash
 cd frontend
@@ -88,91 +102,35 @@ pnpm install
 pnpm dev
 ```
 
-默认在 `https://localhost:5176`（自签名证书，浏览器首次需信任）。
+开发服务器默认访问地址为 `https://localhost:5176`；浏览器首次可能需要信任自签名证书。
 
-#### 2.（可选）启动 Cottage Service
+### 按需启动 Cottage Service
 
-如果你想让 Agent 用本地服务做网页搜索聚合，而非浏览器直连：
+只有搜索、动态网页或网页自动化等任务需要它：
 
 ```bash
 cd cottage-service-go
-go run .             # 默认 https://127.0.0.1:8787
+go run .
 ```
 
-#### 3.（可选）启动 llm-proxy
-
-如果你不想把各厂商 API Key 留在浏览器，或需要解决 CORS：
-
-```bash
-cd llm-proxy
-npm install
-npm start            # 默认 http://localhost:3111
-```
-
-复制 [`llm-proxy/.env.example`](llm-proxy/.env.example) 为 `.env` 并填入所需的厂商 Key。配置后 frontend 设置里就无需再填 Key。
-
-### 首次使用
-
-1. 打开 `https://localhost:5176`，选择一个本地文件夹作为工作空间。
-2. 点击右上角 **设置**，选择 LLM 提供商并填入 API Key（或配置 proxy 后留空）。
-3. 从下拉框选择模型。
-4. 在 **对话** 模式手动协作，或切到 **计划** 模式先批准结构化计划再连续执行。
+默认服务地址为 `https://127.0.0.1:8787`。启动后，在 Open Cottage 的 **设置 → Cottage Service** 中连接；证书和部署细节请见[官方文档](https://doc.cottage.swimlions.com/architecture/cottage-service-deploy)。
 
 ---
 
-## 使用模式
+## 安全与数据
 
-| 模式 | 说明 |
-|------|------|
-| **对话（chat）** | 手动发消息，Agent 按需调用工具；支持多会话与历史切换。 |
-| **计划（spec）** | 先起草可批准计划，再同一会话内按任务连续执行。 |
+- Agent 只在你授权的工作区范围内读写；开始前请确认选择的是正确目录。
+- 暂存审阅、危险操作确认和计划批准用于让改动保持可见、可控。
+- `.cottage/` 保存工作区状态；备份重要工作时请连同它一起复制。API Key 不写入工作区，换浏览器或换设备需要重新配置，或改由代理侧管理。
+- 版本历史为 Beta，不能代替你的常规备份策略。
 
----
-
-## 能力包（Capability Pack）
-
-Open Cottage 的领域能力以**可启停的包**组织，在聊天框「模型与能力」面板开关（领域包默认关闭）：
-
-- **office**：Word / PPT / 表格读写、模板渲染、批量生成
-- **coding**：TS / Vue 符号索引、改前影响分析、AST 级编辑、编码工作流纪律
-- **pdf** / **chart** / **deep-research** / **web-automation**：PDF、图表、深度研究、网页自动化（后者需 Cottage Service）
-
-也可以通过 `manifest.json` 安装外部包到 `.cottage/packs/{id}/`。完整说明见 [官方文档站点](doc-site/)。
-
----
-
-## 文档
-
-| 文档 | 内容 |
-|------|------|
-| **[doc-site/](doc-site/)** | **官方站点**：产品介绍、使用指南、能力包与 API 参考（VitePress） |
-| [frontend/ARCHITECTURE.md](frontend/ARCHITECTURE.md) | 架构与实现细节 |
-| [docs/platform-vision-and-roadmap.md](docs/platform-vision-and-roadmap.md) | 平台愿景、设计原则与路线图（设计白皮书） |
-| [docs/open-source-checklist.md](docs/open-source-checklist.md) | 开源准备进度清单 |
-| [frontend/README.md](frontend/README.md) | frontend 子包说明 |
-| [cottage-service-go/README.md](cottage-service-go/README.md) | Cottage Service API 与配置 |
-
-本地预览官方文档：
-
-```bash
-cd doc-site
-pnpm install
-pnpm run dev
-```
-
----
-
-## 安全
-
-本项目会读写你授权的本地目录、在 Web Worker 内执行 Agent 生成的脚本、可调用本地伴随服务与外部 LLM API。请阅读 [SECURITY.md](SECURITY.md) 了解安全模型与漏洞上报方式。
+详细安全模型与漏洞报告方式请见 [SECURITY.md](SECURITY.md)。
 
 ---
 
 ## 贡献
 
-欢迎 issue 反馈与能力包贡献。
-
----
+欢迎提交 issue、改进文档或贡献能力包。提交前请先阅读相应子项目和[官方开发文档](https://doc.cottage.swimlions.com/architecture/contributing)。
 
 ## License
 
@@ -180,4 +138,4 @@ pnpm run dev
 
 ---
 
-*项目状态：早期开发中（`0.x`），API 与数据格式可能在 minor 版本内变动。*
+*项目状态：0.x。公开功能、API 与数据格式仍可能演进。*

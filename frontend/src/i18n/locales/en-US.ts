@@ -59,6 +59,7 @@ const enUS: typeof zhCN = {
     flowDeliveryTitle: 'Deliver locally',
     flowDeliveryDesc: 'Results stay on your machine',
     openFolder: 'Open local workspace',
+    docs: 'Documentation',
     privacy: 'Settings and keys stay in your browser; work files remain in your local folder',
     recent: 'Recent',
     quickStart: 'Quick start',

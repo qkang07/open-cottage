@@ -5,6 +5,7 @@
  * 待补提示且不会生成空链接。不要填写 localhost、开发服务器或内部地址。
  */
 export const siteLinks = {
-  demo: 'https://cottage.swimlions.com',
-  source: 'https://github.com/qkang07/cottage',
+  demo: 'https://cottage.swimlions.com/',
+  docs: 'https://doc.cottage.swimlions.com/',
+  source: 'https://github.com/qkang07/open-cottage',
 }
