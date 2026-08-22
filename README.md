@@ -1,91 +1,93 @@
 # Open Cottage
 
-> **在你自己的文件夹里，把自然语言意图变成可查看、可审批、可验收的结果。**
+[English](README.md) · [简体中文](README.zh-CN.md)
 
-Open Cottage 是一个浏览器优先的本地文件夹 Agent。使用 Chrome 或 Edge 选择已有文件夹作为工作区，配置模型后，便可在这个边界内阅读材料、生成或修改文件，并在预览、diff 和确认步骤中核对结果。
+> **Turn natural-language intent into reviewable, approvable, and verifiable results—inside your own folders.**
 
-**官方入口：[在线 Demo](https://cottage.swimlions.com/) · [官方文档](https://doc.cottage.swimlions.com/)**
+Open Cottage is a browser-first Agent for local folders. Open an existing folder as a workspace in Chrome or Edge, configure a model, and let the Agent read, create, or change files within that boundary. Preview, diff, and confirmation steps keep the result visible before it lands in your work.
 
-它不要求把项目或资料迁移到云端平台：浏览器负责界面和目录授权，原有本地文件夹仍是工作区；会话、附件和工作区配置保存在该文件夹的 `.cottage/` 目录中，方便随项目一起备份。
+**Official links: [Live demo](https://cottage.swimlions.com/) · [Documentation](https://doc.cottage.swimlions.com/en/)**
 
----
-
-## 它如何工作
-
-1. **打开一个本地文件夹**：该目录就是 Agent 的读写边界。
-2. **选择模型与所需能力**：先接入可用模型，再只打开本次任务需要的能力包。
-3. **说明目标和限制**：可以用 `@` 引用工作区文件，明确输出路径与不应改动的范围。
-4. **审阅并验收结果**：查看工具调用、暂存 diff 和文件预览；危险操作会等待你的确认。
-
-小任务可以直接在对话模式中完成。跨多个文件、步骤或能力的任务可切换到计划模式，先生成并批准计划，再在同一会话中继续执行。
+You do not need to move a project or your materials to a cloud platform. The browser supplies the interface and folder permission; the original local folder remains the workspace. Conversations, attachments, and workspace settings live in its `.cottage/` directory, so they can be backed up with the project.
 
 ---
 
-## 当前公开功能
+## How it works
 
-| 能力 | 说明 |
-|------|------|
-| 本地文件夹工作区 | 通过浏览器目录授权在指定文件夹内工作；会话、附件、工作区配置与外部能力包随 `.cottage/` 保存，API Key 保留在浏览器本地。 |
-| 对话与计划模式 | 对话模式适合问答和小改动；计划模式用于先对齐范围、步骤和验收，再批准执行复杂任务。 |
-| 文件、预览与上下文 | 文件树、文本/文档预览、`@` 文件引用和附件，让已有材料与交付结果都留在同一工作区。 |
-| 暂存审阅与确认 | 写入可先进入暂存区供你查看 diff、逐项应用或丢弃；删除等危险动作会暂停等待允许或拒绝。 |
-| 版本历史 Beta | 可为单个工作区显式开启，查看差异、恢复文件或较早的工作区状态；默认关闭，重要内容仍应自行备份。 |
-| 能力包与扩展 | 基础文件能力始终可用；领域能力可按任务开启，也可安装外部 Capability Pack 或按需连接 MCP。 |
+1. **Open a local folder.** It becomes the Agent's read/write boundary.
+2. **Choose a model and the capabilities you need.** Connect an available model, then enable only the packs needed for the task.
+3. **Describe the goal and constraints.** Use `@` to reference workspace files and state the output path and files that must not change.
+4. **Review and accept the result.** Inspect tool calls, staged diffs, and file previews. Destructive actions wait for your approval.
 
-### 内置能力包
-
-| 场景 | 可按需开启的能力 |
-|------|------|
-| 文档与资料 | 办公文档、PDF 处理、图表可视化、图片生成、深度研究 |
-| 代码与工作区 | 代码改造、工作区整理 |
-| 网页任务 | 网页自动化；需要连接 Cottage Service 才可进行截图、动态页面提取和多步交互 |
-
-能力包只是为下一轮对话开放对应工具，不会移动或删除既有文件；不需要时可以关闭。完整说明与操作示例请见[官方文档的能力包介绍](https://doc.cottage.swimlions.com/concepts/capability-packs)。
-
-### Cottage Service（可选）
-
-Open Cottage 的 Agent 和工作区仍在浏览器中。需要更稳定的搜索与抓取、无头浏览器、网页截图或自动化时，可以连接本机或指定机器上的 Cottage Service；普通本地文件、办公和编码任务不以它为前提。详见 [Cottage Service 说明](https://doc.cottage.swimlions.com/concepts/cottage-service-concepts)。
+Small jobs work well in chat mode. For work that spans multiple files, steps, or capabilities, switch to plan mode: agree on and approve a plan first, then continue execution in the same conversation.
 
 ---
 
-## 开始使用
+## Public features today
 
-1. 在 Chrome 或 Edge 桌面版打开[官方 Demo](https://cottage.swimlions.com)，或运行自行部署的实例。
-2. 选择一个已有的本地文件夹，并授予浏览器访问权限。
-3. 在设置中配置模型和 API Key；按任务打开所需能力包。
-4. 用自然语言说明目标、输出位置与边界，然后预览并确认生成或修改的文件。
+| Capability | What it does |
+|---|---|
+| Local-folder workspace | Works only in the folder you authorize through the browser. Conversations, attachments, workspace configuration, and external packs are stored with `.cottage/`; API keys stay in browser-local storage. |
+| Chat and plan modes | Chat mode is for questions and small changes. Plan mode aligns on scope, steps, and acceptance criteria before a complex task is approved for execution. |
+| Files, previews, and context | A file tree, text/document previews, `@` file references, and attachments keep source material and deliverables in the same workspace. |
+| Staged review and confirmation | Writes can enter a staging area for diff review, selective apply, or discard. Deletion and other sensitive actions pause for an explicit decision. |
+| Version History Beta | Enable it explicitly per workspace to inspect differences or restore a file or earlier workspace state. It is off by default and does not replace normal backups. |
+| Capability packs and extensions | Core file capabilities are always available. Enable domain-specific capabilities per task, install external Capability Packs, or connect MCP when needed. |
 
-需要逐步指引、场景示例和安全说明，请访问[官方文档](https://doc.cottage.swimlions.com)。
+### Built-in capability packs
+
+| Use case | Capabilities you can enable when needed |
+|---|---|
+| Documents and research material | Office documents, PDF handling, charts, image generation, and deep research |
+| Code and workspace maintenance | Code changes and workspace tidy-up |
+| Web tasks | Web automation. Screenshots, dynamic-page extraction, and multi-step interaction require Cottage Service. |
+
+Capability packs only expose tools for the next conversation turn; they do not move or delete existing files. Turn them off when they are not needed. See the [capability-pack guide](https://doc.cottage.swimlions.com/en/concepts/capability-packs) for details and examples.
+
+### Cottage Service (optional)
+
+The Open Cottage Agent and workspace remain in the browser. For more reliable search and fetching, a headless browser, webpage screenshots, or web automation, connect Cottage Service running on your machine or a specified machine. Ordinary local-file, office, and coding work does not depend on it. See [Cottage Service](https://doc.cottage.swimlions.com/en/concepts/cottage-service-concepts).
 
 ---
 
-## 仓库结构
+## Get started
 
-| 目录 | 说明 | 技术栈 |
-|------|------|--------|
-| [`frontend/`](frontend/) | 浏览器内的 Agent 容器与用户界面 | Vue 3 + Vite + Element Plus + AI SDK Core + Cottage Agent Runtime |
-| [`cottage-service-go/`](cottage-service-go/) | 可选伴随服务：搜索、抓取、浏览器自动化与 LLM 代理 | Go + rod |
-| [`doc-site/`](doc-site/) | 官方文档站点源码 | VitePress |
+1. Open the [live demo](https://cottage.swimlions.com/) in desktop Chrome or Edge, or run your own deployment.
+2. Choose an existing local folder and grant the browser permission to access it.
+3. Configure a model and API key in Settings, then enable the capability packs needed for the job.
+4. State the goal, output location, and boundaries in natural language; preview and confirm the files that are created or changed.
 
-开发实现可从 [frontend 架构说明](frontend/ARCHITECTURE.md)、[frontend 子包说明](frontend/README.md) 和 [Cottage Service README](cottage-service-go/README.md) 开始。
+For a guided setup, task examples, and security details, visit the [English documentation](https://doc.cottage.swimlions.com/en/).
 
 ---
 
-## 本地开发与启动
+## Repository layout
 
-本节面向需要自行部署、连接配套服务或参与开发的用户；日常使用可以直接打开官方 Demo。
+| Directory | Purpose | Stack |
+|---|---|---|
+| [`frontend/`](frontend/) | Browser Agent container and user interface | Vue 3 + Vite + Element Plus + AI SDK Core + Cottage Agent Runtime |
+| [`cottage-service-go/`](cottage-service-go/) | Optional companion service for search, fetching, browser automation, and LLM proxying | Go + rod |
+| [`doc-site/`](doc-site/) | Source for the official documentation site | VitePress |
 
-### 前置要求
+For implementation details, start with the [frontend architecture notes](frontend/ARCHITECTURE.md), [frontend package README](frontend/README.md), and [Cottage Service README](cottage-service-go/README.md).
 
-- Node.js ≥ 20 与 pnpm（frontend）
-- Go ≥ 1.23（仅在运行 Cottage Service 时需要）
-- 支持 [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) 的 Chromium 浏览器，例如 Chrome 或 Edge 桌面版
-- HTTPS 安全上下文（开发服务器已配置 basic-ssl）
+---
 
-### 启动前端
+## Local development
+
+This section is for self-hosting, connecting the companion service, or contributing. For everyday use, open the live demo instead.
+
+### Prerequisites
+
+- Node.js 20 or newer and pnpm for `frontend`
+- Go 1.23 or newer only when running Cottage Service
+- A Chromium browser with the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API), such as desktop Chrome or Edge
+- An HTTPS secure context; the development server is configured with `basic-ssl`
+
+### Start the frontend
 
 ```powershell
-# Windows：安装 frontend 依赖并启动开发服务器
+# Windows: install frontend dependencies and start the development server
 .\start.ps1
 ```
 
@@ -94,7 +96,7 @@ Open Cottage 的 Agent 和工作区仍在浏览器中。需要更稳定的搜索
 bash start.sh
 ```
 
-也可以手动启动：
+Or start it manually:
 
 ```bash
 cd frontend
@@ -102,40 +104,40 @@ pnpm install
 pnpm dev
 ```
 
-开发服务器默认访问地址为 `https://localhost:5176`；浏览器首次可能需要信任自签名证书。
+The development server is available at `https://localhost:5176` by default. Your browser may ask you to trust the self-signed certificate the first time.
 
-### 按需启动 Cottage Service
+### Start Cottage Service when needed
 
-只有搜索、动态网页或网页自动化等任务需要它：
+Only search, dynamic web pages, and web automation need it:
 
 ```bash
 cd cottage-service-go
 go run .
 ```
 
-默认服务地址为 `https://127.0.0.1:8787`。启动后，在 Open Cottage 的 **设置 → Cottage Service** 中连接；证书和部署细节请见[官方文档](https://doc.cottage.swimlions.com/architecture/cottage-service-deploy)。
+The default address is `https://127.0.0.1:8787`. After it starts, connect it in **Settings → Cottage Service**. See the [deployment guide](https://doc.cottage.swimlions.com/en/architecture/cottage-service-deploy) for certificates and deployment details.
 
 ---
 
-## 安全与数据
+## Safety and data
 
-- Agent 只在你授权的工作区范围内读写；开始前请确认选择的是正确目录。
-- 暂存审阅、危险操作确认和计划批准用于让改动保持可见、可控。
-- `.cottage/` 保存工作区状态；备份重要工作时请连同它一起复制。API Key 不写入工作区，换浏览器或换设备需要重新配置，或改由代理侧管理。
-- 版本历史为 Beta，不能代替你的常规备份策略。
+- The Agent can read and write only in the workspace you authorize. Confirm that you selected the right folder before starting.
+- Staged review, sensitive-operation confirmation, and plan approval keep changes visible and controllable.
+- `.cottage/` stores workspace state. Copy it when backing up important work. API keys are not written into the workspace; configure them again when changing browser or device, or manage them at a proxy.
+- Version History is Beta and is not a replacement for your regular backup strategy.
 
-详细安全模型与漏洞报告方式请见 [SECURITY.md](SECURITY.md)。
+For the full security model and vulnerability-reporting process, see [SECURITY.md](SECURITY.md).
 
 ---
 
-## 贡献
+## Contributing
 
-欢迎提交 issue、改进文档或贡献能力包。提交前请先阅读相应子项目和[官方开发文档](https://doc.cottage.swimlions.com/architecture/contributing)。
+Issues, documentation improvements, and capability-pack contributions are welcome. Read the relevant package documentation and the [contribution guide](https://doc.cottage.swimlions.com/en/architecture/contributing) before submitting changes.
 
 ## License
 
-本项目采用 **MIT** License，见 [LICENSE](LICENSE)。贡献内容在相同 license 下授权。
+This project is released under the **MIT** License. See [LICENSE](LICENSE). Contributions are licensed under the same terms.
 
 ---
 
-*项目状态：0.x。公开功能、API 与数据格式仍可能演进。*
+*Project status: 0.x. Public functionality, APIs, and data formats may evolve.*

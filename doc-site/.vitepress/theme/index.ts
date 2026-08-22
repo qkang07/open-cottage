@@ -11,12 +11,13 @@ import DocRedirect from './components/DocRedirect.vue'
 import StoryLead from './components/StoryLead.vue'
 import StoryBeat from './components/StoryBeat.vue'
 import NextReading from './components/NextReading.vue'
+import LocalePreference from './components/LocalePreference.vue'
 
 export default {
   extends: DefaultTheme,
   Layout: () =>
     h(DefaultTheme.Layout, null, {
-      'layout-bottom': () => h(DocImagePreview),
+      'layout-bottom': () => [h(DocImagePreview), h(LocalePreference)],
     }),
   enhanceApp({ app }) {
     app.component('HomeLanding', HomeLanding)
@@ -28,5 +29,6 @@ export default {
     app.component('StoryLead', StoryLead)
     app.component('StoryBeat', StoryBeat)
     app.component('NextReading', NextReading)
+    app.component('LocalePreference', LocalePreference)
   },
 }

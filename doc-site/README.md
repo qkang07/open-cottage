@@ -4,6 +4,8 @@
 
 **官方入口：[GitHub](https://github.com/qkang07/open-cottage) · [在线 Demo](https://cottage.swimlions.com/) · [官方文档](https://doc.cottage.swimlions.com/)**
 
+文档首页首次按浏览器语言展示中文或英文，并把该选择保存在浏览器本地；之后由 VitePress 的语言菜单切换并更新偏好。英文页面位于 `en/`。新增用户可见页面时，请同时补充对应英文页面，避免语言菜单指向 404。
+
 ## 本地预览
 
 ```bash

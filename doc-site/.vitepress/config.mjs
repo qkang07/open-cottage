@@ -34,6 +34,143 @@ const guideSidebar = [
   },
 ]
 
+const englishGuideSidebar = [
+  {
+    text: 'Get started',
+    items: [
+      { text: 'What is Open Cottage?', link: '/en/guide/introduction' },
+      { text: 'Five-minute setup', link: '/en/guide/first-setup' },
+      { text: 'The main interface', link: '/en/guide/ui' },
+    ],
+  },
+  {
+    text: 'Everyday work',
+    items: [
+      { text: 'Chat with the Agent', link: '/en/guide/chat' },
+      { text: 'Plan complex work', link: '/en/guide/spec' },
+      { text: 'Review and approve changes', link: '/en/guide/governance' },
+      { text: 'Previews, references, and attachments', link: '/en/guide/preview' },
+      { text: 'Workspaces and local data', link: '/en/guide/workspace' },
+      { text: 'Version History Beta', link: '/en/guide/history' },
+    ],
+  },
+  {
+    text: 'Settings and safety',
+    items: [
+      { text: 'Settings', link: '/en/guide/settings' },
+      { text: 'Model providers and API keys', link: '/en/guide/models-and-keys' },
+      { text: 'Security', link: '/en/guide/security' },
+    ],
+  },
+]
+
+const englishThemeConfig = {
+  langMenuLabel: 'Change language',
+  outline: { label: 'On this page', level: [2, 3] },
+  search: {
+    provider: 'local',
+    options: {
+      locales: {
+        en: {
+          translations: {
+            button: { buttonText: 'Search', buttonAriaLabel: 'Search documentation' },
+            modal: {
+              noResultsText: 'No results found',
+              resetButtonTitle: 'Clear query',
+              footer: { selectText: 'Select', navigateText: 'Navigate', closeText: 'Close' },
+            },
+          },
+        },
+      },
+    },
+  },
+  lastUpdated: { text: 'Last updated', formatOptions: { dateStyle: 'medium', timeStyle: 'short' } },
+  docFooter: { prev: 'Previous page', next: 'Next page' },
+  returnToTopLabel: 'Back to top',
+  sidebarMenuLabel: 'Menu',
+  darkModeSwitchLabel: 'Theme',
+  lightModeSwitchTitle: 'Switch to light theme',
+  darkModeSwitchTitle: 'Switch to dark theme',
+  socialLinks: siteLinks.source
+    ? [{ icon: githubIcon, link: siteLinks.source, ariaLabel: 'GitHub' }]
+    : [],
+  nav: [
+    { text: 'Home', link: '/en/' },
+    { text: 'Get started', link: '/en/guide/introduction', activeMatch: '/en/guide/' },
+    { text: 'Concepts', link: '/en/concepts/', activeMatch: '/en/concepts/' },
+    ...(siteLinks.demo ? [{ text: 'Live demo', link: siteLinks.demo, target: '_blank' }] : []),
+    {
+      text: 'By task',
+      items: [
+        { text: 'Documents, slides, and spreadsheets', link: '/en/guide/use-office' },
+        { text: 'Code changes', link: '/en/guide/use-coding' },
+        { text: 'Research', link: '/en/guide/use-research' },
+        { text: 'Web fetching and automation', link: '/en/guide/use-web' },
+        { text: 'PDFs and charts', link: '/en/guide/use-pdf-chart' },
+        { text: 'Plan mode', link: '/en/guide/spec' },
+      ],
+    },
+    {
+      text: 'Developers',
+      items: [
+        { text: 'Tool catalog', link: '/en/reference/tools' },
+        { text: 'Architecture overview', link: '/en/architecture/overview' },
+        { text: 'Author a Capability Pack', link: '/en/architecture/pack-authoring' },
+        { text: 'Deploy Cottage Service', link: '/en/architecture/cottage-service-deploy' },
+        { text: 'Contributing', link: '/en/architecture/contributing' },
+      ],
+    },
+  ],
+  sidebar: {
+    '/en/concepts/': [
+      {
+        text: 'Understand Open Cottage',
+        items: [
+          { text: 'Concept index', link: '/en/concepts/' },
+          { text: 'Workspaces', link: '/en/concepts/workspace' },
+          { text: 'Your data stays local', link: '/en/concepts/local-data' },
+          { text: 'Site and workspace settings', link: '/en/concepts/storage-layers' },
+          { text: 'Models, presets, and API keys', link: '/en/concepts/models-and-keys' },
+          { text: 'Capability packs', link: '/en/concepts/capability-packs' },
+          { text: 'Skills', link: '/en/concepts/skills-concepts' },
+          { text: 'Cottage Service', link: '/en/concepts/cottage-service-concepts' },
+        ],
+      },
+      {
+        text: 'Collaboration',
+        items: [
+          { text: 'Model and capability panel', link: '/en/concepts/model-capability-panel' },
+          { text: 'File previews', link: '/en/concepts/file-preview' },
+          { text: '@ references and attachments', link: '/en/concepts/mentions-and-attachments' },
+          { text: 'Chats, plans, and sessions', link: '/en/concepts/chat-modes' },
+          { text: 'Staged review and approval', link: '/en/concepts/governance-concepts' },
+        ],
+      },
+    ],
+    '/en/guide/': englishGuideSidebar,
+    '/en/packs/': [{ text: 'Advanced capabilities', items: [
+      { text: 'Code changes', link: '/en/packs/coding' },
+      { text: 'Image generation', link: '/en/packs/imagegen' },
+      { text: 'Workspace tidy-up', link: '/en/packs/tidy' },
+      { text: 'Install external capabilities', link: '/en/packs/external' },
+      { text: 'What are capability packs?', link: '/en/concepts/capability-packs' },
+    ] }],
+    '/en/reference': [{ text: 'Developer reference', items: [
+      { text: 'Tool catalog', link: '/en/reference/tools' },
+      { text: 'Cottage Service API', link: '/en/reference/cottage-service-api' },
+    ] }],
+    '/en/architecture/': [{ text: 'Develop Open Cottage', items: [
+      { text: 'Local development', link: '/en/guide/install' },
+      { text: 'Architecture overview', link: '/en/architecture/overview' },
+      { text: 'Platform vision', link: '/en/architecture/vision' },
+      { text: 'Author a Capability Pack', link: '/en/architecture/pack-authoring' },
+      { text: 'Deploy Cottage Service', link: '/en/architecture/cottage-service-deploy' },
+      { text: 'Contributing', link: '/en/architecture/contributing' },
+    ] }],
+  },
+  footer: { message: 'Released under the MIT License.', copyright: 'Copyright © Open Cottage contributors' },
+}
+
 /** @type {import('vitepress').UserConfig} */
 export default {
   lang: 'zh-CN',
@@ -41,6 +178,17 @@ export default {
   description:
     '不是再做一个更会聊天的窗口：在你自己的环境里，把自然语言意图变成可核对、可审批、敢长期托付的结果。',
   cleanUrls: true,
+  locales: {
+    root: { label: '简体中文', lang: 'zh-CN', link: '/' },
+    en: {
+      label: 'English',
+      lang: 'en-US',
+      link: '/en/',
+      title: 'Open Cottage',
+      description: 'A browser-first Agent for working safely in your local folders.',
+      themeConfig: englishThemeConfig,
+    },
+  },
   // 内部维护说明，不作为文档站页面构建或暴露。
   srcExclude: [
     'architecture/experimental.md',
@@ -123,6 +271,7 @@ export default {
     returnToTopLabel: '回到顶部',
     sidebarMenuLabel: '菜单',
     darkModeSwitchLabel: '主题',
+    langMenuLabel: '切换语言',
     lightModeSwitchTitle: '切换到浅色',
     darkModeSwitchTitle: '切换到深色',
     socialLinks: siteLinks.source
