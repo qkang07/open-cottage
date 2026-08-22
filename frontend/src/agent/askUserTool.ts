@@ -6,10 +6,14 @@ import {
   interactionRevision,
   writeInteractionKey,
 } from '../platform/interaction/interactionScope';
+import {
+  normalizeAskUserOptions,
+  type AskUserOption,
+} from '../chat/askUserOptions';
 
 export type AskUserArgs = {
   question: string;
-  options: string[];
+  options: AskUserOption[];
 };
 
 interface PendingAsk extends AskUserArgs {
@@ -29,11 +33,7 @@ export function parseAskUserArgs(raw?: string): AskUserArgs | null {
     const parsed = JSON.parse(raw) as { question?: unknown; options?: unknown };
     const question = typeof parsed.question === 'string' ? parsed.question.trim() : '';
     if (!question) return null;
-    const options = Array.isArray(parsed.options)
-      ? parsed.options.filter(
-          (item): item is string => typeof item === 'string' && item.trim().length > 0,
-        )
-      : [];
+    const options = normalizeAskUserOptions(parsed.options);
     return { question, options };
   } catch {
     const match = raw.match(/"question"\s*:\s*"((?:\\.|[^"\\])*)"/);
@@ -58,9 +58,7 @@ export const createAskUserCottageTool = (
       if (!trimmedQuestion) {
         throw new Error('question 不能为空');
       }
-      const normalizedOptions = Array.isArray(options)
-        ? options.filter((item) => typeof item === 'string' && item.trim().length > 0)
-        : [];
+      const normalizedOptions = normalizeAskUserOptions(options);
       const key = writeInteractionKey(sessionId);
       return new Promise((resolve, reject) => {
         const signal = config?.signal;
@@ -103,9 +101,20 @@ export const createAskUserCottageTool = (
           .string()
           .describe('要向用户询问的问题，清晰描述你的不确定点或需要用户决策的事项'),
         options: z
-          .array(z.string())
+          .array(
+            z.union([
+              z.string(),
+              z.object({
+                label: z.string(),
+                description: z.string().optional(),
+              }),
+            ]),
+          )
           .optional()
-          .describe('可选：供用户快速选择的选项列表；不提供时用户将直接在输入框中回答'),
+          .describe(
+            '可选：供用户快速选择的选项列表。每项可为字符串，或 { label, description? }；' +
+              'label 是返回给工具的选择，description 用于向用户说明该选项。',
+          ),
       }),
     },
   );

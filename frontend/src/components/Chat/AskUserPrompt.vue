@@ -3,10 +3,11 @@ import { ElButton, ElInput, ElTag } from 'element-plus';
 import { NText } from '@/ui/element-plus-primitives';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { AskUserOption } from '../../chat/askUserOptions';
 
 const props = defineProps<{
   question: string;
-  options: string[];
+  options: AskUserOption[];
   compact?: boolean;
   /** 已回答时传入，切换为只读历史展示 */
   answered?: string | null;
@@ -23,14 +24,15 @@ const customText = ref('');
 const showAllAnsweredOptions = ref(false);
 const { t } = useI18n();
 const answerIsPresetOption = computed(
-  () => Boolean(props.answered && props.options.includes(props.answered)),
+  () => Boolean(props.answered && props.options.some((option) => option.label === props.answered)),
 );
 const answeredOptions = computed(() => {
   if (!props.answered) return [];
   if (answerIsPresetOption.value && showAllAnsweredOptions.value) {
     return props.options;
   }
-  return [props.answered];
+  const selected = props.options.find((option) => option.label === props.answered);
+  return selected ? [selected] : [{ label: props.answered }];
 });
 
 watch(
@@ -57,12 +59,12 @@ function submitCustom() {
       <div class="ask-user-options ask-user-options-readonly">
         <ElTag
           v-for="opt in answeredOptions"
-          :key="opt"
+          :key="opt.label"
           size="small"
-          :type="opt === answered ? 'success' : 'info'"
+          :type="opt.label === answered ? 'success' : 'info'"
           effect="plain"
         >
-          {{ opt }}
+          {{ opt.label }}
         </ElTag>
       </div>
       <ElButton
@@ -82,12 +84,15 @@ function submitCustom() {
       <div v-if="options.length" class="ask-user-options">
         <ElButton
           v-for="opt in options"
-          :key="opt"
+          :key="opt.label"
           :size="compact ? 'small' : 'default'"
           class="ask-user-option"
-          @click="emit('submit', opt)"
+          @click="emit('submit', opt.label)"
         >
-          {{ opt }}
+          <span class="ask-user-option-label">{{ opt.label }}</span>
+          <span v-if="opt.description" class="ask-user-option-description">
+            {{ opt.description }}
+          </span>
         </ElButton>
       </div>
       <div class="ask-user-custom">
@@ -115,3 +120,22 @@ function submitCustom() {
     </template>
   </div>
 </template>
+
+<style scoped>
+.ask-user-option {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+  text-align: left;
+}
+
+.ask-user-option-description {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+</style>

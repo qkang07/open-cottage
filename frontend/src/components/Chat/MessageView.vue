@@ -456,7 +456,10 @@ function askUserView(section: CallSection) {
     section.interaction?.kind === 'ask_user' ? section.interaction : null;
   const parsed = parseAskUserArgs(section.arguments);
   const question = interaction?.question ?? parsed?.question ?? null;
-  const options = interaction?.options ?? parsed?.options ?? [];
+  // 运行中的交互态优先；但旧运行时会把对象形式的 options 过滤成空数组。
+  // 此时回退到工具参数，保证当前这张卡片无需重新发起提问也能显示选择。
+  const options =
+    interaction?.options.length ? interaction.options : parsed?.options ?? [];
   const interactive =
     Boolean(interaction) &&
     interaction!.status === 'pending' &&

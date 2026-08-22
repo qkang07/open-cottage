@@ -3,6 +3,7 @@
  * 与 LLM 历史分离：进入会话文件，不进入 storedToRuntime。
  * 打开历史时按 status 渲染；pending 时可继续交互。
  */
+import type { AskUserOption } from './askUserOptions';
 
 export type ChatComponentStatus =
   | 'pending'
@@ -37,7 +38,7 @@ export interface AskUserComponent extends ChatComponentBase {
   kind: 'ask_user';
   payload: {
     question: string;
-    options: string[];
+    options: AskUserOption[];
   };
   decision?: { chosen: string };
 }

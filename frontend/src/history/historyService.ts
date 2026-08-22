@@ -451,7 +451,7 @@ async function captureVersionUnlocked(
       addedObjects.set(state.objectId, path);
     }
   }
-  for (const [path, state] of Object.entries(changes)) {
+  for (const path of Object.keys(changes)) {
     if (changeTypes[path] !== 'deleted') continue;
     const previous = previousFiles.get(path);
     if (previous?.state !== 'stored') continue;

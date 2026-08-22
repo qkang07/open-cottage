@@ -139,6 +139,7 @@ import {
   saveSessionStaging,
 } from '../platform/staging';
 import { cancelPendingAsk } from './askUserTool';
+import { normalizeAskUserOptions } from '../chat/askUserOptions';
 import type {
   TraceRecorder,
   TraceToolStatus,
@@ -1936,10 +1937,7 @@ export class CottageAgent {
                 );
               }
               if (isAskUserTool(toolName)) {
-                const askArgs = call.args as {
-                  question?: string;
-                  options?: string[];
-                };
+                const askArgs = call.args as { question?: unknown; options?: unknown };
                 const question =
                   typeof askArgs.question === 'string'
                     ? askArgs.question.trim()
@@ -1947,12 +1945,7 @@ export class CottageAgent {
                 if (!question) {
                   throw new Error('question 不能为空');
                 }
-                const options = Array.isArray(askArgs.options)
-                  ? askArgs.options.filter(
-                      (item): item is string =>
-                        typeof item === 'string' && item.trim().length > 0,
-                    )
-                  : [];
+                const options = normalizeAskUserOptions(askArgs.options);
                 this.setCallInteraction(callId, {
                   kind: 'ask_user',
                   status: 'pending',

@@ -1490,7 +1490,7 @@ const canSend = computed(
                               : t(`chat.toolGroupDesc.${group.id}`)
                           "
                           placement="top"
-                          :delay="!isToolGroupCottageReady(group.id) ? 'instant' : 'normal'"
+                          delay="normal"
                         >
                           <button
                             type="button"

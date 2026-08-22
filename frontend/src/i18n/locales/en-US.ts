@@ -60,7 +60,16 @@ const enUS: typeof zhCN = {
     flowDeliveryDesc: 'Results stay on your machine',
     openFolder: 'Open local workspace',
     docs: 'Documentation',
-    privacy: 'Settings and keys stay in your browser; work files remain in your local folder',
+    trustLabel: 'Your data stays under your control',
+    trustNoServer: 'Frontend only, no server',
+    trustNoServerTip:
+      'The app runs entirely in your browser. There is no backend that hosts your data, so there is no third-party server to leak it or go offline.',
+    trustLocalData: 'Your files stay on your computer',
+    trustLocalDataTip:
+      'The Agent only reads and writes local folders you explicitly authorize. Results are saved directly to the original folder and are never uploaded to a server.',
+    trustKeysLocal: 'Keys stay in your browser',
+    trustKeysLocalTip:
+      'Configuration and API keys are stored locally in your browser. We do not keep them; when you call a model, content goes directly to the model service you configured.',
     recent: 'Recent',
     quickStart: 'Quick start',
     stepOpenTitle: 'Open a workspace',

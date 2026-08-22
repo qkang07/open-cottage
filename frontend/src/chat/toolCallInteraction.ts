@@ -3,6 +3,10 @@
  * 批准 / 提问等 = 特殊工具调用：渲染组件，用户操作结果即 tool result，
  * 因此交互是工具循环的一部分，而非旁路内存闸门或独立 components 列表。
  */
+import {
+  normalizeAskUserOptions,
+  type AskUserOption,
+} from './askUserOptions';
 
 export type ToolCallInteractionStatus =
   | 'pending'
@@ -24,7 +28,7 @@ export type AskUserInteraction = {
   kind: 'ask_user';
   status: ToolCallInteractionStatus;
   question: string;
-  options: string[];
+  options: AskUserOption[];
   decision?: { chosen: string };
 };
 
@@ -60,9 +64,7 @@ export const parseToolCallInteraction = (
       kind: 'ask_user',
       status: o.status === 'resolved' || o.status === 'cancelled' ? o.status : 'pending',
       question: o.question,
-      options: Array.isArray(o.options)
-        ? o.options.filter((x): x is string => typeof x === 'string')
-        : [],
+      options: normalizeAskUserOptions(o.options),
       decision:
         o.decision && typeof (o.decision as { chosen?: unknown }).chosen === 'string'
           ? { chosen: (o.decision as { chosen: string }).chosen }

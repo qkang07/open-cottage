@@ -110,10 +110,10 @@ const summarizeApplyTidyPlan = (
  * 工具专属参数摘要：参数携带关键语义差别（如 applyTidyPlan 的 dryRun）的工具，
  * 用定制文案替代通用键值罗列；返回值自带小节标题，不再套「操作对象：」前缀。
  */
-const TOOL_ARG_SUMMARIZERS: Record<
+const TOOL_ARG_SUMMARIZERS: Partial<Record<
   string,
   (args: Record<string, unknown>) => string | null
-> = {
+>> = {
   applyTidyPlan: summarizeApplyTidyPlan,
 };
 
