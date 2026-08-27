@@ -74,7 +74,7 @@ export const buildSymbolIndex = async (
 ): Promise<{ totalFiles: number; totalSymbols: number }> => {
   const ignoreGlobs = resolveSymbolIgnoreGlobs();
   const parserConfig = resolveTreeSitterConfig();
-  const useWorker = workspace.isOpen;
+  const useWorker = workspace.supportsHandleWorkers;
 
   if (useWorker) {
     try {
@@ -102,7 +102,7 @@ export const incrementalSymbolIndex = async (
 ): Promise<{ touchedFiles: number }> => {
   const ignoreGlobs = resolveSymbolIgnoreGlobs();
   const parserConfig = resolveTreeSitterConfig();
-  const useWorker = workspace.isOpen;
+  const useWorker = workspace.supportsHandleWorkers;
 
   if (useWorker) {
     try {

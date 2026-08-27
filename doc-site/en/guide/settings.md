@@ -2,6 +2,8 @@
 
 Settings are organized around the choices that govern work in a workspace: model providers and presets, enabled capability packs, change-review policy, Version History Beta, and Cottage Service.
 
+Workspace management also switches between remembered folders and the fixed browser chat workspace. It shows the virtual workspace's logical size and provides a confirmation-gated clear action that permanently removes its IndexedDB data.
+
 ## Models and capabilities
 
 Add model providers and keys under **Models**, then choose the model that will handle the next request. Under **Capabilities**, enable only the tools the work needs. This limits the available tool surface and makes the conversation easier to review.

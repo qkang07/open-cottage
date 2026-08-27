@@ -23,7 +23,7 @@ Vue UI（欢迎页 → 工作区：文件侧栏 + 聊天，预览按需）
        · PolicyGate + StagingStore
   → Platform Core（capabilities / policy / packs / staging / verify / trace）
   → domains（coding / office …）
-  → FSA 工作区 + .cottage/
+  → IndexedDB 虚拟工作区，或 FSA 本地文件夹 + .cottage/
   → LLM API 或 Cottage Service
 ```
 

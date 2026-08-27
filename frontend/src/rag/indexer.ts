@@ -99,7 +99,8 @@ export async function buildIndex(
     throw new Error('RAG 配置不完整');
   }
 
-  const useWorker = ragConfig.indexing.useWorker !== false && workspace.isOpen;
+  const useWorker =
+    ragConfig.indexing.useWorker !== false && workspace.supportsHandleWorkers;
 
   if (useWorker) {
     try {
@@ -165,7 +166,8 @@ export async function incrementalIndex(
   const paths = filterIncrementalPaths(changedPaths, ragConfig);
   if (paths.length === 0) return { newChunks: 0 };
 
-  const useWorker = ragConfig.indexing.useWorker !== false && workspace.isOpen;
+  const useWorker =
+    ragConfig.indexing.useWorker !== false && workspace.supportsHandleWorkers;
 
   beginIncrementalActivity(paths);
 

@@ -57,10 +57,12 @@ import {
 import {
   isApiKeyRequiredForConfig,
   presetHasApiKey,
+  presetHasProviderConnection,
 } from '../../config/llmKeyStatus';
 import {
   normalizeProviderId,
 } from '../../config/constants';
+import { getSecretForProvider } from '../../config/secrets';
 import { useAgentStore } from '../../stores/agent';
 import { useAiChangedFilesStore } from '../../stores/aiChangedFiles';
 import { useDebugPanelStore } from '../../stores/debugPanel';
@@ -139,15 +141,32 @@ const activeModelStatus = computed<ActiveModelStatus>(() => {
   if (!llmConfig) return { kind: 'no-model' };
   const provider = normalizeProviderId(llmConfig.provider);
   const preset = getActiveModelPreset();
+  if (preset && !presetHasProviderConnection(preset, secrets.value)) {
+    return { kind: 'no-model' };
+  }
+  const providerSecret = getSecretForProvider(
+    secrets.value,
+    provider,
+    llmConfig.connectionId,
+  );
+  // 无预设的旧配置仍可直接携带 Key / Base URL；除此之外必须有对应提供商连接。
+  if (
+    !preset &&
+    !providerSecret &&
+    !llmConfig.apiKey?.trim() &&
+    !llmConfig.baseUrl?.trim()
+  ) {
+    return { kind: 'no-model' };
+  }
   const secretBaseUrl =
     (preset ? secrets.value.presetApiKeys?.[preset.id]?.baseUrl : undefined) ||
-    secrets.value[provider]?.baseUrl;
+    providerSecret?.baseUrl;
   if (!isApiKeyRequiredForConfig(llmConfig, secretBaseUrl)) return { kind: 'ok' };
   const hasKey = preset
     ? presetHasApiKey(preset, secrets.value)
     : Boolean(
         llmConfig.apiKey?.trim() ||
-          secrets.value[provider]?.apiKey?.trim(),
+          providerSecret?.apiKey?.trim(),
       );
   return hasKey ? { kind: 'ok' } : { kind: 'missing-key', provider };
 });
@@ -419,7 +438,6 @@ const inputDisabled = computed(
   () =>
     taskRunning.value ||
     !snapshot.value ||
-    activeModelStatus.value.kind === 'missing-key' ||
     chatLoading.value ||
     chatNotReady.value,
 );
@@ -739,7 +757,7 @@ function handleSetSearchSource(source: SearchSource) {
         :mounting="chatLoading"
         :not-ready="chatNotReady"
         :not-ready-message="lastMountError"
-        :setup-state="activeModelStatus.kind === 'ok' ? null : activeModelStatus.kind"
+        :setup-state="activeModelStatus.kind"
         :mount-retrying="mountRetrying"
         :enabled-tool-groups="enabledToolGroups"
         :search-source="searchSource"

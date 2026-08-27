@@ -424,14 +424,6 @@ const configuredProviderOptions = computed(() =>
   ),
 );
 
-const providerConnectionOptions = computed(() => {
-  if (!editingPreset.value) return configuredProviderOptions.value;
-  const providerPrefix = `${normalizeProviderId(formModel.value.provider)}::`;
-  return configuredProviderOptions.value.filter((option) =>
-    String(option.value).startsWith(providerPrefix),
-  );
-});
-
 const selectedProviderConnection = computed(() =>
   formModel.value.provider && formModel.value.connectionId && !formProviderConnectionMissing.value
     ? `${normalizeProviderId(formModel.value.provider)}::${formModel.value.connectionId}`
@@ -1205,7 +1197,7 @@ const modalTitle = computed(() =>
                   : formModel.provider
               "
               filterable
-              :options="props.manageCredentials !== true ? providerConnectionOptions : LLM_SELECT_OPTIONS"
+              :options="props.manageCredentials !== true ? configuredProviderOptions : LLM_SELECT_OPTIONS"
               @change="handleProviderSelection"
             />
             <NText v-if="props.manageCredentials !== true && configuredProviderOptions.length === 0" depth="3" class="settings-form-item-hint">

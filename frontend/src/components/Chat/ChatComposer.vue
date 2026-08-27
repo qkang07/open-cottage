@@ -86,7 +86,6 @@ import {
   getLlmConfig,
   getSessionActiveImagePresetId,
   getSessionActivePresetId,
-  isLlmConfigured,
   setSessionActiveImagePresetId,
   setSessionActivePresetId,
 } from '../../config/store';
@@ -137,7 +136,7 @@ const props = withDefaults(
     taskRunning: boolean;
     mounting?: boolean;
     /** 页面级模型状态：用于把配置引导贴在实际输入框上。 */
-    setupState?: 'no-model' | 'missing-key' | null;
+    setupState?: 'ok' | 'no-model' | 'missing-key' | null;
     /** Agent 已判定可配置但仍未挂载成功 */
     notReady?: boolean;
     notReadyMessage?: string | null;
@@ -366,8 +365,7 @@ async function reloadImagePresetOptions() {
 }
 
 const hasModelConfigured = computed(() => {
-  void configRevision.value;
-  return isLlmConfigured() || presetOptions.value.length > 0;
+  return props.setupState === 'ok' || presetOptions.value.length > 0;
 });
 const activePresetConfig = computed(() => {
   void configRevision.value;
@@ -376,6 +374,7 @@ const activePresetConfig = computed(() => {
 const hasApiKeyConfigured = computed(() => {
   void secretsVersion.value;
   void configRevision.value;
+  if (props.setupState) return props.setupState !== 'missing-key';
   if (!hasModelConfigured.value) return true;
   const preset = activePresetConfig.value;
   const cfg = preset?.config ?? getLlmConfig();
@@ -383,6 +382,7 @@ const hasApiKeyConfigured = computed(() => {
   return Boolean(resolveActiveApiKey(cfg, preset?.id, secretsRef.value ?? {}));
 });
 const configurationIssue = computed<'no-model' | 'missing-key' | null>(() => {
+  if (props.setupState === 'ok') return null;
   if (props.setupState) return props.setupState;
   if (!hasModelConfigured.value) return 'no-model';
   if (!hasApiKeyConfigured.value) return 'missing-key';
@@ -986,9 +986,9 @@ watch(
   { immediate: true },
 );
 watch(
-  () => [props.disabled, sending.value] as const,
-  ([disabled, isSending]) => {
-    editor.value?.setEditable(!disabled && !isSending);
+  () => [props.disabled, sending.value, configurationIssue.value] as const,
+  ([disabled, isSending, issue]) => {
+    editor.value?.setEditable(!disabled && !isSending && !issue);
   },
   { immediate: true },
 );

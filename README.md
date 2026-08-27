@@ -2,92 +2,101 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-> **Turn natural-language intent into reviewable, approvable, and verifiable results—inside your own folders.**
+> **A browser-first Agent that can start instantly or work in folders you already own.**
 
-Open Cottage is a browser-first Agent for local folders. Open an existing folder as a workspace in Chrome or Edge, configure a model, and let the Agent read, create, or change files within that boundary. Preview, diff, and confirmation steps keep the result visible before it lands in your work.
+Open Cottage lets you start in a browser-backed chat workspace immediately, or authorize a local folder when you want the Agent to work with existing material. Choose a model, enable only the capabilities a task needs, and review the outcome before it lands in your work.
 
-**Official links: [Live demo](https://cottage.swimlions.com/) · [Documentation](https://doc.cottage.swimlions.com/en/)**
+**[Open the live demo](https://cottage.swimlions.com/) · [Read the documentation](https://doc.cottage.swimlions.com/en/) · [查看中文说明](https://doc.cottage.swimlions.com/)**
 
-You do not need to move a project or your materials to a cloud platform. The browser supplies the interface and folder permission; the original local folder remains the workspace. Conversations, attachments, and workspace settings live in its `.cottage/` directory, so they can be backed up with the project.
-
----
-
-## How it works
-
-1. **Open a local folder.** It becomes the Agent's read/write boundary.
-2. **Choose a model and the capabilities you need.** Connect an available model, then enable only the packs needed for the task.
-3. **Describe the goal and constraints.** Use `@` to reference workspace files and state the output path and files that must not change.
-4. **Review and accept the result.** Inspect tool calls, staged diffs, and file previews. Destructive actions wait for your approval.
-
-Small jobs work well in chat mode. For work that spans multiple files, steps, or capabilities, switch to plan mode: agree on and approve a plan first, then continue execution in the same conversation.
+No desktop client, project migration, or mandatory backend is required. The chat workspace keeps conversations and generated files in this browser's IndexedDB; a folder workspace keeps its state under `.cottage/` in the selected folder. API keys remain in browser-local storage in both modes.
 
 ---
 
-## Public features today
+## A small, local workflow
 
-| Capability | What it does |
+|  | Part | Role |
+|---|---|---|
+| 01 | **Browser** | Provides the interface and an IndexedDB chat workspace you can use immediately. |
+| 02 | **Optional local folder** | Becomes the workspace when you authorize an existing project, reference collection, or delivery folder. |
+| 03 | **Model and capabilities** | Are selected for the task, then read, write, generate, and use the tools you enabled. |
+
+When a task needs stronger web capabilities, connect the optional Cottage Service for search, dynamic-page fetching, screenshots, and browser automation. Ordinary local-file, office, and coding work does not require it.
+
+### What the workflow looks like
+
+1. **Choose a workspace** — start in the browser chat workspace, or open a folder as the Agent's read/write boundary.
+2. **Configure a model and capabilities** — start with core file work; enable specialized packs only when needed.
+3. **State the goal and constraints** — reference workspace files with `@`, name the output path, and say what must not change.
+4. **Review the result** — inspect tool activity, previews, and staged diffs; sensitive actions wait for an explicit choice.
+
+For a cross-file or multi-step task, use plan mode to agree on scope, steps, risks, and acceptance criteria before execution. Small questions and contained changes can stay in chat mode.
+
+---
+
+## Keep work where it belongs
+
+Open Cottage is designed around an explicit local boundary rather than a remote project migration.
+
+- **Your files stay in the folder you authorize.** A repository, a document collection, or a delivery folder can each be a separate workspace.
+- **Chat can start without a folder.** The fixed chat workspace persists its conversations and generated files in IndexedDB for this site; its current size is always shown at the lower left.
+- **Changes remain inspectable.** Preview files, review staged diffs, selectively apply writes, and explicitly allow or reject sensitive operations.
+- **Your choices remain visible.** The active model and capability set are shown in the task surface; a failed connection or model lookup does not silently replace saved configuration.
+- **Workspace state travels with the work.** Back up `.cottage/` with an important project if you want to retain its conversations, attachments, and workspace configuration.
+
+Version History Beta can be enabled per workspace to inspect differences and restore a file or an earlier workspace state. It is off by default and complements—not replaces—your normal backup practice.
+
+---
+
+## Capabilities, only when needed
+
+The core local-file workflow is always available. Capability Packs expose specialized tools for a task; enabling one does not move or delete existing files.
+
+| Task | Enable when needed |
 |---|---|
-| Local-folder workspace | Works only in the folder you authorize through the browser. Conversations, attachments, workspace configuration, and external packs are stored with `.cottage/`; API keys stay in browser-local storage. |
-| Chat and plan modes | Chat mode is for questions and small changes. Plan mode aligns on scope, steps, and acceptance criteria before a complex task is approved for execution. |
-| Files, previews, and context | A file tree, text/document previews, `@` file references, and attachments keep source material and deliverables in the same workspace. |
-| Staged review and confirmation | Writes can enter a staging area for diff review, selective apply, or discard. Deletion and other sensitive actions pause for an explicit decision. |
-| Version History Beta | Enable it explicitly per workspace to inspect differences or restore a file or earlier workspace state. It is off by default and does not replace normal backups. |
-| Capability packs and extensions | Core file capabilities are always available. Enable domain-specific capabilities per task, install external Capability Packs, or connect MCP when needed. |
+| Documents, slides, and spreadsheets | Office documents |
+| Code changes | Code changes |
+| Research reports | Deep research; optionally PDF handling and charting |
+| PDFs and diagrams | PDF handling and charting |
+| Workspace images | Image generation |
+| File organization | Workspace tidy-up |
+| Dynamic sites, screenshots, or browser flows | Web automation + Cottage Service |
 
-### Built-in capability packs
-
-| Use case | Capabilities you can enable when needed |
-|---|---|
-| Documents and research material | Office documents, PDF handling, charts, image generation, and deep research |
-| Code and workspace maintenance | Code changes and workspace tidy-up |
-| Web tasks | Web automation. Screenshots, dynamic-page extraction, and multi-step interaction require Cottage Service. |
-
-Capability packs only expose tools for the next conversation turn; they do not move or delete existing files. Turn them off when they are not needed. See the [capability-pack guide](https://doc.cottage.swimlions.com/en/concepts/capability-packs) for details and examples.
-
-### Cottage Service (optional)
-
-The Open Cottage Agent and workspace remain in the browser. For more reliable search and fetching, a headless browser, webpage screenshots, or web automation, connect Cottage Service running on your machine or a specified machine. Ordinary local-file, office, and coding work does not depend on it. See [Cottage Service](https://doc.cottage.swimlions.com/en/concepts/cottage-service-concepts).
+You can also install an external Capability Pack in a workspace or connect MCP when it is appropriate for the task. Start with the [capability-pack guide](https://doc.cottage.swimlions.com/en/concepts/capability-packs) for the model and its safety boundaries.
 
 ---
 
-## Get started
+## Start now, or open a real folder
 
 1. Open the [live demo](https://cottage.swimlions.com/) in desktop Chrome or Edge, or run your own deployment.
-2. Choose an existing local folder and grant the browser permission to access it.
-3. Configure a model and API key in Settings, then enable the capability packs needed for the job.
-4. State the goal, output location, and boundaries in natural language; preview and confirm the files that are created or changed.
+2. Select **Start chatting** for the browser workspace, or choose an existing local folder and confirm the browser permission.
+3. Add a model provider and API key in **Settings → Models**.
+4. Describe the task, intended output, and boundaries; then review the resulting files in the workspace.
 
-For a guided setup, task examples, and security details, visit the [English documentation](https://doc.cottage.swimlions.com/en/).
+For a guided first task, see [Five-minute setup](https://doc.cottage.swimlions.com/en/guide/first-setup). For task-specific workflows, see the documentation for [documents and spreadsheets](https://doc.cottage.swimlions.com/en/guide/use-office), [code changes](https://doc.cottage.swimlions.com/en/guide/use-coding), [research](https://doc.cottage.swimlions.com/en/guide/use-research), and [web automation](https://doc.cottage.swimlions.com/en/guide/use-web).
 
 ---
 
-## Repository layout
+## Self-hosting and development
+
+The live demo is enough for everyday use. The repository is here when you want to self-host, extend the product, or run the optional companion service.
 
 | Directory | Purpose | Stack |
 |---|---|---|
 | [`frontend/`](frontend/) | Browser Agent container and user interface | Vue 3 + Vite + Element Plus + AI SDK Core + Cottage Agent Runtime |
 | [`cottage-service-go/`](cottage-service-go/) | Optional companion service for search, fetching, browser automation, and LLM proxying | Go + rod |
-| [`doc-site/`](doc-site/) | Source for the official documentation site | VitePress |
-
-For implementation details, start with the [frontend architecture notes](frontend/ARCHITECTURE.md), [frontend package README](frontend/README.md), and [Cottage Service README](cottage-service-go/README.md).
-
----
-
-## Local development
-
-This section is for self-hosting, connecting the companion service, or contributing. For everyday use, open the live demo instead.
+| [`doc-site/`](doc-site/) | Official documentation source | VitePress |
 
 ### Prerequisites
 
-- Node.js 20 or newer and pnpm for `frontend`
-- Go 1.23 or newer only when running Cottage Service
-- A Chromium browser with the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API), such as desktop Chrome or Edge
+- Node.js 20+ and pnpm for the frontend
+- Go 1.23+ only when running Cottage Service
+- A modern desktop browser with IndexedDB; Chrome or Edge with the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) when opening local folders
 - An HTTPS secure context; the development server is configured with `basic-ssl`
 
 ### Start the frontend
 
 ```powershell
-# Windows: install frontend dependencies and start the development server
+# Windows
 .\start.ps1
 ```
 
@@ -104,40 +113,26 @@ pnpm install
 pnpm dev
 ```
 
-The development server is available at `https://localhost:5176` by default. Your browser may ask you to trust the self-signed certificate the first time.
+The default development address is `https://localhost:5176`; your browser may ask you to trust the self-signed certificate once.
 
-### Start Cottage Service when needed
-
-Only search, dynamic web pages, and web automation need it:
+### Start Cottage Service when the task needs it
 
 ```bash
 cd cottage-service-go
 go run .
 ```
 
-The default address is `https://127.0.0.1:8787`. After it starts, connect it in **Settings → Cottage Service**. See the [deployment guide](https://doc.cottage.swimlions.com/en/architecture/cottage-service-deploy) for certificates and deployment details.
+It listens on `https://127.0.0.1:8787` by default. Connect it from **Settings → Cottage Service** after it starts. See [Deploy Cottage Service](https://doc.cottage.swimlions.com/en/architecture/cottage-service-deploy) for certificates and deployment details.
 
 ---
 
-## Safety and data
+## Safety, contribution, and license
 
-- The Agent can read and write only in the workspace you authorize. Confirm that you selected the right folder before starting.
-- Staged review, sensitive-operation confirmation, and plan approval keep changes visible and controllable.
-- `.cottage/` stores workspace state. Copy it when backing up important work. API keys are not written into the workspace; configure them again when changing browser or device, or manage them at a proxy.
-- Version History is Beta and is not a replacement for your regular backup strategy.
+- Confirm which workspace is active before starting. Folder work stays inside the authorized directory; chat-workspace data stays in this browser and is lost if its site data is cleared.
+- Treat previews, staged review, sensitive-operation confirmation, and plan approval as normal parts of reliable Agent work.
+- Keep normal backups and source control. Version History Beta does not replace either.
+- API keys are not written into the workspace. Configure them again when changing browser or device, or manage them at a proxy.
 
-For the full security model and vulnerability-reporting process, see [SECURITY.md](SECURITY.md).
+Read [SECURITY.md](SECURITY.md) for the security model and vulnerability-reporting process. Contributions are welcome—start with the [contribution guide](https://doc.cottage.swimlions.com/en/architecture/contributing).
 
----
-
-## Contributing
-
-Issues, documentation improvements, and capability-pack contributions are welcome. Read the relevant package documentation and the [contribution guide](https://doc.cottage.swimlions.com/en/architecture/contributing) before submitting changes.
-
-## License
-
-This project is released under the **MIT** License. See [LICENSE](LICENSE). Contributions are licensed under the same terms.
-
----
-
-*Project status: 0.x. Public functionality, APIs, and data formats may evolve.*
+Open Cottage is released under the [MIT License](LICENSE). Public functionality, APIs, and data formats may evolve during the 0.x series.

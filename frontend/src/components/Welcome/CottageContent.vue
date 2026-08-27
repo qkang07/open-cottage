@@ -23,6 +23,7 @@ import NewEntryDialog from '../FileBrowser/NewEntryDialog.vue';
 import FileExplorer from '../FileExplorer/FileExplorer.vue';
 import CollapsedSidebarRail from '../FileBrowser/CollapsedSidebarRail.vue';
 import CottageServiceStatusButton from '../FileBrowser/CottageServiceStatusButton.vue';
+import VirtualWorkspaceUsage from '../FileBrowser/VirtualWorkspaceUsage.vue';
 import Preview from '../Preview/Preview.vue';
 import SettingsPanel from '../Settings/SettingsPanel.vue';
 import DebugPanel from '../DebugPanel/DebugPanel.vue';
@@ -54,7 +55,7 @@ const sidebarStore = useSidebarCollapseStore();
 const themeStore = useThemeStore();
 const agentStore = useAgentStore();
 const { chat, activeChatId } = storeToRefs(agentStore);
-const { snapshot, restoring, loading, selectedPath } = storeToRefs(workspaceStore);
+const { snapshot, restoring, loading, selectedPath, activeWorkspaceKind } = storeToRefs(workspaceStore);
 const { explorerMode } = storeToRefs(explorerModeStore);
 const { collapsed } = storeToRefs(sidebarStore);
 const { isDark } = storeToRefs(themeStore);
@@ -286,7 +287,11 @@ watch(
         <div class="cottage-sidebar-content">
           <FileBrowser @open-settings="openSettings" />
         </div>
-        <div class="cottage-sidebar-footer">
+        <div
+          class="cottage-sidebar-footer"
+          :class="{ 'cottage-sidebar-footer--virtual': activeWorkspaceKind === 'virtual' }"
+        >
+          <VirtualWorkspaceUsage />
           <div class="cottage-sidebar-footer-main">
             <CottageTooltip :content="t('layout.aiSettingsTitle')" placement="top" delay="normal">
               <ElButton

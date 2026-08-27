@@ -8,6 +8,7 @@ const MAX_RECENT = 8;
 
 export interface RecentWorkspace {
   id: string;
+  kind: 'folder';
   name: string;
   /** 展示用路径；浏览器通常只能拿到文件夹名 */
   path: string;
@@ -84,17 +85,20 @@ export const readRecentWorkspaces = (): RecentWorkspace[] => {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is RecentWorkspace =>
-        typeof item === 'object' &&
-        item !== null &&
-        typeof (item as RecentWorkspace).id === 'string' &&
-        typeof (item as RecentWorkspace).name === 'string' &&
-        typeof (item as RecentWorkspace).path === 'string' &&
-        ((item as RecentWorkspace).alias === undefined ||
-          typeof (item as RecentWorkspace).alias === 'string') &&
-        typeof (item as RecentWorkspace).lastOpenedAt === 'number',
-    );
+    return parsed.flatMap((item): RecentWorkspace[] => {
+      if (
+        typeof item !== 'object' ||
+        item === null ||
+        typeof (item as RecentWorkspace).id !== 'string' ||
+        typeof (item as RecentWorkspace).name !== 'string' ||
+        typeof (item as RecentWorkspace).path !== 'string' ||
+        ((item as RecentWorkspace).alias !== undefined &&
+          typeof (item as RecentWorkspace).alias !== 'string') ||
+        typeof (item as RecentWorkspace).lastOpenedAt !== 'number'
+      ) return [];
+      // v1 记录没有 kind；它们全部来自目录选择器，明确迁移为 folder。
+      return [{ ...(item as Omit<RecentWorkspace, 'kind'>), kind: 'folder' }];
+    });
   } catch {
     return [];
   }
@@ -124,7 +128,7 @@ export const rememberWorkspace = async (
 
   await saveDirectoryHandle(id, handle);
 
-  const entry: RecentWorkspace = { id, name, path, lastOpenedAt: now };
+  const entry: RecentWorkspace = { id, kind: 'folder', name, path, lastOpenedAt: now };
   const next = [
     entry,
     ...recent.filter((item) => item.id !== id),

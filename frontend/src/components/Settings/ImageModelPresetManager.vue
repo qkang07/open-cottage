@@ -26,11 +26,6 @@ const providerOptions = computed(() => IMAGE_GEN_PROVIDER_IDS.flatMap((id) =>
     label: `${providerLabel(id)} · ${connection.alias || t('settings.defaultBadge')}`,
   })),
 ));
-const providerConnectionOptions = computed(() => {
-  if (!editingId.value) return providerOptions.value;
-  const providerPrefix = `${form.value.provider}::`;
-  return providerOptions.value.filter((option) => option.value.startsWith(providerPrefix));
-});
 const formProviderConnectionMissing = computed(() =>
   Boolean(form.value.provider) &&
   (!form.value.connectionId.trim() ||
@@ -177,7 +172,7 @@ function remove(item: ImageGenModelPreset) {
         </div>
       </ElCard>
     </div>
-    <ElDialog v-model="dialogOpen" :title="t('settings.imageModelTitle')" width="500px"><ElForm label-position="top"><ElFormItem :label="t('settings.provider')"><CottageSelect :model-value="selectedProviderConnection" :options="providerConnectionOptions" @change="changeProvider" /><NText v-if="formProviderConnectionMissing" class="settings-form-item-hint settings-form-item-hint--warning">{{ t('settings.providerConnectionMissingEditHint') }}</NText><div class="image-model-action-row"><button type="button" class="image-model-text-action" @click="dialogOpen=false; emit('openProviders')">{{ t('settings.addProvider') }}</button></div></ElFormItem><ElFormItem :label="t('settings.imageGenModel')"><CottageSelect v-model="form.model" filterable allow-create :options="modelOptions" /></ElFormItem><ElFormItem :label="t('settings.aliasOptional')"><ElInput v-model="form.name" /></ElFormItem><ElFormItem :label="t('settings.imageGenDefaultSize')"><ElInput v-model="form.defaultSize" /></ElFormItem></ElForm><template #footer><ElButton @click="dialogOpen=false">{{ t('common.cancel') }}</ElButton><ElButton type="primary" @click="save">{{ t('common.save') }}</ElButton></template></ElDialog>
+    <ElDialog v-model="dialogOpen" :title="t('settings.imageModelTitle')" width="500px"><ElForm label-position="top"><ElFormItem :label="t('settings.provider')"><CottageSelect :model-value="selectedProviderConnection" :options="providerOptions" @change="changeProvider" /><NText v-if="formProviderConnectionMissing" class="settings-form-item-hint settings-form-item-hint--warning">{{ t('settings.providerConnectionMissingEditHint') }}</NText><div class="image-model-action-row"><button type="button" class="image-model-text-action" @click="dialogOpen=false; emit('openProviders')">{{ t('settings.addProvider') }}</button></div></ElFormItem><ElFormItem :label="t('settings.imageGenModel')"><CottageSelect v-model="form.model" filterable allow-create :options="modelOptions" /></ElFormItem><ElFormItem :label="t('settings.aliasOptional')"><ElInput v-model="form.name" /></ElFormItem><ElFormItem :label="t('settings.imageGenDefaultSize')"><ElInput v-model="form.defaultSize" /></ElFormItem></ElForm><template #footer><ElButton @click="dialogOpen=false">{{ t('common.cancel') }}</ElButton><ElButton type="primary" @click="save">{{ t('common.save') }}</ElButton></template></ElDialog>
   </div>
 </template>
 <style scoped>

@@ -5,49 +5,68 @@
       <div class="oc-wrap oc-hero__layout">
         <div class="oc-hero__content">
           <p class="oc-eyebrow">BROWSER-FIRST · LOCAL FOLDER AGENT</p>
-          <h1><span>用浏览器和本地文件夹，</span><span>运行你的 Agent。</span></h1>
-          <p class="oc-hero__lead">
-            Open Cottage 是纯前端应用：浏览器提供界面和目录授权，本地文件夹作为工作区；配置模型后，即可完成读写文件、调用工具与生成内容等 Agent 任务。无需额外桌面客户端。
-          </p>
+          <h1><span>{{ copy.hero.title[0] }}</span><span>{{ copy.hero.title[1] }}</span></h1>
+          <p class="oc-hero__lead">{{ copy.hero.lead }}</p>
           <div class="oc-hero__actions">
-            <a class="oc-btn oc-btn--primary" href="/guide/first-setup">开始使用 <span>→</span></a>
-            <a v-if="siteLinks.demo" class="oc-btn oc-btn--ghost" :href="siteLinks.demo" target="_blank" rel="noreferrer">打开官方 Demo <span>↗</span></a>
-            <a v-if="siteLinks.source" class="oc-btn oc-btn--ghost" :href="siteLinks.source" target="_blank" rel="noreferrer">获取开源代码 <span>↗</span></a>
-            <a class="oc-btn oc-btn--ghost" href="/guide/introduction">了解 Open Cottage</a>
+            <a class="oc-btn oc-btn--primary" :href="withLocale('/guide/first-setup')">{{ copy.hero.start }} <span>→</span></a>
+            <a v-if="siteLinks.demo" class="oc-btn oc-btn--ghost" :href="siteLinks.demo" target="_blank" rel="noreferrer">{{ copy.hero.demo }} <span>↗</span></a>
+            <a v-if="siteLinks.source" class="oc-btn oc-btn--ghost" :href="siteLinks.source" target="_blank" rel="noreferrer">{{ copy.hero.source }} <span>↗</span></a>
+            <a class="oc-btn oc-btn--ghost" :href="withLocale('/guide/introduction')">{{ copy.hero.learn }}</a>
           </div>
-          <ul class="oc-proof" aria-label="产品特点">
-            <li>纯前端，无需自建服务器</li>
-            <li>本地文件夹作为工作区</li>
-            <li>一切都在你的电脑里</li>
+          <ul class="oc-proof" :aria-label="copy.hero.proofLabel">
+            <li v-for="item in copy.hero.proof" :key="item">{{ item }}</li>
           </ul>
         </div>
-        <div class="oc-workbench oc-workflow" aria-label="Open Cottage 工作方式">
-          <p class="oc-workflow__label">最小组成</p>
+        <div class="oc-workbench oc-workflow" :aria-label="copy.workflow.ariaLabel">
+          <p class="oc-workflow__label">{{ copy.workflow.label }}</p>
           <div class="oc-workflow__steps">
-            <article><span>01</span><div><strong>浏览器</strong><p>提供应用界面与本地目录访问权限</p></div></article>
-            <article><span>02</span><div><strong>本地文件夹</strong><p>作为已有项目、资料与产出的工作区</p></div></article>
-            <article><span>03</span><div><strong>模型与能力</strong><p>按任务启用，完成读写、生成与工具调用</p></div></article>
+            <article v-for="step in copy.workflow.steps" :key="step.n"><span>{{ step.n }}</span><div><strong>{{ step.title }}</strong><p>{{ step.description }}</p></div></article>
           </div>
-          <div class="oc-workflow__outcome"><span>需要网页增强能力时</span><strong>按需连接 Cottage Service</strong><p>用于搜索、动态网页抓取与浏览器自动化</p></div>
+          <div class="oc-workflow__outcome"><span>{{ copy.workflow.outcome.label }}</span><strong>{{ copy.workflow.outcome.title }}</strong><p>{{ copy.workflow.outcome.description }}</p></div>
         </div>
       </div>
     </section>
 
-    <section class="oc-band oc-band--why"><div class="oc-wrap"><header class="oc-band__head"><p class="oc-kicker">数据安全</p><h2>没有服务器，也就没有「数据交给别人」的顾虑。</h2><p>Open Cottage 是纯前端应用，不需要、也不会替你搭建后端服务器。你的文件、对话记录与配置都留在自己的电脑和浏览器里；除了你主动配置与使用的模型服务，内容不会被发送到其他服务器。</p></header><div class="oc-why"><article class="oc-why__item"><span>01</span><h3>无需服务器</h3><p>整个应用在你的浏览器里运行，没有必须托管的后端，也就不存在服务器泄露或停服的问题。</p></article><article class="oc-why__item"><span>02</span><h3>文件不出你的电脑</h3><p>Agent 只读写你亲手授权的本地文件夹，成果直接落在原目录，不会上传到任何服务器。</p></article><article class="oc-why__item"><span>03</span><h3>对话与配置留在浏览器</h3><p>聊天记录、工作区配置保存在浏览器与本地工作区；API Key 只存你自己的浏览器，我们不代为保管。</p></article><article class="oc-why__item"><span>04</span><h3>模型由你选择</h3><p>调用模型时，内容由你配置的模型服务直接处理；是否使用、使用哪家，始终由你决定。</p></article></div><a class="oc-text-link" href="/guide/security">查看完整安全说明 <span>→</span></a></div></section>
+    <section class="oc-band oc-band--why"><div class="oc-wrap"><header class="oc-band__head"><p class="oc-kicker">{{ copy.why.kicker }}</p><h2>{{ copy.why.title }}</h2><p>{{ copy.why.description }}</p></header><div class="oc-why"><article v-for="item in copy.why.items" :key="item.n" class="oc-why__item"><span>{{ item.n }}</span><h3>{{ item.title }}</h3><p>{{ item.description }}</p></article></div><a class="oc-text-link" :href="withLocale('/guide/security')">{{ copy.why.link }} <span>→</span></a></div></section>
 
-    <section class="oc-band oc-band--scenes"><div class="oc-wrap"><header class="oc-band__head"><p class="oc-kicker">按需开启的能力</p><h2>能力服务于任务，不需要成为使用门槛。</h2><p>首次使用只需配置模型并打开工作区。需要时再选择对应能力；这里提供一份简要目录。</p></header><ul class="oc-capability-list"><li v-for="sc in scenes" :key="sc.href"><a :href="sc.href"><span class="oc-capability-list__icon">{{ sc.icon }}</span><span>{{ sc.title }}</span><small>{{ sc.tag }}</small><b aria-hidden="true">→</b></a></li></ul></div></section>
+    <section class="oc-band oc-band--scenes"><div class="oc-wrap"><header class="oc-band__head"><p class="oc-kicker">{{ copy.scenes.kicker }}</p><h2>{{ copy.scenes.title }}</h2><p>{{ copy.scenes.description }}</p></header><ul class="oc-capability-list"><li v-for="sc in scenes" :key="sc.href"><a :href="sc.href"><span class="oc-capability-list__icon">{{ sc.icon }}</span><span>{{ sc.title }}</span><small>{{ sc.tag }}</small><b aria-hidden="true">→</b></a></li></ul></div></section>
 
-    <section class="oc-band oc-band--flow"><div class="oc-wrap"><header class="oc-band__head"><p class="oc-kicker">开始使用</p><h2>四步完成最小配置。</h2><p>官方 Demo 适合直接体验；需要高级用法时再用开源代码自行部署。需要搜索、动态网页或自动化时，再按需连接 <a href="/concepts/cottage-service-concepts">Cottage Service</a>。</p></header><div class="oc-flow"><article v-for="s in flow" :key="s.n" class="oc-flow__item"><span class="oc-flow__n">{{ s.n }}</span><h3>{{ s.t }}</h3><p>{{ s.d }}</p></article></div></div></section>
+    <section class="oc-band oc-band--flow"><div class="oc-wrap"><header class="oc-band__head"><p class="oc-kicker">{{ copy.flow.kicker }}</p><h2>{{ copy.flow.title }}</h2><p>{{ copy.flow.descriptionBefore }}<a :href="withLocale('/concepts/cottage-service-concepts')">Cottage Service</a>{{ copy.flow.descriptionAfter }}</p></header><div class="oc-flow"><article v-for="s in flow" :key="s.n" class="oc-flow__item"><span class="oc-flow__n">{{ s.n }}</span><h3>{{ s.title }}</h3><p>{{ s.description }}</p></article></div></div></section>
 
-    <section class="oc-band oc-band--cta"><div class="oc-wrap oc-cta"><p class="oc-kicker">开始使用</p><h2>打开一个文件夹，<br />在原有目录中完成工作。</h2><p>配置模型后即可开始；生成、修改与确认都在同一个工作区完成。</p><div class="oc-hero__actions"><a class="oc-btn oc-btn--primary" href="/guide/first-setup">开始五分钟配置 <span>→</span></a><a v-if="siteLinks.demo" class="oc-btn oc-btn--ghost" :href="siteLinks.demo" target="_blank" rel="noreferrer">打开官方 Demo <span>↗</span></a><a v-if="siteLinks.source" class="oc-btn oc-btn--ghost" :href="siteLinks.source" target="_blank" rel="noreferrer">获取开源代码 <span>↗</span></a><a class="oc-btn oc-btn--ghost" href="/concepts/">了解核心概念</a></div></div></section>
+    <section class="oc-band oc-band--cta"><div class="oc-wrap oc-cta"><p class="oc-kicker">{{ copy.cta.kicker }}</p><h2>{{ copy.cta.title[0] }}<br />{{ copy.cta.title[1] }}</h2><p>{{ copy.cta.description }}</p><div class="oc-hero__actions"><a class="oc-btn oc-btn--primary" :href="withLocale('/guide/first-setup')">{{ copy.cta.start }} <span>→</span></a><a v-if="siteLinks.demo" class="oc-btn oc-btn--ghost" :href="siteLinks.demo" target="_blank" rel="noreferrer">{{ copy.hero.demo }} <span>↗</span></a><a v-if="siteLinks.source" class="oc-btn oc-btn--ghost" :href="siteLinks.source" target="_blank" rel="noreferrer">{{ copy.hero.source }} <span>↗</span></a><a class="oc-btn oc-btn--ghost" :href="withLocale('/concepts/')">{{ copy.cta.learn }}</a></div></div></section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { siteLinks } from '../../site-links.mjs'
 
-const flow = [{ n: '01', t: '打开应用', d: '使用官方 Demo，或运行自行部署的实例。' }, { n: '02', t: '选择本地文件夹', d: '授权浏览器访问已有项目或资料目录。' }, { n: '03', t: '配置模型与能力', d: '选择可用模型；只在需要时开启对应能力。' }, { n: '04', t: '开始任务', d: '说明目标、输出路径和边界，让结果直接落在工作区。' }]
-const scenes = [{ icon: '✦', tag: '办公', title: 'Word / PPT / 表格', href: '/guide/use-office' }, { icon: '⌘', tag: '编码', title: '代码改造', href: '/guide/use-coding' }, { icon: '⌕', tag: '研究', title: '调研报告', href: '/guide/use-research' }, { icon: '↗', tag: '网页', title: '网页处理', href: '/guide/use-web' }, { icon: '▧', tag: 'PDF / 图表', title: 'PDF 与图表', href: '/guide/use-pdf-chart' }, { icon: '✓', tag: '计划', title: '计划模式', href: '/guide/spec' }]
+const props = defineProps<{ locale?: 'en' }>()
+const isEnglish = computed(() => props.locale === 'en')
+const withLocale = (path: string) => (isEnglish.value ? `/en${path}` : path)
+
+const copy = computed(() => isEnglish.value ? {
+  hero: { title: ['Start in your browser,', 'open a folder when needed.'], lead: 'Open Cottage is a frontend Agent. Begin immediately in a persistent browser chat workspace, or authorize a local folder when the task needs existing material. Configure a model to read and write files, call tools, and produce content—without a separate desktop client.', start: 'Get started', demo: 'Open live demo', source: 'Get the source code', learn: 'Explore Open Cottage', proofLabel: 'Product highlights', proof: ['Start without choosing a folder', 'Open local folders when needed', 'Everything stays on your computer'] },
+  workflow: { ariaLabel: 'How Open Cottage works', label: 'MINIMUM SETUP', steps: [{ n: '01', title: 'Browser', description: 'Provides the interface and persistent IndexedDB chat workspace' }, { n: '02', title: 'Optional local folder', description: 'Lets the Agent work with existing projects, material, and deliverables' }, { n: '03', title: 'Model and capabilities', description: 'Are enabled per task for reads, writes, generation, and tools' }], outcome: { label: 'WHEN YOU NEED WEB ENHANCEMENT', title: 'Connect Cottage Service when needed', description: 'For search, dynamic-page fetching, and browser automation' } },
+  why: { kicker: 'LOCAL BY DESIGN', title: 'No server means no need to hand your data over.', description: 'Open Cottage is a frontend application. It does not require or create a backend for you. Your files, conversations, and configuration stay on your computer and in your browser; content goes only to the model services you choose to configure and use.', items: [{ n: '01', title: 'No server required', description: 'The application runs in your browser, without a backend that must be hosted or kept online.' }, { n: '02', title: 'Files stay on your computer', description: 'The Agent works only in the local folder you authorize, and results land in that same folder.' }, { n: '03', title: 'Conversations and settings stay local', description: 'Chats and workspace settings stay in the browser and local workspace; API keys remain in your browser.' }, { n: '04', title: 'You choose the model', description: 'Requests go directly to the model service you configure. Whether and which one to use remains your decision.' }], link: 'Read the full security guide' },
+  scenes: { kicker: 'CAPABILITIES ON DEMAND', title: 'Capabilities serve the task—they are not a barrier to starting.', description: 'For a first task, configure a model and open a workspace. Select specialized capabilities only when the task calls for them.' },
+  flow: { kicker: 'GET STARTED', title: 'Complete the minimum setup in four steps.', descriptionBefore: 'The live demo is ready to try. Self-host only when you need advanced use. For search, dynamic webpages, or automation, connect ', descriptionAfter: ' when needed.' },
+  cta: { kicker: 'GET STARTED', title: ['Start chatting now,', 'or open a folder.'], description: 'Configure a model and begin. Generation, changes, and review all happen in the same workspace.', start: 'Start the five-minute setup', learn: 'Explore core concepts' },
+  flowSteps: [{ n: '01', title: 'Open the app', description: 'Use the live demo or run your own deployment.' }, { n: '02', title: 'Choose a workspace', description: 'Start in the browser workspace, or authorize an existing local folder.' }, { n: '03', title: 'Configure model and capabilities', description: 'Choose a model and enable capabilities only when needed.' }, { n: '04', title: 'Start the task', description: 'State the goal, output path, and boundary; results land in the workspace.' }],
+  sceneItems: [{ icon: '✦', tag: 'OFFICE', title: 'Word, slides, and spreadsheets', path: '/guide/use-office' }, { icon: '⌘', tag: 'CODE', title: 'Code changes', path: '/guide/use-coding' }, { icon: '⌕', tag: 'RESEARCH', title: 'Research reports', path: '/guide/use-research' }, { icon: '↗', tag: 'WEB', title: 'Web work', path: '/guide/use-web' }, { icon: '▧', tag: 'PDF / CHARTS', title: 'PDFs and charts', path: '/guide/use-pdf-chart' }, { icon: '✓', tag: 'PLAN', title: 'Plan mode', path: '/guide/spec' }],
+} : {
+  hero: { title: ['在浏览器直接开始，', '需要时再打开文件夹。'], lead: 'Open Cottage 是纯前端 Agent：可以直接使用持久化的浏览器聊天工作区，也可以按需授权本地文件夹。配置模型后，即可读写文件、调用工具与生成内容，无需额外桌面客户端。', start: '开始使用', demo: '打开官方 Demo', source: '获取开源代码', learn: '了解 Open Cottage', proofLabel: '产品特点', proof: ['不选文件夹也能开始', '需要时打开本地目录', '一切都在你的电脑里'] },
+  workflow: { ariaLabel: 'Open Cottage 工作方式', label: '最小组成', steps: [{ n: '01', title: '浏览器', description: '提供应用界面与持久化的 IndexedDB 聊天工作区' }, { n: '02', title: '可选本地文件夹', description: '让 Agent 处理已有项目、资料与交付物' }, { n: '03', title: '模型与能力', description: '按任务启用，完成读写、生成与工具调用' }], outcome: { label: '需要网页增强能力时', title: '按需连接 Cottage Service', description: '用于搜索、动态网页抓取与浏览器自动化' } },
+  why: { kicker: '数据安全', title: '没有服务器，也就没有「数据交给别人」的顾虑。', description: 'Open Cottage 是纯前端应用，不需要、也不会替你搭建后端服务器。你的文件、对话记录与配置都留在自己的电脑和浏览器里；除了你主动配置与使用的模型服务，内容不会被发送到其他服务器。', items: [{ n: '01', title: '无需服务器', description: '整个应用在你的浏览器里运行，没有必须托管的后端，也就不存在服务器泄露或停服的问题。' }, { n: '02', title: '文件不出你的电脑', description: 'Agent 只读写你亲手授权的本地文件夹，成果直接落在原目录，不会上传到任何服务器。' }, { n: '03', title: '对话与配置留在浏览器', description: '聊天记录、工作区配置保存在浏览器与本地工作区；API Key 只存你自己的浏览器，我们不代为保管。' }, { n: '04', title: '模型由你选择', description: '调用模型时，内容由你配置的模型服务直接处理；是否使用、使用哪家，始终由你决定。' }], link: '查看完整安全说明' },
+  scenes: { kicker: '按需开启的能力', title: '能力服务于任务，不需要成为使用门槛。', description: '首次使用只需配置模型并打开工作区。需要时再选择对应能力；这里提供一份简要目录。' },
+  flow: { kicker: '开始使用', title: '四步完成最小配置。', descriptionBefore: '官方 Demo 适合直接体验；需要高级用法时再用开源代码自行部署。需要搜索、动态网页或自动化时，再按需连接 ', descriptionAfter: '。' },
+  cta: { kicker: '开始使用', title: ['直接开始聊天，', '或打开一个文件夹。'], description: '配置模型后即可开始；生成、修改与确认都在同一个工作区完成。', start: '开始五分钟配置', learn: '了解核心概念' },
+  flowSteps: [{ n: '01', title: '打开应用', description: '使用官方 Demo，或运行自行部署的实例。' }, { n: '02', title: '选择工作区', description: '直接进入浏览器工作区，或授权访问已有本地目录。' }, { n: '03', title: '配置模型与能力', description: '选择可用模型；只在需要时开启对应能力。' }, { n: '04', title: '开始任务', description: '说明目标、输出路径和边界，让结果直接落在工作区。' }],
+  sceneItems: [{ icon: '✦', tag: '办公', title: 'Word / PPT / 表格', path: '/guide/use-office' }, { icon: '⌘', tag: '编码', title: '代码改造', path: '/guide/use-coding' }, { icon: '⌕', tag: '研究', title: '调研报告', path: '/guide/use-research' }, { icon: '↗', tag: '网页', title: '网页处理', path: '/guide/use-web' }, { icon: '▧', tag: 'PDF / 图表', title: 'PDF 与图表', path: '/guide/use-pdf-chart' }, { icon: '✓', tag: '计划', title: '计划模式', path: '/guide/spec' }],
+})
+
+const flow = computed(() => copy.value.flowSteps)
+const scenes = computed(() => copy.value.sceneItems.map((item) => ({ ...item, href: withLocale(item.path) })))
 </script>
 
 <style scoped>

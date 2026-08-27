@@ -83,6 +83,7 @@ declare module 'vue' {
     VectorIndexTab: typeof import('./components/DebugPanel/VectorIndexTab.vue')['default']
     VerifyResultCard: typeof import('./components/Task/VerifyResultCard.vue')['default']
     VirtualTable: typeof import('./components/Preview/VirtualTable.vue')['default']
+    VirtualWorkspaceUsage: typeof import('./components/FileBrowser/VirtualWorkspaceUsage.vue')['default']
     WebSearchFields: typeof import('./components/Settings/WebSearchFields.vue')['default']
     WelcomePage: typeof import('./components/Welcome/WelcomePage.vue')['default']
     WordPreview: typeof import('./components/Preview/WordPreview.vue')['default']

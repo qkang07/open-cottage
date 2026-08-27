@@ -4,6 +4,7 @@ import {
   CheckmarkOutline,
   EllipsisHorizontalOutline,
   FolderOpenOutline,
+  ServerOutline,
   TimeOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
@@ -28,14 +29,28 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useWorkspaceStore } from '../../stores/workspace';
 import type { RecentWorkspace } from '../../workspace/workspacePersistence';
+import { VIRTUAL_WORKSPACE_ID } from '../../workspace/VirtualWorkspace';
 
 const { t } = useI18n();
 const message = ElMessage;
 const workspaceStore = useWorkspaceStore();
 const { recentWorkspaces, activeWorkspaceId, loading } = storeToRefs(workspaceStore);
+const { virtualWorkspaceUsageBytes } = storeToRefs(workspaceStore);
 const aliasDraftMap = ref<Record<string, string>>({});
 const loadingMap = ref<Record<string, boolean>>({});
 const adding = ref(false);
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unit = units[0]!;
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024;
+    unit = units[index]!;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${unit}`;
+};
 
 const formatOpenedAt = (timestamp: number) =>
   new Date(timestamp).toLocaleString(undefined, {
@@ -126,6 +141,33 @@ const openFolder = (item: RecentWorkspace) => {
 
 const isActive = (item: RecentWorkspace) => item.id === activeWorkspaceId.value;
 
+const openVirtualWorkspace = () => {
+  if (activeWorkspaceId.value === VIRTUAL_WORKSPACE_ID) return;
+  void workspaceStore.openVirtualWorkspace().catch((error) => {
+    message.error(error instanceof Error ? error.message : String(error));
+  });
+};
+
+const confirmClearVirtualWorkspace = () => {
+  void ElMessageBox.confirm(
+    t('settings.clearVirtualWorkspaceConfirm'),
+    t('settings.clearVirtualWorkspaceTitle'),
+    {
+      confirmButtonText: t('settings.clearVirtualWorkspace'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning',
+    },
+  )
+    .then(async () => {
+      await workspaceStore.resetVirtualWorkspace();
+      message.success(t('settings.virtualWorkspaceCleared'));
+    })
+    .catch((error) => {
+      if (error === 'cancel' || error === 'close') return;
+      message.error(error instanceof Error ? error.message : String(error));
+    });
+};
+
 const handleCardCommand = (item: RecentWorkspace, command: string | number | object) => {
   const cmd = String(command);
   if (cmd === 'delete') confirmRemove(item);
@@ -134,6 +176,51 @@ const handleCardCommand = (item: RecentWorkspace, command: string | number | obj
 
 <template>
   <div class="workspace-folder-manager">
+    <ElCard
+      :class="[
+        'workspace-folder-card',
+        'workspace-virtual-card',
+        { 'workspace-folder-card-active': activeWorkspaceId === VIRTUAL_WORKSPACE_ID },
+      ]"
+      :body-style="{ padding: '12px 14px' }"
+      shadow="never"
+    >
+      <div class="workspace-folder-card-content">
+        <div class="workspace-folder-card-header">
+          <div class="workspace-folder-card-title">
+            <NIcon :component="ServerOutline" class="workspace-folder-icon" />
+            <NText strong class="workspace-folder-title-text">
+              {{ t('settings.virtualWorkspace') }}
+            </NText>
+          </div>
+          <CottageTooltip
+            :content="activeWorkspaceId === VIRTUAL_WORKSPACE_ID ? t('common.current') : t('settings.switchWorkspaceAction')"
+            placement="top"
+          >
+            <ElButton
+              class="workspace-folder-select-btn"
+              :type="activeWorkspaceId === VIRTUAL_WORKSPACE_ID ? 'primary' : 'default'"
+              :plain="activeWorkspaceId !== VIRTUAL_WORKSPACE_ID"
+              circle
+              size="small"
+              @click="openVirtualWorkspace"
+            >
+              <template #icon><NIcon :component="CheckmarkOutline" /></template>
+            </ElButton>
+          </CottageTooltip>
+        </div>
+        <NText depth="3">{{ t('settings.virtualWorkspaceDescription') }}</NText>
+        <NText depth="3">
+          {{ t('settings.virtualWorkspaceUsage', { size: formatBytes(virtualWorkspaceUsageBytes) }) }}
+        </NText>
+        <div class="workspace-folder-card-footer">
+          <ElButton text type="danger" size="small" @click="confirmClearVirtualWorkspace">
+            <template #icon><NIcon :component="TrashOutline" /></template>
+            {{ t('settings.clearVirtualWorkspace') }}
+          </ElButton>
+        </div>
+      </div>
+    </ElCard>
     <div class="workspace-folder-manager-toolbar">
       <NText depth="3" class="workspace-folder-manager-hint">
         {{ t('settings.rememberedWorkspacesHint', { n: recentWorkspaces.length }) }}

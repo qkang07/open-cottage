@@ -28,6 +28,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { officialLinks } from '../../config/officialLinks';
 import DebugPanel from '../DebugPanel/DebugPanel.vue';
 import CottageServiceStatusButton from './CottageServiceStatusButton.vue';
+import VirtualWorkspaceUsage from './VirtualWorkspaceUsage.vue';
 const { t } = useI18n();
 const emit = defineEmits<{
   openSettings: [tab?: string];
@@ -115,6 +116,7 @@ const workspaceFileCount = computed(() => snapshot.value?.files.length ?? 0);
       </CottageTooltip>
     </div>
     <div class="collapsed-sidebar-rail-bottom">
+      <VirtualWorkspaceUsage compact />
       <CottageTooltip :content="t('welcome.docs')" placement="right">
         <a
           class="collapsed-sidebar-btn"

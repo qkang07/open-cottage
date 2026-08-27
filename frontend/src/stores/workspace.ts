@@ -7,7 +7,7 @@ import type { CottageConfig } from '../config/constants';
 import { initHistory, trackManualEdit } from '../history/autoCheckpoint';
 import { scheduleBackgroundSymbolIndex } from '../domains/coding/indexBackground';
 import type { SpreadsheetContent } from '../agent/officeDocuments';
-import { workspace } from '../workspace/FileSystemWorkspace';
+import { formatWorkspaceFsError, workspace } from '../workspace/FileSystemWorkspace';
 import { startCrawler, stopCrawler } from '../workspace/crawlerHost';
 import { clearDirChildrenCache } from '../workspace/dirChildrenCache';
 import type { FilePreview, PresentationSlidePreview, PreviewKind } from '../workspace/previewKind';
@@ -22,8 +22,16 @@ import {
   rememberWorkspace,
   setRecentWorkspaceAlias,
   touchRecentWorkspace,
+  setLastWorkspaceId,
   type RecentWorkspace,
 } from '../workspace/workspacePersistence';
+import {
+  getVirtualWorkspaceUsage,
+  openVirtualDirectoryHandle,
+  resetVirtualWorkspace as clearVirtualWorkspaceStorage,
+  VIRTUAL_WORKSPACE_ID,
+} from '../workspace/VirtualWorkspace';
+import type { WorkspaceKind } from '../workspace/FileSystemWorkspace';
 
 /** 可编辑的预览类型列表 */
 const EDITABLE_PREVIEW_KINDS: PreviewKind[] = ['text', 'markdown', 'html'];
@@ -39,6 +47,8 @@ export const isEditablePreview = (kind: PreviewKind | null) =>
 export const useWorkspaceStore = defineStore('workspace', () => {
   const snapshot = ref<WorkspaceSnapshot | null>(null);
   const activeWorkspaceId = ref<string | null>(getLastWorkspaceId());
+  const activeWorkspaceKind = ref<WorkspaceKind | null>(null);
+  const virtualWorkspaceUsageBytes = ref(0);
   const cottageConfig = ref<CottageConfig>(getCottageConfig());
   const recentWorkspaces = ref<RecentWorkspace[]>(readRecentWorkspaces());
   const selectedPath = ref<string | null>(null);
@@ -59,6 +69,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const htmlContentRef = shallowRef<string | null>(null);
   const savedPreviewContentRef = shallowRef<string | null>(null);
   const restoreAttemptedRef = shallowRef(false);
+
+  void getVirtualWorkspaceUsage()
+    .then((usage) => {
+      virtualWorkspaceUsageBytes.value = usage;
+    })
+    .catch(() => undefined);
 
   /** 释放当前预览 URL 对象 */
   function revokePreviewUrl() {
@@ -211,6 +227,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   /** 工作空间激活后的收尾工作（刷新配置、启动后台任务） */
   async function finishWorkspaceActivation() {
+    activeWorkspaceKind.value = workspace.kind;
+    virtualWorkspaceUsageBytes.value =
+      workspace.kind === 'virtual' ? await getVirtualWorkspaceUsage() : 0;
     syncRecentList();
     await reloadCottageConfig();
     const next = await workspace.snapshot();
@@ -220,7 +239,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     // 启动后台全量预加载 Worker，把所有目录（含 deferred）的子节点填入全局缓存，
     // 之后展开任意目录都能命中缓存而无需 IO
     const rootHandle = workspace.rootHandle;
-    if (rootHandle) startCrawler(rootHandle);
+    if (rootHandle && workspace.supportsHandleWorkers) startCrawler(rootHandle);
     // [HIDDEN] 向量索引不再随工作区打开自动初始化或建库。
     scheduleBackgroundSymbolIndex();
 
@@ -236,6 +255,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     touchRecentWorkspace(workspaceId);
     activeWorkspaceId.value = workspaceId;
     await finishWorkspaceActivation();
+  }
+
+  /** 打开固定的浏览器虚拟工作区（IndexedDB）。 */
+  async function openVirtualWorkspace() {
+    loading.value = true;
+    try {
+      const handle = await openVirtualDirectoryHandle();
+      await beforeWorkspaceChange(VIRTUAL_WORKSPACE_ID);
+      await workspace.attachDirectory(handle);
+      setLastWorkspaceId(VIRTUAL_WORKSPACE_ID);
+      activeWorkspaceId.value = VIRTUAL_WORKSPACE_ID;
+      await finishWorkspaceActivation();
+    } catch (error) {
+      throw new Error(formatWorkspaceFsError(error));
+    } finally {
+      loading.value = false;
+    }
   }
 
   /** 从磁盘刷新工作空间快照 */
@@ -278,9 +314,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   async function openWorkspace() {
     loading.value = true;
     try {
-      const handle = await workspace.openDirectory();
+      const handle = await workspace.pickDirectory();
       const id = await rememberWorkspace(handle);
       await beforeWorkspaceChange(id);
+      await workspace.attachDirectory(handle);
       touchRecentWorkspace(id);
       activeWorkspaceId.value = id;
       await finishWorkspaceActivation();
@@ -314,6 +351,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     await beforeWorkspaceChange('');
     workspace.close();
     activeWorkspaceId.value = null;
+    activeWorkspaceKind.value = null;
+    virtualWorkspaceUsageBytes.value = 0;
     snapshot.value = null;
     syncRecentList();
   }
@@ -354,13 +393,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (restoreAttemptedRef.value) return;
     restoreAttemptedRef.value = true;
 
-    if (!('showDirectoryPicker' in window)) {
-      restoring.value = false;
-      return;
-    }
     try {
-      const handle = await loadLastDirectoryHandle();
       const id = getLastWorkspaceId();
+      if (id === VIRTUAL_WORKSPACE_ID) {
+        await openVirtualWorkspace();
+        return;
+      }
+      if (!('showDirectoryPicker' in window)) return;
+      const handle = await loadLastDirectoryHandle();
       if (!handle || !id) return;
       await activateStoredWorkspace(handle, id);
     } catch {
@@ -369,6 +409,45 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       restoring.value = false;
     }
   }
+
+  /** 清空固定虚拟工作区；当前正在使用时会安全重建为空工作区。 */
+  async function resetVirtualWorkspace() {
+    loading.value = true;
+    const active = activeWorkspaceId.value === VIRTUAL_WORKSPACE_ID && workspace.isOpen;
+    try {
+      if (active) {
+        await beforeWorkspaceChange('');
+        workspace.close();
+        snapshot.value = null;
+      }
+      await clearVirtualWorkspaceStorage();
+      virtualWorkspaceUsageBytes.value = 0;
+      if (active) {
+        await workspace.openVirtualWorkspace();
+        setLastWorkspaceId(VIRTUAL_WORKSPACE_ID);
+        activeWorkspaceId.value = VIRTUAL_WORKSPACE_ID;
+        await finishWorkspaceActivation();
+      }
+    } catch (error) {
+      if (active && !workspace.isOpen) {
+        try {
+          await workspace.openVirtualWorkspace();
+          activeWorkspaceId.value = VIRTUAL_WORKSPACE_ID;
+          await finishWorkspaceActivation();
+        } catch {
+          activeWorkspaceKind.value = null;
+          snapshot.value = null;
+        }
+      }
+      throw new Error(formatWorkspaceFsError(error));
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  workspace.onDidStorageUsageChange((usageBytes) => {
+    virtualWorkspaceUsageBytes.value = usageBytes;
+  });
 
   /** 选择文件并加载预览 */
   async function selectFile(path: string) {
@@ -495,6 +574,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   return {
     snapshot,
     activeWorkspaceId,
+    activeWorkspaceKind,
+    virtualWorkspaceUsageBytes,
     cottageConfig,
     recentWorkspaces,
     selectedPath,
@@ -510,10 +591,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     restoring,
     treeVersion,
     openWorkspace,
+    openVirtualWorkspace,
     addWorkspaceToRecent,
     openRecentWorkspace,
     removeRecentWorkspace,
     closeWorkspace,
+    resetVirtualWorkspace,
     refresh,
     refreshFromDisk,
     patchSnapshot,

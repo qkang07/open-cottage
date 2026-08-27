@@ -11,7 +11,7 @@ import {
   SettingsOutline,
   SunnyOutline,
     } from '@vicons/ionicons5';
-import { ElButton } from 'element-plus';
+import { ElButton, ElMessage } from 'element-plus';
 import CottageTooltip from '@/ui/CottageTooltip.vue';
 import {
   NIcon
@@ -64,6 +64,11 @@ const steps = computed(() => [
     description: t('welcome.stepChatDesc'),
   },
 ]);
+const startVirtualWorkspace = () => {
+  void workspaceStore.openVirtualWorkspace().catch((error) => {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  });
+};
 </script>
 <template>
   <div class="welcome-page">
@@ -154,18 +159,31 @@ const steps = computed(() => [
           </span>
         </div>
       </div>
-      <ElButton
-        type="primary"
-        size="large"
-        class="welcome-cta"
-        :loading="loading"
-        @click="workspaceStore.openWorkspace()"
-      >
-        <template #icon>
-          <NIcon :component="FolderOpenOutline" />
-        </template>
-        {{ t('welcome.openFolder') }}
-      </ElButton>
+      <div class="welcome-actions">
+        <ElButton
+          type="primary"
+          size="large"
+          class="welcome-cta"
+          :loading="loading"
+          @click="startVirtualWorkspace"
+        >
+          <template #icon>
+            <NIcon :component="ChatbubbleOutline" />
+          </template>
+          {{ t('welcome.startChat') }}
+        </ElButton>
+        <ElButton
+          size="large"
+          class="welcome-cta welcome-cta-secondary"
+          :loading="loading"
+          @click="workspaceStore.openWorkspace()"
+        >
+          <template #icon>
+            <NIcon :component="FolderOpenOutline" />
+          </template>
+          {{ t('welcome.openFolder') }}
+        </ElButton>
+      </div>
       <!-- <p class="welcome-privacy">{{ t('welcome.privacy') }}</p> -->
     </header>
     <section v-if="recentWorkspaces.length > 0" class="welcome-section">

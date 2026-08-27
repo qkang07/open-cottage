@@ -31,8 +31,16 @@ import {
 import type { DirectorySizeResult, ExplorerEntry } from './explorerTypes';
 import type { WorkspaceFileNode, WorkspaceSnapshot } from './types';
 import { journalBeforeMutation } from '../plan/mutationJournal';
+import {
+  getVirtualWorkspaceUsage,
+  isVirtualDirectoryHandle,
+  openVirtualDirectoryHandle,
+  subscribeVirtualWorkspaceUsage,
+  VIRTUAL_WORKSPACE_ID,
+} from './VirtualWorkspace';
 
 export type EntryKind = 'file' | 'directory' | null;
+export type WorkspaceKind = 'folder' | 'virtual';
 
 /** 将 File System Access API 错误转为用户可读说明 */
 export const formatWorkspaceFsError = (error: unknown): string => {
@@ -48,6 +56,12 @@ export const formatWorkspaceFsError = (error: unknown): string => {
   ) {
     return '工作区无法访问（可能已被移动、重命名或删除），请关闭后重新打开';
   }
+  if (
+    (error instanceof DOMException && error.name === 'QuotaExceededError') ||
+    message.toLowerCase().includes('quota')
+  ) {
+    return '浏览器存储空间不足，无法继续写入聊天工作区；请删除不需要的文件或清空工作区后重试';
+  }
   return message;
 };
 
@@ -61,7 +75,16 @@ export interface TraverseOptions {
 
 export class FileSystemWorkspace {
   #root: FileSystemDirectoryHandle | null = null;
+  #kind: WorkspaceKind | null = null;
   #changeListeners = new Set<(patch: SnapshotPatch) => void>();
+  #storageUsageListeners = new Set<(usageBytes: number) => void>();
+
+  constructor() {
+    subscribeVirtualWorkspaceUsage((workspaceId, usageBytes) => {
+      if (workspaceId !== VIRTUAL_WORKSPACE_ID || this.#kind !== 'virtual') return;
+      for (const listener of this.#storageUsageListeners) listener(usageBytes);
+    });
+  }
 
   /**
    * 订阅由工作区 API 成功完成的结构变更。
@@ -73,6 +96,11 @@ export class FileSystemWorkspace {
   onDidChange(listener: (patch: SnapshotPatch) => void): () => void {
     this.#changeListeners.add(listener);
     return () => this.#changeListeners.delete(listener);
+  }
+
+  onDidStorageUsageChange(listener: (usageBytes: number) => void): () => void {
+    this.#storageUsageListeners.add(listener);
+    return () => this.#storageUsageListeners.delete(listener);
   }
 
   #emitChange(patch: SnapshotPatch) {
@@ -88,6 +116,14 @@ export class FileSystemWorkspace {
 
   get isOpen() {
     return this.#root !== null;
+  }
+
+  get kind(): WorkspaceKind | null {
+    return this.#kind;
+  }
+
+  get supportsHandleWorkers(): boolean {
+    return this.#kind === 'folder';
   }
 
   get rootHandle() {
@@ -108,17 +144,28 @@ export class FileSystemWorkspace {
 
   async attachDirectory(handle: FileSystemDirectoryHandle) {
     this.#root = handle;
+    this.#kind = isVirtualDirectoryHandle(handle) ? 'virtual' : 'folder';
     await this.ensureCottageDir();
     return handle.name;
   }
 
+  async openVirtualWorkspace() {
+    const root = await openVirtualDirectoryHandle();
+    await this.attachDirectory(root);
+    return root;
+  }
+
   async openDirectory() {
+    const root = await this.pickDirectory();
+    await this.attachDirectory(root);
+    return root;
+  }
+
+  async pickDirectory() {
     if (!('showDirectoryPicker' in window)) {
       throw new Error('当前浏览器不支持 File System Access API');
     }
-    const root = await window.showDirectoryPicker({ mode: 'readwrite' });
-    await this.attachDirectory(root);
-    return root;
+    return window.showDirectoryPicker({ mode: 'readwrite' });
   }
 
   async restoreDirectory(handle: FileSystemDirectoryHandle) {
@@ -132,6 +179,11 @@ export class FileSystemWorkspace {
 
   close() {
     this.#root = null;
+    this.#kind = null;
+  }
+
+  async getStorageUsage(): Promise<number | null> {
+    return this.#kind === 'virtual' ? getVirtualWorkspaceUsage() : null;
   }
 
   async ensureCottageDir() {
@@ -319,14 +371,13 @@ export class FileSystemWorkspace {
     const rootName = this.#root.name;
     // 遍历 IO 走 Web Worker，避免主线程被 File System Access API 占满；
     // Worker 不可用时 host 内部自动回退主线程（带 maybeYield）
-    const { files, directories, deferredDirs } = await walkWorkspaceInWorker(
-      rootHandle,
-      rootName,
-      {
-        signal: options?.signal,
-        skipIgnoredDirs: options?.skipIgnoredDirs,
-      },
-    );
+    const walkOptions = {
+      signal: options?.signal,
+      skipIgnoredDirs: options?.skipIgnoredDirs,
+    };
+    const { files, directories, deferredDirs } = this.supportsHandleWorkers
+      ? await walkWorkspaceInWorker(rootHandle, rootName, walkOptions)
+      : await this.#walkWorkspace('', walkOptions);
     return {
       rootName,
       files,
@@ -431,12 +482,15 @@ export class FileSystemWorkspace {
     options?: Pick<TraverseOptions, 'signal' | 'includeFileMetadata'>,
   ): Promise<ExplorerEntry[]> {
     if (!this.#root) return [];
-    // 单层目录列表走 Worker，避免展开大目录时 FSA entries() 阻塞主线程；
-    // Worker 不可用时 host 内部自动回退主线程
-    return listDirectoryContentsInWorker(this.#root, dirPath, {
+    const workerOptions = {
       signal: options?.signal,
       includeFileMetadata: options?.includeFileMetadata,
-    });
+    };
+    if (this.supportsHandleWorkers) {
+      return listDirectoryContentsInWorker(this.#root, dirPath, workerOptions);
+    }
+    const { listDirectoryContentsCore } = await import('./listDirectoryContentsCore');
+    return listDirectoryContentsCore(this.#root, dirPath, workerOptions);
   }
 
   /** 文件树懒加载：列出单层子节点（用户展开 node_modules 等时使用） */

@@ -2,7 +2,7 @@
 
 ## 1. Open a workspace
 
-Open the app in desktop Chrome or Edge, choose **Open folder**, and select an existing project or material folder. Confirm that it is the folder you intend to let the Agent work in.
+Open the app in desktop Chrome or Edge. Choose **Start chatting** to create or reopen the fixed IndexedDB-backed chat workspace, or choose **Open local workspace** to authorize an existing project or material folder. The chat workspace size appears at the lower left; clearing site data removes it permanently.
 
 ## 2. Configure a model
 

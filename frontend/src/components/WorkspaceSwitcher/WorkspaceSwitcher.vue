@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   CheckmarkOutline,
+  ChatbubbleOutline,
   ChevronDownOutline,
   FolderOpenOutline,
   TimeOutline,
@@ -12,14 +13,18 @@ import {
 import type {
   DropdownOption
 } from '@/ui/element-plus-types';
+import { ElMessage } from 'element-plus';
 
 import CottageTooltip from '@/ui/CottageTooltip.vue';
 import ContextMenuPanel from '@/ui/ContextMenuPanel.vue';
 import { storeToRefs } from 'pinia';
 import { computed, h, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { RecentWorkspace } from '../../workspace/workspacePersistence';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { VIRTUAL_WORKSPACE_ID } from '../../workspace/VirtualWorkspace';
 const workspaceStore = useWorkspaceStore();
+const { t } = useI18n();
 const {
   snapshot,
   activeWorkspaceId,
@@ -55,8 +60,23 @@ const activeWorkspaceAlias = computed(
 const label = computed(
   () => activeWorkspaceAlias.value || snapshot.value?.rootName || '选择工作空间',
 );
+const triggerIcon = computed(() =>
+  activeWorkspaceId.value === VIRTUAL_WORKSPACE_ID ? ChatbubbleOutline : FolderOpenOutline,
+);
 const menuOptions = computed((): DropdownOption[] => {
-  const items: DropdownOption[] = [];
+  const items: DropdownOption[] = [
+    {
+      key: 'virtual-workspace',
+      icon: () => h(NIcon, {
+        component:
+          activeWorkspaceId.value === VIRTUAL_WORKSPACE_ID
+            ? CheckmarkOutline
+            : ChatbubbleOutline,
+      }),
+      label: t('settings.virtualWorkspace'),
+    },
+    { type: 'divider', key: 'virtual-divider' },
+  ];
   if (recentWorkspaces.value.length > 0) {
     items.push(
       { key: 'recent-label', type: 'group', label: '最近打开' },
@@ -103,8 +123,16 @@ const menuOptions = computed((): DropdownOption[] => {
   return items;
 });
 function onMenuSelect(key: string) {
-  if (key === 'recent-label' || key === 'divider') return;
+  if (key === 'recent-label' || key === 'divider' || key === 'virtual-divider') return;
   open.value = false;
+  if (key === 'virtual-workspace') {
+    if (activeWorkspaceId.value !== VIRTUAL_WORKSPACE_ID || !snapshot.value) {
+      void workspaceStore.openVirtualWorkspace().catch((error) => {
+        ElMessage.error(error instanceof Error ? error.message : String(error));
+      });
+    }
+    return;
+  }
   if (key === 'open-new') {
     void workspaceStore.openWorkspace();
     return;
@@ -133,7 +161,7 @@ function toggleMenu() {
         :disabled="restoring"
         @click="toggleMenu"
       >
-        <NIcon :component="FolderOpenOutline" />
+        <NIcon :component="triggerIcon" />
         <NText
           ellipsis
           class="workspace-switcher-label"
