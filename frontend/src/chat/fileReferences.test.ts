@@ -4,7 +4,9 @@ import {
   extractTextByAnchor,
   formatReferenceLabel,
   lineNumberAtOffset,
+  parseCottageReferenceDragData,
   positionAtOffset,
+  serializeCottageReferenceDragData,
   textAnchorFromOffsets,
 } from './fileReferences';
 
@@ -12,6 +14,26 @@ describe('positionAtOffset', () => {
   it('returns line and column', () => {
     expect(positionAtOffset('ab\ncd', 3)).toEqual({ line: 2, column: 1 });
     expect(positionAtOffset('ab\ncd', 4)).toEqual({ line: 2, column: 2 });
+  });
+});
+
+describe('cottage reference drag data', () => {
+  it('preserves directory type', () => {
+    const encoded = serializeCottageReferenceDragData({
+      path: 'src/components',
+      entryType: 'directory',
+    });
+    expect(parseCottageReferenceDragData(encoded)).toEqual({
+      path: 'src/components',
+      entryType: 'directory',
+    });
+  });
+
+  it('keeps legacy path-only payloads as files', () => {
+    expect(parseCottageReferenceDragData('src/main.ts')).toEqual({
+      path: 'src/main.ts',
+      entryType: 'file',
+    });
   });
 });
 

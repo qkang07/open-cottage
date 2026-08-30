@@ -151,7 +151,7 @@ type CallSection = Extract<CottageSection, { type: 'call' }>;
 export type { AgentStatus } from './agentViewState';
 export type CottageAgentEvent = 'assistantComplete' | 'rewind' | 'stalled';
 
-/** 相同工具 + 相同参数最多执行次数，超出后阻止并返回提示 */
+/** 相同工具 + 相同参数最多自动执行次数，超出后由统一执行器请求用户确认 */
 const MAX_IDENTICAL_TOOL_CALLS = 2;
 
 export interface CreateCottageAgentOptions {
@@ -1999,12 +1999,15 @@ export class CottageAgent {
                     callId,
                     signal,
                     round: toolRound,
-                    onAwaitingApproval: ({ message }) => {
+                    onAwaitingApproval: ({ message, approvalKind }) => {
+                      const isDoomLoopApproval = approvalKind === 'doom_loop';
                       this.setCallInteraction(callId, {
                         kind: 'tool_approval',
                         status: 'pending',
-                        approvalKind: 'policy',
-                        title: `需要确认：${toolLocaleAlias(toolName)}`,
+                        approvalKind: approvalKind ?? 'policy',
+                        title: isDoomLoopApproval
+                          ? '检测到工具循环'
+                          : `需要确认：${toolLocaleAlias(toolName)}`,
                         message,
                       });
                     },
@@ -2015,7 +2018,12 @@ export class CottageAgent {
                     approvalInteraction?.kind === 'tool_approval' &&
                     approvalInteraction.status === 'pending'
                   ) {
-                    const approved = outcome.status !== 'blocked_policy';
+                    const approved = ![
+                      'blocked_policy',
+                      'duplicate',
+                      'doom_loop',
+                      'aborted',
+                    ].includes(outcome.status);
                     this.setCallInteraction(callId, {
                       ...approvalInteraction,
                       status: approved ? 'resolved' : 'cancelled',

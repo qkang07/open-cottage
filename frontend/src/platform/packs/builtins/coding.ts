@@ -26,12 +26,12 @@ const CODING_PROMPT = `【代码改造能力包已启用】
    - 优先级：searchSymbol / findReferences / analyzeImpact > searchFiles > 逐个 readFile。
    - 检索批量要小：searchFiles maxResults≤20、findFiles/listFiles limit≤50、语义检索 topK≤5；结果不够再收窄查询追加一轮，勿一次拉全量挤占上下文。
    - 停止条件（满足任一即可动手）：已定位到要改的符号定义 AND 已用 analyzeImpact 量化影响面。
-   - 探索阶段不要把"调研/查找"写进 todo 或 submitExecutionPlan 的 items；计划只列"要改什么"，不列"要去查什么"。
+   - 探索阶段不要把"调研/查找"写进计划步骤；计划只列"要改什么"，不列"要去查什么"。
    - 避免 doom loop：同一工具勿同参反复调用；失败须改参数/换工具；收到循环提醒须立即换思路。
 2. 任务分级，按规模决定是否拆计划
-   - 微改（单文件、≤3 处改动、无跨文件影响）：直接 editFile，无需 submitExecutionPlan。
+   - 微改（单文件、≤3 处改动、无跨文件影响）：直接 editFile，无需进入计划模式。
    - 小改（≤3 文件、影响面清晰）：可直接改，改前用 analyzeImpact 确认范围。
-   - 大改（>3 文件，或新增/删除符号，或跨域联动）：先 submitExecutionPlan 提交计划（goal + items + budget），items 只描述"交付什么改动"。
+   - 大改（>3 文件，或新增/删除符号，或跨域联动）：在对话模式先调用 suggestPlanMode；进入计划模式后，把全部目标路径与变更汇总到一次 submitPlan 审批，不要按文件逐个 askUser。
    - 判断依据以 analyzeImpact 的 fileCount / referenceCount 为准，而非主观估计。
 3. 最小可行改动
    - 优先 editFile 精确查找-替换，其次 patchFile；避免 writeFile 整文件覆盖。

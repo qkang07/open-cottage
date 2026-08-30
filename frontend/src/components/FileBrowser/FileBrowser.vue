@@ -41,7 +41,10 @@ import {
 } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { COTTAGE_FILE_DRAG_TYPE } from '../../chat/fileReferences';
+import {
+  COTTAGE_FILE_DRAG_TYPE,
+  serializeCottageReferenceDragData,
+} from '../../chat/fileReferences';
 import { useChatReferenceStore } from '../../stores/chatReference';
 import { useDebugPanelStore } from '../../stores/debugPanel';
 import { useExplorerModeStore } from '../../stores/explorerMode';
@@ -600,9 +603,15 @@ function handleTreeNodeDragStart(node: TreeOption, event: DragEvent) {
   const isLeaf = Boolean(node.isLeaf);
   // 内部树移动：文件和文件夹均可拖拽
   event.dataTransfer?.setData(COTTAGE_TREE_MOVE_TYPE, path);
-  // 兼容拖出到聊天框的旧行为（仅文件）
+  // 文件和文件夹都可拖到聊天框作为显式引用；text/plain 保留旧版文件兼容。
+  event.dataTransfer?.setData(
+    COTTAGE_FILE_DRAG_TYPE,
+    serializeCottageReferenceDragData({
+      path,
+      entryType: isLeaf ? 'file' : 'directory',
+    }),
+  );
   if (isLeaf) {
-    event.dataTransfer?.setData(COTTAGE_FILE_DRAG_TYPE, path);
     event.dataTransfer?.setData('text/plain', path);
   }
   if (event.dataTransfer) {

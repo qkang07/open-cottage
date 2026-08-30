@@ -642,7 +642,15 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
 
   const configuredApproval = cottageConfig.platform?.governance?.requireApprovalFor ?? [];
   const requireApprovalFor = mode === 'plan'
-    ? [...new Set([...configuredApproval, 'external' as const, 'destructive' as const])]
+    ? [
+        ...new Set([
+          // 已批准计划中的普通文件写入由路径范围、文件预算、检查点和 mutation journal
+          // 共同约束，不再按文件逐次确认；外部与破坏性操作仍保持单独审批。
+          ...configuredApproval.filter((risk) => risk !== 'write'),
+          'external' as const,
+          'destructive' as const,
+        ]),
+      ]
     : configuredApproval;
   const policyGate = createPolicyGate({
     requireApprovalFor,

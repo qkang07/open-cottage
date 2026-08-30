@@ -2,6 +2,36 @@ import { getPreviewKind } from '../workspace/previewKind';
 
 export const COTTAGE_FILE_DRAG_TYPE = 'application/x-cottage-file-path';
 
+export type CottageReferenceDragData = {
+  path: string;
+  entryType: 'file' | 'directory';
+};
+
+/** 文件树拖到聊天框时携带条目类型；解析时兼容旧版仅传路径的载荷。 */
+export const serializeCottageReferenceDragData = (
+  data: CottageReferenceDragData,
+): string => JSON.stringify(data);
+
+export const parseCottageReferenceDragData = (
+  value: string,
+): CottageReferenceDragData | null => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes('\n')) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as Partial<CottageReferenceDragData>;
+    if (
+      typeof parsed.path === 'string' &&
+      parsed.path.trim() &&
+      (parsed.entryType === 'file' || parsed.entryType === 'directory')
+    ) {
+      return { path: parsed.path.trim(), entryType: parsed.entryType };
+    }
+  } catch {
+    // 旧版拖拽数据是纯路径，按文件处理。
+  }
+  return { path: trimmed, entryType: 'file' };
+};
+
 export const MAX_INLINE_CHARS = 80_000;
 export const MAX_INLINE_LINES = 500;
 

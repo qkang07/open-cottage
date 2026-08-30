@@ -4,7 +4,7 @@ import type { PolicyGate } from '../platform/policy';
 import { evaluateToolPolicy } from '../platform/policy/policyEngine';
 import type { PlanGate, PlanSession } from '../platform/plan';
 import { recordPlanToolOutcome } from '../platform/plan';
-import type { DoomLoopDetector } from './doomLoop';
+import { DOOM_LOOP_TOOL_NAME, type DoomLoopDetector } from './doomLoop';
 import type { TraceRecorder, TraceToolStatus } from '../platform/trace';
 import { stripCottageImages, stripWriteSnapshot } from './cottageTools';
 import type { PlanGuardVerdict, PlanToolGuard } from '../plan/scopeGate';
@@ -88,6 +88,7 @@ export interface ToolInvocationRequest {
     toolName: string;
     args: unknown;
     callId: string;
+    approvalKind?: 'policy' | 'doom_loop';
   }) => void;
 }
 
@@ -343,32 +344,93 @@ export const createUnifiedToolExecutor = (
 
     const detector = options.getDoomLoopDetector?.();
     let planGuardVerdict: PlanGuardVerdict | undefined;
+    let loopRetryApproved = false;
 
-    // 重复指纹：同工具同参数超过来源上限后阻止
+    const requestLoopRetryApproval = async (input: {
+      reason: string;
+      pattern: string;
+    }): Promise<{ allowed: boolean; reason?: string }> => {
+      const policyGate = options.getPolicyGate?.();
+      if (!policyGate || !req.onAwaitingApproval) {
+        return {
+          allowed: false,
+          reason: '检测到重复调用，但当前调用来源无法向用户发起确认',
+        };
+      }
+      return policyGate({
+        toolName: DOOM_LOOP_TOOL_NAME,
+        args: {
+          reason: input.reason,
+          pattern: input.pattern,
+          targetTool: req.toolName,
+        },
+        callId,
+        signal: req.signal ?? neverAbortSignal(),
+        onAwaitingApproval: ({ message }) =>
+          req.onAwaitingApproval?.({
+            message,
+            toolName: req.toolName,
+            args: req.args,
+            callId,
+            approvalKind: 'doom_loop',
+          }),
+      });
+    };
+
+    // 重复指纹：agent 可见调用超过来源上限后先询问用户，不再直接拦截。
     if (policy.maxIdenticalCalls > 0) {
       const scope = req.parentCallId ?? `${req.source}:session`;
       const fingerprint = `${req.toolName}:${JSON.stringify(args)}`;
       const attempt = bumpDuplicateCount(scope, fingerprint);
       if (attempt > policy.maxIdenticalCalls) {
-        detector?.record({ name: req.toolName, args, status: 'blocked' });
-        return finish({
-          status: 'duplicate',
-          resultText:
-            `已阻止重复调用：${req.toolName} 使用相同参数已调用 ${attempt} 次。` +
-            '请先 readFile 确认文件现状，或向用户说明无法继续，勿再用相同参数重试。',
-        });
+        try {
+          const verdict = await requestLoopRetryApproval({
+            reason: `同工具同参数已调用 ${attempt} 次`,
+            pattern: `${req.toolName} · ${JSON.stringify(args).slice(0, 120)}`,
+          });
+          if (!verdict.allowed) {
+            detector?.record({ name: req.toolName, args, status: 'blocked' });
+            return finish({
+              status: 'duplicate',
+              resultText: `🔁 用户未允许再次执行「${req.toolName}」：${verdict.reason ?? '已拒绝重复调用'}`,
+            });
+          }
+          loopRetryApproved = true;
+        } catch (error) {
+          if (req.signal?.aborted) {
+            return finish({ status: 'aborted', resultText: '⛔ 已停止' });
+          }
+          return finish({
+            status: 'duplicate',
+            resultText: `🔁 重复调用确认失败：${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
       }
     }
 
     // doom loop：full 先 check 再执行；record-only 只在执行后写入共享 detector
-    if (detector && policy.doomLoop === 'full') {
+    if (detector && policy.doomLoop === 'full' && !loopRetryApproved) {
       const pattern = detector.check({ name: req.toolName, args });
       if (pattern) {
-        detector.record({ name: req.toolName, args, status: 'blocked' });
-        return finish({
-          status: 'doom_loop',
-          resultText: `🔁 循环检测：疑似工具调用循环（${pattern.reason}），已跳过本次执行（${pattern.pattern}）。请换参数、换工具，或先总结已有结果再继续。`,
-        });
+        try {
+          const verdict = await requestLoopRetryApproval(pattern);
+          if (!verdict.allowed) {
+            detector.record({ name: req.toolName, args, status: 'blocked' });
+            return finish({
+              status: 'doom_loop',
+              resultText: `🔁 用户未允许再次执行「${req.toolName}」：${verdict.reason ?? pattern.reason}`,
+            });
+          }
+          loopRetryApproved = true;
+        } catch (error) {
+          if (req.signal?.aborted) {
+            return finish({ status: 'aborted', resultText: '⛔ 已停止' });
+          }
+          return finish({
+            status: 'doom_loop',
+            resultText: `🔁 循环调用确认失败：${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
       }
     }
 

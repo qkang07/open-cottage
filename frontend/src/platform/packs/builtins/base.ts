@@ -25,6 +25,7 @@ const BASE_PROMPT = `【基础能力包（始终可用）】
 - 延后工具：见 <available_deferred_tools>（如 runScript、applyPatch、compress、statFile、历史检查点等）。先 loadTools({ names: [...] }) 获取参数说明并启用，再调用。
 - 浏览定位优先 findFiles / searchFiles / listDirectory；大文件用 readFile 的 offset/limit。
 - 修改优先 editFile；多文件/unified diff 等先 loadTools('applyPatch')。
+- 批量编辑多个文件前先完成只读影响分析，再进入计划模式提交覆盖全部目标的一份变更计划；用户一次批准后连续执行范围内普通写入，不要逐文件询问。
 - 删除文件或文件夹（递归）统一用 deleteFiles；多个目标一次传入批量删除，勿逐个调用。
 - 脚本 / 压缩等低频能力均走延后加载，避免默认撑爆工具列表。`;
 

@@ -59,6 +59,7 @@ import {
   COTTAGE_FILE_DRAG_TYPE,
   formatReferenceLabel,
   newReferenceId,
+  parseCottageReferenceDragData,
 } from '../../chat/fileReferences';
 import {
   OPTIONAL_TOOL_GROUPS,
@@ -1109,11 +1110,12 @@ async function handleDrop(e: DragEvent) {
       return;
     }
   }
-  const path =
-    e.dataTransfer?.getData(COTTAGE_FILE_DRAG_TYPE) ||
-    e.dataTransfer?.getData('text/plain');
-  if (!path || path.includes('\n')) return;
-  const trimmedPath = path.trim();
+  const cottageDragData = e.dataTransfer?.getData(COTTAGE_FILE_DRAG_TYPE) ?? '';
+  const dragReference = cottageDragData
+    ? parseCottageReferenceDragData(cottageDragData)
+    : parseCottageReferenceDragData(e.dataTransfer?.getData('text/plain') ?? '');
+  if (!dragReference) return;
+  const { path: trimmedPath, entryType } = dragReference;
   const coords = editorRef.value.view.posAtCoords({
     left: e.clientX,
     top: e.clientY,
@@ -1126,12 +1128,12 @@ async function handleDrop(e: DragEvent) {
     {
       id: refId,
       path: trimmedPath,
-      entryType: 'file',
+      entryType,
       anchor: null,
     },
     { at: pos },
   );
-  chatReferenceStore.addReference({ path: trimmedPath, entryType: 'file' });
+  chatReferenceStore.addReference({ path: trimmedPath, entryType });
   chatReferenceStore.focusComposer();
 }
 async function handlePaste(e: ClipboardEvent) {

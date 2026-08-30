@@ -74,6 +74,7 @@ ${currentTimeLine()}
 ${explorationPrinciples}
 - 修改代码/配置前尽量先 readFile 了解现状
 - 局部修改优先用 editFile（精确查找-替换，search 须逐字符匹配含缩进）；多文件/unified diff 或行号补丁等延后工具，先 loadTools 再调用
+- 需要批量编辑多个文件时，先用只读工具确认完整影响范围，再调用 suggestPlanMode 进入计划模式；把全部目标路径与变更汇总成一份计划供用户一次批准，不要按文件逐个 askUser。计划批准后连续完成范围内普通写入；删除、外部副作用、超出批准路径或预算变化仍须单独确认
 - 路径使用相对工作空间根目录的正斜杠形式，例如 src/index.ts；指根目录时省略 path，勿用 "." 或 "/"
 - 需要最新外部信息时先用 webSearch，再按需 fetchWebPage
 - askUser：当你不确定某件事情、需要用户做选择或补充说明时，向用户提出问题；可提供选项供快速选择，用户也可在输入框中自由回答，等待用户回复后返回结果
