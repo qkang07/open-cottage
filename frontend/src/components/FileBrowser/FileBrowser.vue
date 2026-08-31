@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {
   ArchiveOutline,
+  ArrowUndoOutline,
   ChatbubbleOutline,
+  CheckmarkOutline,
   CreateOutline,
   FolderOpenOutline,
+  LocateOutline,
   RefreshOutline,
   SyncOutline,
   TimeOutline,
@@ -33,6 +36,7 @@ import { storeToRefs } from 'pinia';
 import {
   computed,
   h,
+  nextTick,
   onMounted,
   onUnmounted,
   ref,
@@ -45,6 +49,7 @@ import {
   COTTAGE_FILE_DRAG_TYPE,
   serializeCottageReferenceDragData,
 } from '../../chat/fileReferences';
+import { useAiChangedFilesStore } from '../../stores/aiChangedFiles';
 import { useChatReferenceStore } from '../../stores/chatReference';
 import { useDebugPanelStore } from '../../stores/debugPanel';
 import { useExplorerModeStore } from '../../stores/explorerMode';
@@ -131,6 +136,7 @@ const emit = defineEmits<{
   openSettings: [tab: string];
 }>();
 const workspaceStore = useWorkspaceStore();
+const aiChangedStore = useAiChangedFilesStore();
 const chatStore = useChatReferenceStore();
 const explorerModeStore = useExplorerModeStore();
 const newEntryStore = useNewEntryDialogStore();
@@ -157,6 +163,10 @@ const lastClickedPath = ref<string | null>(null);
 const drawerContent = ref<'history' | null>(null);
 const sidebarView = ref<SidebarView>('files');
 const showDeleteConfirm = ref(false);
+const resetTargetPath = ref<string | null | undefined>(undefined);
+const resettingChanges = ref(false);
+const locatingCurrentFile = ref(false);
+const fileTreeRootRef = ref<HTMLElement | null>(null);
 
 // ── 拖拽移动状态 ──
 // dragSourcePath: 当前正在拖拽的源路径（仅用于拖拽期间高亮判断，dragend 后清空）
@@ -455,6 +465,7 @@ const canExtract = computed(
     contextTargetPath.value.toLowerCase().endsWith('.zip'),
 );
 function buildContextMenuOptions(): DropdownOption[] {
+  const contextPath = contextMenu.value?.path ?? '';
   return [
     {
       key: 'new-file',
@@ -501,6 +512,29 @@ function buildContextMenuOptions(): DropdownOption[] {
       props: { onClick: confirmDelete },
       disabled: !operationTargets.value.length,
     },
+    ...(contextMenu.value?.isLeaf &&
+    contextPath &&
+    aiChangedStore.kindOf(contextPath)
+      ? [
+          {
+            key: 'acknowledge-ai-change',
+            icon: () => h(NIcon, { component: CheckmarkOutline }),
+            label: t('files.markAsNormal'),
+            props: {
+              onClick: () => acknowledgeFile(contextPath),
+            },
+          } as DropdownOption,
+          {
+            key: 'reset-ai-change',
+            icon: () => h(NIcon, { component: ArrowUndoOutline }),
+            label: t('files.resetThisFile'),
+            disabled: !aiChangedStore.canReset(contextPath),
+            props: {
+              onClick: () => requestResetFile(contextPath),
+            },
+          } as DropdownOption,
+        ]
+      : []),
     ...(historyEnabled.value && contextMenu.value?.isLeaf
       ? [
           {
@@ -730,9 +764,80 @@ function cancelMove() {
 }
 const selectedKeysSet = computed(() => new Set(treeSelectedKeys.value));
 function treeNodeClassName(data: TreeOption) {
-  return selectedKeysSet.value.has(String(data.key))
-    ? 'file-tree-node-selected'
-    : '';
+  const path = String(data.key);
+  const classes: string[] = [];
+  if (selectedKeysSet.value.has(path)) classes.push('file-tree-node-selected');
+  const kind = aiChangedStore.kindOf(path);
+  if (kind === 'created' || kind === 'generated') {
+    classes.push('file-tree-node-ai-created');
+  } else if (kind === 'modified' || kind === 'deleted') {
+    classes.push('file-tree-node-ai-modified');
+  } else if (aiChangedStore.isTouched(path)) {
+    classes.push('file-tree-node-ai-subtree');
+  }
+  return classes.join(' ');
+}
+
+function treeChangeKind(path: string): 'created' | 'modified' | null {
+  const kind = aiChangedStore.kindOf(path);
+  if (kind === 'created' || kind === 'generated') return 'created';
+  if (kind === 'modified' || kind === 'deleted') return 'modified';
+  return null;
+}
+
+function treeChangeLabel(path: string): string {
+  return treeChangeKind(path) === 'created'
+    ? t('files.aiCreatedBadge')
+    : t('files.aiModifiedBadge');
+}
+
+function requestResetFile(path: string) {
+  closeContextMenu();
+  resetTargetPath.value = path;
+}
+
+function acknowledgeFile(path: string) {
+  closeContextMenu();
+  aiChangedStore.acknowledgeOne(path);
+  message.success(t('files.markedNormalSuccess'));
+}
+
+function acknowledgeAllFiles() {
+  if (!aiChangedStore.changed.length) return;
+  aiChangedStore.acknowledgeAll();
+  message.success(t('files.markedAllNormalSuccess'));
+}
+
+function requestResetAllFiles() {
+  if (!aiChangedStore.changed.length) return;
+  resetTargetPath.value = null;
+}
+
+function cancelResetChanges() {
+  if (resettingChanges.value) return;
+  resetTargetPath.value = undefined;
+}
+
+async function executeResetChanges() {
+  resettingChanges.value = true;
+  try {
+    if (resetTargetPath.value) {
+      await aiChangedStore.resetOne(resetTargetPath.value);
+      message.success(t('files.resetFileSuccess'));
+    } else {
+      const { failed } = await aiChangedStore.resetAll();
+      if (failed.length) {
+        message.warning(t('files.resetSomeFailed', { n: failed.length }));
+      } else {
+        message.success(t('files.resetAllSuccess'));
+      }
+    }
+    resetTargetPath.value = undefined;
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : String(error));
+  } finally {
+    resettingChanges.value = false;
+  }
 }
 interface ElTreeNodeShape {
   expanded: boolean;
@@ -743,6 +848,70 @@ interface ElTreeNodeShape {
   // Element Plus Node.data 为宽松 TreeNodeData；运行时我们放入 TreeOption
   data: TreeOption;
   isLeaf: boolean;
+}
+interface ElTreeInstanceShape {
+  getNode: (key: string) => ElTreeNodeShape | undefined;
+}
+const treeRef = ref<ElTreeInstanceShape | null>(null);
+
+const waitForTreeNode = async (
+  key: string,
+  attempts = 60,
+): Promise<ElTreeNodeShape | null> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const node = treeRef.value?.getNode(key);
+    if (node) return node;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
+  }
+  return null;
+};
+
+/** 展开当前文件的所有父目录，并将对应树节点滚动到可视区域。 */
+async function revealCurrentFileInTree() {
+  const target = selectedPath.value;
+  if (!target || locatingCurrentFile.value) return;
+
+  locatingCurrentFile.value = true;
+  sidebarView.value = 'files';
+  try {
+    await nextTick();
+    const parts = target.split('/').filter(Boolean);
+    const ancestorPaths = parts.slice(0, -1).map((_, index) =>
+      parts.slice(0, index + 1).join('/'),
+    );
+
+    for (const path of ancestorPaths) {
+      const node = await waitForTreeNode(path);
+      if (!node) throw new Error(t('files.currentFileNotInTree'));
+
+      if (node.data.deferred) {
+        const confirmed = new Set(confirmedDeferredPaths.value);
+        confirmed.add(path);
+        confirmedDeferredPaths.value = confirmed;
+        node.data.deferred = undefined;
+        node.data.deferredEntryCount = undefined;
+        node.data.lazy = true;
+      }
+      explorerModeStore.setNodeExpanded(path, true);
+      if (!node.expanded) node.expand();
+    }
+
+    const targetNode = await waitForTreeNode(target);
+    if (!targetNode) throw new Error(t('files.currentFileNotInTree'));
+
+    workspaceStore.setCheckedPaths([target]);
+    lastClickedPath.value = target;
+    await nextTick();
+    const targetElement = fileTreeRootRef.value?.querySelector<HTMLElement>(
+      `[data-tree-key="${cssEscape(target)}"]`,
+    );
+    if (!targetElement) throw new Error(t('files.currentFileNotInTree'));
+    targetElement.scrollIntoView({ block: 'nearest' });
+  } catch (error) {
+    message.warning(error instanceof Error ? error.message : String(error));
+  } finally {
+    locatingCurrentFile.value = false;
+  }
 }
 function onTreeNodeClick(
   data: TreeOption,
@@ -952,6 +1121,48 @@ const bodyClass = 'panel-body file-browser-body';
         <WorkspaceSwitcher />
       </div>
       <div class="cottage-button-row">
+        <CottageTooltip :content="t('files.markAllAsNormal')" placement="top">
+          <span v-if="aiChangedStore.changed.length">
+            <ElButton
+              class="cottage-icon-btn"
+              :aria-label="t('files.markAllAsNormal')"
+              @click="acknowledgeAllFiles()"
+            >
+              <template #icon>
+                <NIcon :component="CheckmarkOutline" />
+              </template>
+            </ElButton>
+          </span>
+        </CottageTooltip>
+        <CottageTooltip :content="t('files.resetAllChanges')" placement="top">
+          <span v-if="aiChangedStore.changed.length">
+            <ElButton
+              class="cottage-icon-btn"
+              :loading="resettingChanges"
+              :aria-label="t('files.resetAllChanges')"
+              @click="requestResetAllFiles()"
+            >
+              <template #icon>
+                <NIcon :component="ArrowUndoOutline" />
+              </template>
+            </ElButton>
+          </span>
+        </CottageTooltip>
+        <CottageTooltip :content="t('files.revealCurrentFile')" placement="top">
+          <span>
+            <ElButton
+              class="cottage-icon-btn"
+              :disabled="!snapshot || !selectedPath"
+              :loading="locatingCurrentFile"
+              :aria-label="t('files.revealCurrentFile')"
+              @click="revealCurrentFileInTree()"
+            >
+              <template #icon>
+                <NIcon :component="LocateOutline" />
+              </template>
+            </ElButton>
+          </span>
+        </CottageTooltip>
         <CottageTooltip :content="t('common.refresh')" placement="top">
           <span>
             <ElButton
@@ -1018,12 +1229,14 @@ const bodyClass = 'panel-body file-browser-body';
         <template v-else-if="snapshot">
           <div
             v-if="sidebarView === 'files'"
+            ref="fileTreeRootRef"
             :class="['file-tree-root', { 'file-tree-root--drop-target-root': dropTargetPath === '' && Boolean(dragSourcePath) }]"
             @dragover.capture="handleTreeContainerDragOver"
             @dragleave="handleTreeContainerDragLeave"
             @drop.capture="handleTreeContainerDrop"
           >
           <ElTree
+            ref="treeRef"
             :key="treeMountKey"
             lazy
             :load="(loadTreeNode as any)"
@@ -1055,6 +1268,12 @@ const bodyClass = 'panel-body file-browser-body';
                   :component="WarningOutline"
                 />
                 <span class="file-tree-node-label">{{ data.label ?? String(data.key) }}</span>
+                <span
+                  v-if="treeChangeKind(String(data.key))"
+                  :class="`file-tree-change-badge file-tree-change-badge--${treeChangeKind(String(data.key))}`"
+                >
+                  {{ treeChangeLabel(String(data.key)) }}
+                </span>
               </div>
             </template>
           </ElTree>
@@ -1137,6 +1356,28 @@ const bodyClass = 'panel-body file-browser-body';
         </ElButton>
         <ElButton type="danger" :loading="acting" @click="executeDelete">
           {{ t('common.delete') }}
+        </ElButton>
+      </template>
+    </ElDialog>
+    <ElDialog
+      :model-value="resetTargetPath !== undefined"
+      :title="resetTargetPath ? t('files.resetFileTitle') : t('files.resetAllTitle')"
+      width="440px"
+      :close-on-click-modal="!resettingChanges"
+      :close-on-press-escape="!resettingChanges"
+      @update:model-value="(open: boolean) => { if (!open) cancelResetChanges(); }"
+    >
+      {{
+        resetTargetPath
+          ? t('files.resetFileBody', { path: resetTargetPath })
+          : t('files.resetAllBody', { n: aiChangedStore.changed.length })
+      }}
+      <template #footer>
+        <ElButton :disabled="resettingChanges" @click="cancelResetChanges">
+          {{ t('common.cancel') }}
+        </ElButton>
+        <ElButton type="danger" :loading="resettingChanges" @click="executeResetChanges">
+          {{ t('files.confirmReset') }}
         </ElButton>
       </template>
     </ElDialog>

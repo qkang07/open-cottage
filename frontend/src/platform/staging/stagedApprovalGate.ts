@@ -6,7 +6,7 @@ import {
   writeInteractionKey,
 } from '../interaction/interactionScope';
 
-export type StagedApprovalDecision = 'approved' | 'discarded';
+export type StagedApprovalDecision = 'approved' | 'discarded' | 'deferred';
 
 export interface PendingStagedApproval {
   store: StagingStore;
@@ -41,7 +41,7 @@ export const requestStagedChangesApproval = (
     const onAbort = () => {
       pendingStagedApprovals.delete(key);
       bumpInteractionRevision();
-      reject(new Error('已取消'));
+      resolve('deferred');
     };
     signal?.addEventListener('abort', onAbort);
 
@@ -98,6 +98,16 @@ export const cancelPendingStagedApproval = (
 ): void => {
   const key = sessionId ? writeInteractionKey(sessionId) : activeInteractionKey();
   pendingStagedApprovals.get(key)?.reject(new Error(reason || '用户丢弃了暂存改动'));
+};
+
+/**
+ * 结束当前的等待状态，但保留暂存内容。
+ * 用户停止回合或继续输入时，改动仍可在后续回合中审阅和继续修改。
+ */
+export const deferPendingStagedApproval = (
+  sessionId?: string | null,
+): void => {
+  pendingStagedApprovals.get(keyFor(sessionId))?.resolve('deferred');
 };
 
 const finishIfReviewed = (sessionId?: string | null): void => {

@@ -26,16 +26,17 @@ import {
   type CallInteractionDecision,
 } from '../chat/callInteractionGate';
 import {
+  appendAssistantThink,
   appendAssistantText,
   beginAssistantThinkStreaming,
   createAssistantMessage,
   createUserMessage,
   finalizeAssistantStreaming,
+  mergeAdjacentThinkSections,
   sealAssistantTextStreaming,
   newMessageId,
   normalizeLegacyCumulativeAssistantDeltas,
   pushContentWithCottageThinking,
-  setAssistantThink,
   type CottageMessage,
   type CottageSection,
   type StoredMessage,
@@ -83,7 +84,9 @@ import {
   type FinishReasonKind,
 } from './finishReason';
 import {
+  countTokens,
   estimateContextTokens,
+  estimateRuntimeMessagesTokens,
   normalizeUsage,
   resolveContextWindow,
   type ContextUsage,
@@ -132,6 +135,7 @@ import type { StagingStore } from '../platform/staging';
 import type { StagingWorkspace } from '../platform/staging';
 import {
   cancelPendingStagedApproval,
+  deferPendingStagedApproval,
   clearSessionStaging,
   hasPendingStagedApprovalFor,
   loadSessionStaging,
@@ -971,7 +975,7 @@ export class CottageAgent {
   /**
    * 回合末暂存改动审批：阻塞等待用户在 UI 面板批准/丢弃。
    * 批准 → stagingWorkspace.commit() 逐文件写真实磁盘并发 patch_applied；
-   * 丢弃/取消 → discard()，不触磁盘。
+   * 丢弃/显式取消 → discard()，不触磁盘；停止回合 → 保留暂存供后续审阅。
    */
   private async reviewAndCommitStaged(signal: AbortSignal): Promise<void> {
     if (!this.stagingStore || !this.stagingWorkspace) return;
@@ -991,7 +995,7 @@ export class CottageAgent {
       at: Date.now(),
       fileCount,
     });
-    let decision: 'approved' | 'discarded';
+    let decision: 'approved' | 'discarded' | 'deferred';
     try {
       const approval = requestStagedChangesApproval({
         store: this.stagingStore,
@@ -1002,7 +1006,7 @@ export class CottageAgent {
       void this.persistStagingState();
       decision = await approval;
     } catch {
-      // 取消/中断：丢弃暂存
+      // 会话销毁、重试等显式取消：丢弃暂存。普通停止会以 deferred 返回。
       this.stagingWorkspace.discard();
       await this.persistStagingState();
       this.emitEvent({
@@ -1011,6 +1015,11 @@ export class CottageAgent {
         fileCount,
       });
       this.setStatus({ phase: 'idle' });
+      this.bumpSectionVersion();
+      return;
+    }
+    if (decision === 'deferred') {
+      // 停止只结束当前回合的等待；暂存层和 staging.json 继续保留。
       this.bumpSectionVersion();
       return;
     }
@@ -1409,6 +1418,13 @@ export class CottageAgent {
         }
       }
     }
+    for (const message of this.messages) {
+      message.sections.splice(
+        0,
+        message.sections.length,
+        ...mergeAdjacentThinkSections(message.sections),
+      );
+    }
   }
 
   abort(): void {
@@ -1531,6 +1547,11 @@ export class CottageAgent {
       attachments.length;
     if (!hasUserContent) return;
 
+    // 继续输入时先收起上一轮的脱离式审批闸门，但不丢弃暂存内容。
+    // 新回合的工具会通过 StagingWorkspace 读取并继续修改这些内容。
+    deferPendingStagedApproval(this.sessionId);
+    await Promise.resolve();
+
     this.beginTurn(payload.userText, llmContent.length);
 
     // workspace-file 模式：附件先落盘到工作区，历史只存相对路径
@@ -1570,8 +1591,8 @@ export class CottageAgent {
     this.planSession?.reset();
     this.doomLoopDetector.reset();
     this.doomLoopHitCount = 0;
-    // 回合边界清空暂存：上一回合未审批/异常残留的暂存改动一律丢弃
-    this.stagingStore?.clear();
+    // 未审批的暂存改动可跨回合保留，便于用户继续提要求；
+    // StagingWorkspace 会将它们作为叠加层提供给新回合。
 
     // 用户新增消息后，上一次的 usage 不再代表当前上下文，改为重新估算
     this.contextUsage = null;
@@ -2208,6 +2229,8 @@ export class CottageAgent {
               runtimeMessages,
             );
           }
+          // 工具结果会进入下一次模型请求；在真实 usage 返回前立即显示估算值。
+          this.syncEstimatedRuntimeContext(runtimeMessages);
           if (
             traceStatus === 'ok' &&
             [
@@ -2238,9 +2261,6 @@ export class CottageAgent {
       }
 
       finalizeAssistantStreaming(assistantMsg);
-
-      // 用本轮最终响应里的 usage 校准上下文长度
-      this.recordUsageFromMessage(response);
 
       if (!signal.aborted) {
         const text = response.content;
@@ -2337,6 +2357,11 @@ export class CottageAgent {
       this.inFlightAssistantMsg = null;
       this.abortController = null;
       this.setStatus({ phase: 'idle' });
+      if (signal.aborted && this.stagingStore && !this.stagingStore.isEmpty()) {
+        // 停止后重新挂载一个与已结束回合解耦的审批入口，
+        // 使用户可继续查看、批准、丢弃，或直接输入修改意见。
+        void this.restoreStagedReviewIfNeeded();
+      }
       this.emitEvent({
         type: 'task_finished',
         at: Date.now(),
@@ -2556,11 +2581,28 @@ export class CottageAgent {
       .map((m) => m.reasoningContent?.trim() || MOONSHOT_PLACEHOLDER_REASONING);
   }
 
-  private recordUsageFromMessage(message: CottageAssistantResponse): void {
+  private recordUsageFromMessage(message: CottageAssistantResponse): boolean {
     const usage = normalizeUsage(message.usage);
-    if (!usage) return;
+    if (!usage) return false;
     this.contextUsage = usage;
     this.syncContextUsage();
+    return true;
+  }
+
+  /** 用当前实际请求消息刷新上下文；下一次 finish usage 会覆盖此估算。 */
+  private syncEstimatedRuntimeContext(
+    messages: readonly CottageModelMessage[],
+    additionalText = '',
+  ): void {
+    this.contextUsage = null;
+    const model = this.modelConfig?.model;
+    syncContextUsageToViewState(
+      this.agentViewState,
+      null,
+      estimateRuntimeMessagesTokens(messages, model) +
+        countTokens(additionalText, model),
+      this.resolveContextWindowForModel(),
+    );
   }
 
   /**
@@ -2759,6 +2801,8 @@ export class CottageAgent {
       this.bumpSectionVersion();
     }
     this.setStatus({ phase: 'thinking' });
+    // 请求发出前先显示当前 payload 的估算，避免沿用上一次调用的校准值。
+    this.syncEstimatedRuntimeContext(messages);
     const stream = await withLlmRetry(
       async () => this.model.stream({ messages, tools: this.tools }, signal),
       { ...this.retryOptions, signal },
@@ -2768,6 +2812,23 @@ export class CottageAgent {
     let sawEvent = false;
     let firstTextSeen = false;
     let firstToolArgsSeen = false;
+    let lastContextEstimateAt = 0;
+    const syncStreamingEstimate = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastContextEstimateAt < 200) return;
+      lastContextEstimateAt = now;
+      const completedCallIds = new Set(
+        (response.toolCalls ?? []).map((call) => call.id),
+      );
+      const partialToolInput = [...pendingToolInputs.values()]
+        .filter((input) => !completedCallIds.has(input.id))
+        .map((input) => `${input.name}\n${input.args}`)
+        .join('\n');
+      this.syncEstimatedRuntimeContext(
+        [...messages, assistantResponseMessage(response)],
+        partialToolInput,
+      );
+    };
     for await (const event of stream) {
       if (signal.aborted) break;
       sawEvent = true;
@@ -2778,12 +2839,14 @@ export class CottageAgent {
         }
         response.content += event.text;
         appendAssistantText(assistantMsg, event.text);
+        syncStreamingEstimate();
         this.bumpSectionVersion();
       }
 
       if (event.type === 'reasoning-delta') {
         response.reasoningContent = `${response.reasoningContent ?? ''}${event.text}`;
-        setAssistantThink(assistantMsg, response.reasoningContent);
+        appendAssistantThink(assistantMsg, event.text);
+        syncStreamingEstimate();
         this.bumpSectionVersion();
       }
       if (event.type === 'tool-input-start') {
@@ -2797,6 +2860,7 @@ export class CottageAgent {
         };
         pending.args += event.delta;
         pendingToolInputs.set(event.id, pending);
+        syncStreamingEstimate();
       }
       if (event.type === 'tool-call') {
         response.toolCalls?.push(event.call);
@@ -2805,6 +2869,7 @@ export class CottageAgent {
           name: event.call.name,
           args: JSON.stringify(event.call.args),
         });
+        syncStreamingEstimate(true);
       }
       const toolProgress =
         event.type === 'tool-input-start' ||
@@ -2836,15 +2901,26 @@ export class CottageAgent {
         response.rawFinishReason = event.rawFinishReason;
         response.usage = event.usage;
         response.metrics = event.metrics;
+        // 每个模型子调用结束就校准，不等待整个工具 loop 完成。
+        if (!this.recordUsageFromMessage(response)) {
+          syncStreamingEstimate(true);
+        }
       } else if (event.type === 'error') {
         throw event.error;
       }
     }
     if (!sawEvent && !signal.aborted) {
-      return await withLlmRetry(
+      const generated = await withLlmRetry(
         () => this.model.generate({ messages, tools: this.tools }, signal),
         { ...this.retryOptions, signal },
       );
+      if (!this.recordUsageFromMessage(generated)) {
+        this.syncEstimatedRuntimeContext([
+          ...messages,
+          assistantResponseMessage(generated),
+        ]);
+      }
+      return generated;
     }
     return response;
   }

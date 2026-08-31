@@ -11,6 +11,7 @@ import AskUserPrompt from './AskUserPrompt.vue';
 const props = defineProps<{
   callId: string;
   toolName: string;
+  toolArguments?: string;
   interaction: ToolCallInteraction;
 }>();
 
@@ -40,6 +41,15 @@ const riskLevel = computed(() => toolRisk(props.toolName) ?? null);
 const isDoomLoop = computed(
   () => toolApproval.value?.approvalKind === 'doom_loop',
 );
+const formattedToolArguments = computed(() => {
+  const raw = props.toolArguments?.trim();
+  if (!raw) return '';
+  try {
+    return JSON.stringify(JSON.parse(raw) as unknown, null, 2);
+  } catch {
+    return raw;
+  }
+});
 
 const approvalTitle = computed(() => {
   if (!toolApproval.value) return '';
@@ -108,6 +118,15 @@ const riskLabel = computed(() => {
       <NText depth="2" class="chat-component-card-message">
         {{ toolApproval.message }}
       </NText>
+      <div
+        v-if="isDoomLoop && formattedToolArguments"
+        class="chat-component-card-arguments"
+      >
+        <NText depth="3" class="chat-component-card-arguments-label">
+          {{ t('chat.doomLoopArguments') }}
+        </NText>
+        <pre>{{ formattedToolArguments }}</pre>
+      </div>
       <NSpace v-if="pending" wrap class="chat-component-card-actions">
         <ElButton
           type="primary"
@@ -187,6 +206,29 @@ const riskLabel = computed(() => {
   display: block;
   margin-bottom: 8px;
   white-space: pre-wrap;
+}
+.chat-component-card-arguments {
+  margin-bottom: 10px;
+}
+.chat-component-card-arguments-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.chat-component-card-arguments pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-family: var(--el-font-family-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .chat-component-card-decision {
   display: block;

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appendAssistantThink,
   appendAssistantText,
   createAssistantMessage,
   finalizeAssistantStreaming,
+  mergeAdjacentThinkSections,
+  sealAssistantTextStreaming,
 } from './messages';
 
 describe('appendAssistantText cottage_thinking', () => {
@@ -35,5 +38,36 @@ describe('appendAssistantText cottage_thinking', () => {
     expect(thinks[0].type === 'think' && thinks[0].text).toBe('plan');
     expect(contents).toHaveLength(1);
     expect(contents[0].type === 'content' && contents[0].text).toBe('result');
+  });
+
+  it('merges adjacent reasoning streams into one think section', () => {
+    const msg = createAssistantMessage();
+    appendAssistantThink(msg, 'first thought');
+    sealAssistantTextStreaming(msg);
+    appendAssistantThink(msg, 'second thought');
+    finalizeAssistantStreaming(msg);
+
+    expect(msg.sections).toEqual([
+      {
+        type: 'think',
+        text: 'first thought\n\nsecond thought',
+        streaming: false,
+      },
+    ]);
+  });
+
+  it('keeps reasoning separated across a tool-call boundary', () => {
+    const sections = mergeAdjacentThinkSections([
+      { type: 'think', text: 'before tool' },
+      {
+        type: 'call',
+        id: 'call-1',
+        name: 'readFile',
+        arguments: '{}',
+      },
+      { type: 'think', text: 'after tool' },
+    ]);
+
+    expect(sections.filter((section) => section.type === 'think')).toHaveLength(2);
   });
 });

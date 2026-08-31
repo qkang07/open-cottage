@@ -4,8 +4,10 @@ import {
   ArchiveOutline,
   ArrowBackOutline,
   ArrowForwardOutline,
+  ArrowUndoOutline,
   ArrowUpOutline,
   ChatbubbleOutline,
+  CheckmarkOutline,
   CloseOutline,
   CopyOutline,
   CreateOutline,
@@ -118,6 +120,8 @@ const viewMode = ref<ExplorerViewMode>('details');
 const sortKey = ref<ExplorerSortKey>('name');
 const sortOrder = ref<ExplorerSortOrder>('asc');
 const showDetailsPane = ref(true);
+const aiResetTargetPath = ref<string | null | undefined>(undefined);
+const resettingAiChanges = ref(false);
 const lastClickedPath = ref<string | null>(null);
 const contextMenu = ref<{
   x: number;
@@ -592,6 +596,53 @@ function entryAiTip(entry: ExplorerEntry): string {
   return t('explorer.aiChangedTipSubtree');
 }
 
+function entryAiClass(entry: ExplorerEntry): string {
+  const kind = aiChangedStore.kindOf(entry.path);
+  if (kind === 'created' || kind === 'generated') return 'explorer-ai-dot--created';
+  if (kind) return 'explorer-ai-dot--modified';
+  return 'explorer-ai-dot--subtree';
+}
+
+function requestResetAiChanges(path: string | null) {
+  aiResetTargetPath.value = path;
+  closeContextMenu();
+}
+
+function acknowledgeAiChange(path: string) {
+  aiChangedStore.acknowledgeOne(path);
+  closeContextMenu();
+  message.success(t('files.markedNormalSuccess'));
+}
+
+function acknowledgeAllAiChanges() {
+  aiChangedStore.acknowledgeAll();
+  message.success(t('files.markedAllNormalSuccess'));
+}
+
+async function resetAiChanges() {
+  resettingAiChanges.value = true;
+  try {
+    const targetPath = aiResetTargetPath.value;
+    if (targetPath) {
+      await aiChangedStore.resetOne(targetPath);
+      message.success(t('files.resetFileSuccess'));
+    } else {
+      const { failed } = await aiChangedStore.resetAll();
+      if (failed.length) {
+        message.warning(t('files.resetSomeFailed', { n: failed.length }));
+      } else {
+        message.success(t('files.resetAllSuccess'));
+      }
+    }
+    aiResetTargetPath.value = undefined;
+    await loadDirectory(currentDir.value);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : String(error));
+  } finally {
+    resettingAiChanges.value = false;
+  }
+}
+
 const canExtract = computed(
   () =>
     operationTargets.value.length === 1 &&
@@ -635,6 +686,24 @@ const contextMenuOptions = computed((): DropdownOption[] => [
     disabled: !operationTargets.value.length,
     props: { onClick: confirmDelete },
   },
+  ...(contextMenu.value?.isLeaf && aiChangedStore.kindOf(contextMenu.value.path)
+    ? [{
+        key: 'acknowledge-ai-change',
+        icon: () => h(NIcon, { component: CheckmarkOutline }),
+        label: t('files.markAsNormal'),
+        props: {
+          onClick: () => acknowledgeAiChange(contextMenu.value?.path ?? ''),
+        },
+      } as DropdownOption, {
+        key: 'reset-ai-change',
+        icon: () => h(NIcon, { component: ArrowUndoOutline }),
+        label: t('files.resetThisFile'),
+        disabled: !aiChangedStore.canReset(contextMenu.value?.path ?? ''),
+        props: {
+          onClick: () => requestResetAiChanges(contextMenu.value?.path ?? null),
+        },
+      } as DropdownOption]
+    : []),
   { type: 'divider', key: 'd2' },
   {
     key: 'compress',
@@ -1149,7 +1218,7 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
                 <ExplorerEntryIcon :entry="entry" />
                 <span
                   v-if="entryAiTouched(entry)"
-                  class="explorer-ai-dot"
+                  :class="['explorer-ai-dot', entryAiClass(entry)]"
                   :title="entryAiTip(entry)"
                 />
               </span>
@@ -1177,7 +1246,7 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
               <ExplorerEntryIcon :entry="entry" />
               <span
                 v-if="entryAiTouched(entry)"
-                class="explorer-ai-dot explorer-ai-dot--inline"
+                :class="['explorer-ai-dot', 'explorer-ai-dot--inline', entryAiClass(entry)]"
                 :title="entryAiTip(entry)"
               />
               <span class="explorer-list-item-name">{{ entry.name }}</span>
@@ -1224,7 +1293,7 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
                   <ExplorerEntryIcon :entry="row as ExplorerEntry" />
                   <span
                     v-if="entryAiTouched(row as ExplorerEntry)"
-                    class="explorer-ai-dot explorer-ai-dot--inline"
+                    :class="['explorer-ai-dot', 'explorer-ai-dot--inline', entryAiClass(row as ExplorerEntry)]"
                     :title="entryAiTip(row as ExplorerEntry)"
                   />
                   <span>{{ (row as ExplorerEntry).name }}</span>
@@ -1425,9 +1494,17 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
           v-if="aiChangedStore.changed.length"
           size="small"
           text
-          @click="aiChangedStore.clearAll()"
+          @click="acknowledgeAllAiChanges"
         >
-          {{ t('explorer.clearAiMarks') }}
+          {{ t('files.markAllAsNormal') }}
+        </ElButton>
+        <ElButton
+          v-if="aiChangedStore.changed.length"
+          size="small"
+          text
+          @click="requestResetAiChanges(null)"
+        >
+          {{ t('files.resetAllChanges') }}
         </ElButton>
         <span>{{ currentDir || snapshot?.rootName || t('files.workspace') }}</span>
       </span>
@@ -1490,6 +1567,35 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
         </ElButton>
         <ElButton type="danger" :loading="acting" @click="executeDelete">
           {{ t('common.delete') }}
+        </ElButton>
+      </template>
+    </ElDialog>
+    <ElDialog
+      :model-value="aiResetTargetPath !== undefined"
+      :title="aiResetTargetPath ? t('files.resetFileTitle') : t('files.resetAllTitle')"
+      width="440px"
+      :close-on-click-modal="!resettingAiChanges"
+      :close-on-press-escape="!resettingAiChanges"
+      @update:model-value="(value: boolean) => { if (!value) aiResetTargetPath = undefined; }"
+    >
+      {{
+        aiResetTargetPath
+          ? t('files.resetFileBody', { path: aiResetTargetPath })
+          : t('files.resetAllBody', { n: aiChangedStore.changed.length })
+      }}
+      <template #footer>
+        <ElButton
+          :disabled="resettingAiChanges"
+          @click="aiResetTargetPath = undefined"
+        >
+          {{ t('common.cancel') }}
+        </ElButton>
+        <ElButton
+          type="danger"
+          :loading="resettingAiChanges"
+          @click="resetAiChanges"
+        >
+          {{ t('files.confirmReset') }}
         </ElButton>
       </template>
     </ElDialog>

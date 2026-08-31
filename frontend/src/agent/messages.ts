@@ -254,6 +254,36 @@ export const createAssistantMessage = (): CottageMessage => ({
   sections: [],
 });
 
+const joinAdjacentThinkText = (left: string, right: string): string => {
+  if (!left) return right;
+  if (!right) return left;
+  if (/\s$/.test(left) || /^\s/.test(right)) return left + right;
+  return `${left}\n\n${right}`;
+};
+
+/**
+ * 合并真正相邻的思考段；正文、工具调用等 section 都是不可跨越的边界。
+ * 返回新数组且不改写传入 section，供历史恢复与渲染投影安全复用。
+ */
+export const mergeAdjacentThinkSections = (
+  sections: readonly CottageSection[],
+): CottageSection[] => {
+  const merged: CottageSection[] = [];
+  for (const section of sections) {
+    const previous = merged[merged.length - 1];
+    if (previous?.type === 'think' && section.type === 'think') {
+      merged[merged.length - 1] = {
+        type: 'think',
+        text: joinAdjacentThinkText(previous.text, section.text),
+        streaming: Boolean(previous.streaming || section.streaming),
+      };
+      continue;
+    }
+    merged.push(section);
+  }
+  return merged;
+};
+
 const appendStreamingContent = (msg: CottageMessage, chunk: string) => {
   if (!chunk) return;
   const last = msg.sections[msg.sections.length - 1];
@@ -346,6 +376,11 @@ export const finalizeAssistantStreaming = (msg: CottageMessage) => {
       msg.sections.splice(i, 1);
     }
   }
+  msg.sections.splice(
+    0,
+    msg.sections.length,
+    ...mergeAdjacentThinkSections(msg.sections),
+  );
 };
 
 /** 收起正文/思考的流式光标（工具调用开始或新开段时调用） */
@@ -380,11 +415,26 @@ export const beginAssistantThinkStreaming = (msg: CottageMessage) => {
   insertThinkSection(msg, { type: 'think', text: '', streaming: true });
 };
 
-export const setAssistantThink = (msg: CottageMessage, text: string) => {
+/** API reasoning delta：同一流追加；新流仅在与上一思考相邻时合并。 */
+export const appendAssistantThink = (msg: CottageMessage, chunk: string) => {
+  if (!chunk) return;
   const existing = findStreamingThink(msg);
   if (existing) {
-    existing.text = text;
+    existing.text += chunk;
     return;
   }
-  insertThinkSection(msg, { type: 'think', text, streaming: true });
+
+  const firstContentIdx = msg.sections.findIndex((s) => s.type === 'content');
+  const insertAt = firstContentIdx >= 0 ? firstContentIdx : msg.sections.length;
+  const previous = msg.sections[insertAt - 1];
+  if (previous?.type === 'think') {
+    previous.text = joinAdjacentThinkText(previous.text, chunk);
+    previous.streaming = true;
+    return;
+  }
+  msg.sections.splice(insertAt, 0, {
+    type: 'think',
+    text: chunk,
+    streaming: true,
+  });
 };

@@ -95,23 +95,34 @@ function simpleHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-export function bindMarkdownCopyButtons(root: HTMLElement) {
+export function bindMarkdownInteractions(
+  root: HTMLElement,
+  options?: { onLinkClick?: (href: string) => boolean },
+) {
   const onClick = (event: MouseEvent) => {
     const target = event.target as HTMLElement | null;
     const button = target?.closest<HTMLButtonElement>('.md-copy-btn');
-    if (!button || !root.contains(button)) return;
-    const encoded = button.getAttribute('data-md-copy');
-    if (!encoded) return;
-    const text = decodeURIComponent(encoded);
-    void navigator.clipboard.writeText(text).then(() => {
-      const original = button.textContent;
-      button.textContent = '已复制';
-      button.style.color = 'var(--cottage-success)';
-      window.setTimeout(() => {
-        button.textContent = original;
-        button.style.color = '';
-      }, 2000);
-    });
+    if (button && root.contains(button)) {
+      const encoded = button.getAttribute('data-md-copy');
+      if (!encoded) return;
+      const text = decodeURIComponent(encoded);
+      void navigator.clipboard.writeText(text).then(() => {
+        const original = button.textContent;
+        button.textContent = '已复制';
+        button.style.color = 'var(--cottage-success)';
+        window.setTimeout(() => {
+          button.textContent = original;
+          button.style.color = '';
+        }, 2000);
+      });
+      return;
+    }
+
+    const anchor = target?.closest<HTMLAnchorElement>('a[href]');
+    if (!anchor || !root.contains(anchor)) return;
+    const href = anchor.getAttribute('href');
+    if (!href || !options?.onLinkClick?.(href)) return;
+    event.preventDefault();
   };
   root.addEventListener('click', onClick);
   return () => root.removeEventListener('click', onClick);

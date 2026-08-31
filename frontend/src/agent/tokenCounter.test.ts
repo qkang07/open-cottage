@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countTokens,
   estimateContextTokens,
+  estimateRuntimeMessagesTokens,
   normalizeUsage,
   prepareTokenCounter,
   resolveContextWindow,
@@ -52,6 +53,20 @@ describe('tokenCounter', () => {
     });
   });
 
+  it('normalizes Cottage runtime usage', () => {
+    expect(
+      normalizeUsage({
+        inputTokens: 12,
+        outputTokens: 6,
+        totalTokens: 18,
+      }),
+    ).toEqual({
+      promptTokens: 12,
+      completionTokens: 6,
+      totalTokens: 18,
+    });
+  });
+
   it('returns null for invalid usage', () => {
     expect(normalizeUsage(null)).toBeNull();
     expect(normalizeUsage({})).toBeNull();
@@ -66,6 +81,29 @@ describe('tokenCounter', () => {
     expect(tokens).toBeGreaterThan(countTokens('You are a helpful assistant.'));
     expect(tokens).toBeGreaterThan(countTokens('Hello'));
     expect(tokens).toBeGreaterThan(countTokens('Hi there!'));
+  });
+
+  it('estimates in-flight runtime messages including tool calls and results', () => {
+    const base = estimateRuntimeMessagesTokens([
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: 'Read a file.' },
+    ]);
+    const withToolRound = estimateRuntimeMessagesTokens([
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: 'Read a file.' },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [{ id: 'call-1', name: 'readFile', args: { path: 'a.txt' } }],
+      },
+      {
+        role: 'tool',
+        name: 'readFile',
+        toolCallId: 'call-1',
+        content: 'file contents',
+      },
+    ]);
+    expect(withToolRound).toBeGreaterThan(base);
   });
 
   it('resolves known model context windows', () => {

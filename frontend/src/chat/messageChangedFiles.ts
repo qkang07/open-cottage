@@ -11,9 +11,17 @@ import { extractPartialJsonString } from '../agent/parseStreamingToolArgs';
 
 export type ChangedFileKind = 'created' | 'modified' | 'generated' | 'deleted';
 
+export type ChangedFileReset =
+  | { kind: 'delete' }
+  | { kind: 'restoreText'; content: string };
+
 export interface MessageChangedFile {
   path: string;
   kind: ChangedFileKind;
+  /** 最近一次影响此路径的工具调用，用于区分重置后的新改动。 */
+  changeId?: string;
+  /** 会话内首次改动前的可恢复基线。 */
+  reset?: ChangedFileReset;
 }
 
 type CallSection = Extract<CottageSection, { type: 'call' }>;
@@ -183,21 +191,41 @@ const collectResultPaths = (
  */
 export const collectMessageChangedFiles = (
   message: CottageMessage,
+  options?: { includeResetState?: boolean },
 ): MessageChangedFile[] => {
   if (message.role !== 'assistant') return [];
   const seen = new Map<string, MessageChangedFile>();
-  const push = (path: string, kind: ChangedFileKind) => {
+  const push = (
+    path: string,
+    kind: ChangedFileKind,
+    section: CallSection,
+  ) => {
     if (!looksLikePath(path)) return;
+    const reset: ChangedFileReset | undefined =
+      section.created === true || kind === 'created'
+        ? { kind: 'delete' }
+        : section.before !== undefined
+          ? { kind: 'restoreText', content: section.before }
+          : undefined;
     const existing = seen.get(path);
     if (!existing) {
-      seen.set(path, { path, kind });
+      seen.set(
+        path,
+        options?.includeResetState
+          ? { path, kind, changeId: section.id, reset }
+          : { path, kind },
+      );
       return;
     }
+    if (options?.includeResetState) existing.changeId = section.id;
     if (kind === 'deleted') existing.kind = 'deleted';
   };
 
   for (const section of message.sections) {
     if (section.type !== 'call') continue;
+    // 文件树的可重置状态只接收已结束的调用，避免与运行中写入竞争。
+    // 消息卡片的普通改动列表仍保留原有的流式预览行为。
+    if (options?.includeResetState && section.result === undefined) continue;
     const name = normalizeName(section.name);
 
     if (ARG_PATH_MUTATING_TOOLS.has(name)) {
@@ -208,7 +236,7 @@ export const collectMessageChangedFiles = (
       if (!path) continue;
       const created =
         name === normalizeName('createFile') || section.created === true;
-      push(path, created ? 'created' : 'modified');
+      push(path, created ? 'created' : 'modified', section);
       continue;
     }
 
@@ -217,7 +245,7 @@ export const collectMessageChangedFiles = (
       const to = parseArgsField(section, 'to');
       if (!to) continue;
       // copy 产生新副本；rename/move 视为原文件位置变化
-      push(to, name === normalizeName('copy') ? 'created' : 'modified');
+      push(to, name === normalizeName('copy') ? 'created' : 'modified', section);
       continue;
     }
 
@@ -229,7 +257,7 @@ export const collectMessageChangedFiles = (
         };
         for (const item of parsed.items ?? []) {
           if (typeof item?.to === 'string' && looksLikePath(item.to)) {
-            push(item.to.trim(), 'created');
+            push(item.to.trim(), 'created', section);
           }
         }
       } catch {
@@ -241,7 +269,7 @@ export const collectMessageChangedFiles = (
     if (ARG_DELETE_TOOLS.has(name)) {
       if (hasFailedResult(section)) continue;
       const path = parseArgsField(section, 'path');
-      if (path) push(path, 'deleted');
+      if (path) push(path, 'deleted', section);
       continue;
     }
 
@@ -251,7 +279,7 @@ export const collectMessageChangedFiles = (
     ) {
       if (hasFailedResult(section)) continue;
       for (const path of parseArgsPathList(section, 'paths')) {
-        push(path, 'deleted');
+        push(path, 'deleted', section);
       }
       continue;
     }
@@ -266,7 +294,7 @@ export const collectMessageChangedFiles = (
         section.result === undefined
       ) {
         const path = parseArgsPath(section);
-        if (path) push(path, 'modified');
+        if (path) push(path, 'modified', section);
       }
       continue;
     }
@@ -278,7 +306,7 @@ export const collectMessageChangedFiles = (
             ? 'created'
             : 'modified'
           : 'generated';
-      push(entry.path, kind);
+      push(entry.path, kind, section);
     }
   }
 

@@ -514,8 +514,22 @@
   background: var(--cottage-accent-bg-strong);
 }
 
+.file-browser .el-tree-node.file-tree-node-ai-modified > .el-tree-node__content {
+  box-shadow: inset 3px 0 0 var(--el-color-warning);
+}
+
+.file-browser .el-tree-node.file-tree-node-ai-created > .el-tree-node__content {
+  box-shadow: inset 3px 0 0 var(--cottage-success);
+}
+
+.file-browser .el-tree-node.file-tree-node-ai-subtree > .el-tree-node__content {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cottage-accent) 55%, transparent);
+}
+
 .file-tree-node {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   min-width: 0;
   overflow: hidden;
@@ -523,6 +537,31 @@
   white-space: nowrap;
   background: transparent;
   color: inherit;
+}
+
+.file-tree-node-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree-change-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.file-tree-change-badge--modified {
+  color: var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-9);
+}
+
+.file-tree-change-badge--created {
+  color: var(--cottage-success);
+  background: color-mix(in srgb, var(--cottage-success) 12%, transparent);
 }
 
 .cottage-welcome-shell {
@@ -6253,8 +6292,19 @@ html.dark .file-write-diff-line-del .file-write-diff-seg-del {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--cottage-accent);
   flex-shrink: 0;
+}
+
+.explorer-ai-dot--created {
+  background: var(--el-color-success);
+}
+
+.explorer-ai-dot--modified {
+  background: var(--el-color-warning);
+}
+
+.explorer-ai-dot--subtree {
+  background: var(--cottage-accent);
 }
 
 .explorer-icon-item-graphic {

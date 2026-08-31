@@ -1,5 +1,6 @@
 import type { Tiktoken, TiktokenEncoding } from 'js-tiktoken/lite';
 import type { StoredMessage } from './messages';
+import type { CottageModelMessage } from './runtime/model';
 
 /**
  * OpenAI 新一代模型（gpt-4o / gpt-4.1 / gpt-5 / o1·o3·o4 系列）改用 o200k_base 编码，
@@ -91,12 +92,14 @@ export interface ContextUsage {
  * OpenAI / OpenAI-compatible: prompt_tokens / completion_tokens / total_tokens
  * Anthropic: input_tokens / output_tokens
  * Google Gemini: promptTokenCount / candidatesTokenCount / totalTokenCount
+ * Cottage runtime: inputTokens / outputTokens / totalTokens
  */
 export function normalizeUsage(usage: unknown): ContextUsage | null {
   if (!usage || typeof usage !== 'object') return null;
   const u = usage as Record<string, unknown>;
 
   const promptTokens =
+    (typeof u.inputTokens === 'number' ? u.inputTokens : undefined) ??
     (typeof u.prompt_tokens === 'number' ? u.prompt_tokens : undefined) ??
     (typeof u.input_tokens === 'number' ? u.input_tokens : undefined) ??
     (typeof u.promptTokenCount === 'number' ? u.promptTokenCount : undefined) ??
@@ -104,6 +107,7 @@ export function normalizeUsage(usage: unknown): ContextUsage | null {
     0;
 
   const completionTokens =
+    (typeof u.outputTokens === 'number' ? u.outputTokens : undefined) ??
     (typeof u.completion_tokens === 'number' ? u.completion_tokens : undefined) ??
     (typeof u.output_tokens === 'number' ? u.output_tokens : undefined) ??
     (typeof u.candidatesTokenCount === 'number'
@@ -113,6 +117,7 @@ export function normalizeUsage(usage: unknown): ContextUsage | null {
     0;
 
   const totalTokens =
+    (typeof u.totalTokens === 'number' ? u.totalTokens : undefined) ??
     (typeof u.total_tokens === 'number' ? u.total_tokens : undefined) ??
     (typeof u.totalTokenCount === 'number' ? u.totalTokenCount : undefined) ??
     (promptTokens + completionTokens || 0);
@@ -126,6 +131,47 @@ export function normalizeUsage(usage: unknown): ContextUsage | null {
 
 /** 单条消息除 content 外的格式开销（角色名、分隔符等近似值） */
 const MESSAGE_OVERHEAD_TOKENS = 4;
+
+/** 图片 token 取决于厂商、尺寸和 detail；真实 usage 返回前只给保守占位。 */
+const IMAGE_INPUT_ESTIMATE_TOKENS = 1024;
+
+/**
+ * 估算即将发送给模型的运行时消息。
+ *
+ * 与 estimateContextTokens 的持久化历史视角不同，这里覆盖当前工具 loop 中
+ * 尚未落盘完成的 assistant/tool 消息，用于流式阶段即时刷新 UI。工具定义、
+ * 图片等厂商特有开销最终仍以每次请求返回的真实 usage 为准。
+ */
+export function estimateRuntimeMessagesTokens(
+  messages: readonly CottageModelMessage[],
+  modelId?: string,
+): number {
+  let total = 0;
+  for (const message of messages) {
+    total += MESSAGE_OVERHEAD_TOKENS;
+    if (typeof message.content === 'string') {
+      total += countTokens(message.content, modelId);
+    } else {
+      for (const part of message.content) {
+        total += part.type === 'text'
+          ? countTokens(part.text, modelId)
+          : IMAGE_INPUT_ESTIMATE_TOKENS;
+      }
+    }
+    if (message.role === 'assistant') {
+      if (message.reasoningContent) {
+        total += countTokens(message.reasoningContent, modelId);
+      }
+      for (const call of message.toolCalls ?? []) {
+        total += countTokens(call.name, modelId);
+        total += countTokens(JSON.stringify(call.args ?? {}), modelId);
+      }
+    } else if (message.role === 'tool' && message.name) {
+      total += countTokens(message.name, modelId);
+    }
+  }
+  return total;
+}
 
 function estimateMessageTokens(message: StoredMessage, modelId?: string): number {
   let tokens = MESSAGE_OVERHEAD_TOKENS;

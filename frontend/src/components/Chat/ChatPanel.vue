@@ -90,12 +90,13 @@ type ActiveModelStatus =
 function collectChangedFilesFromChat(chat: CottageAgent): MessageChangedFile[] {
   const seen = new Map<string, MessageChangedFile>();
   for (const message of chat.messages) {
-    for (const file of collectMessageChangedFiles(message)) {
+    for (const file of collectMessageChangedFiles(message, { includeResetState: true })) {
       const existing = seen.get(file.path);
       if (!existing) {
         seen.set(file.path, file);
         continue;
       }
+      existing.changeId = file.changeId;
       if (file.kind === 'deleted') existing.kind = 'deleted';
     }
   }
@@ -307,10 +308,13 @@ const modifiedFiles = computed(() =>
 );
 // 同步到 AI 改动标记 store，供文件管理器角标展示
 const aiChangedFilesStore = useAiChangedFilesStore();
+const aiChangedScopeId = computed(
+  () => chat.value?.getSessionId() ?? activeChatId.value ?? null,
+);
 watch(
-  modifiedFileEntries,
-  (entries) => {
-    aiChangedFilesStore.sync(entries);
+  [modifiedFileEntries, aiChangedScopeId],
+  ([entries, sessionId]) => {
+    aiChangedFilesStore.sync(entries, sessionId ?? null);
   },
   { immediate: true },
 );

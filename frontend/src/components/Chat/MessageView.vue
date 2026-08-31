@@ -17,7 +17,11 @@ import {
 import { RefreshOutline, AlertCircleOutline, CopyOutline, CheckmarkOutline, GitBranchOutline, CreateOutline, DocumentOutline } from '@vicons/ionicons5';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { CottageMessage, CottageSection } from '../../agent/messages';
+import {
+  mergeAdjacentThinkSections,
+  type CottageMessage,
+  type CottageSection,
+} from '../../agent/messages';
 import { containsThinkingTag, splitCottageThinking } from '../../agent/cottageThinking';
 import {
   extractPartialJsonString,
@@ -41,7 +45,7 @@ import { parseMcpToolName } from '../../mcp/toolAdapter';
 import { toolLocaleAlias, toolRisk } from '../../agent/toolDescriptions';
 import { isAskUserTool } from '../../agent/toolNames';
 import type { CapabilityRiskLevel } from '../../platform/capabilities/types';
-import { bindMarkdownCopyButtons } from './markdownRender';
+import { bindMarkdownInteractions } from './markdownRender';
 import StreamingMarkdown from './StreamingMarkdown.vue';
 import UserMessageContent from './UserMessageContent.vue';
 import OrchestrationCard from '../Orchestrator/OrchestrationCard.vue';
@@ -59,6 +63,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { formatSessionTime } from '../../config/chatSessions';
 import { composeUserMessage } from '../../chat/composeUserMessage';
 import type { ChatFileReference } from '../../chat/fileReferences';
+import { resolveWorkspaceFileLink } from '../../chat/workspaceFileLinks';
 import { parseUserMessageDisplay } from '../../chat/userMessageFormat';
 import { workspace } from '../../workspace/FileSystemWorkspace';
 const { t } = useI18n();
@@ -719,7 +724,9 @@ const groupedCalls = computed<Record<GroupedCallKind, GroupedCallMeta>>(() => {
       running: false,
     },
   };
-  for (const [index, section] of props.message.sections.entries()) {
+  for (const [index, section] of projectMessageSections(
+    props.message.sections,
+  ).entries()) {
     if (section.type !== 'call') continue;
     const kind = callGroupKind(section);
     if (!kind) continue;
@@ -1584,11 +1591,12 @@ async function onRetryAfterError() {
  * 这里通过返回新数组引用，并显式依赖 props.version，确保每次流式 tick
  * 都会让 computed 失效，进而触发 MessageView 重新渲染、v-for 重新求值。
  */
-const sectionsView = computed<CottageSection[]>(() => {
-  void props.version;
+function projectMessageSections(
+  sections: readonly CottageSection[],
+): CottageSection[] {
   // 兼容旧会话：正文里仍含思考标签时，展示前拆成 think + content
   const out: CottageSection[] = [];
-  for (const section of props.message.sections) {
+  for (const section of sections) {
     if (
       section.type === 'content' &&
       containsThinkingTag(section.text)
@@ -1612,17 +1620,56 @@ const sectionsView = computed<CottageSection[]>(() => {
     }
     out.push(section);
   }
-  return out;
+  return mergeAdjacentThinkSections(out);
+}
+
+const sectionsView = computed<CottageSection[]>(() => {
+  void props.version;
+  return projectMessageSections(props.message.sections);
 });
 const sectionsRef = ref<HTMLElement | null>(null);
-let unbindCopy: (() => void) | null = null;
+let unbindMarkdownInteractions: (() => void) | null = null;
+
+function handleMarkdownLink(href: string): boolean {
+  const snapshot = workspaceStore.snapshot;
+  const target = resolveWorkspaceFileLink(
+    href,
+    snapshot?.rootName ?? workspace.rootName,
+    snapshot?.files ?? [],
+  );
+  if (!target) return false;
+
+  void (async () => {
+    try {
+      const kind = await workspace.getEntryKind(target.path);
+      if (kind !== 'file') {
+        ElMessage.warning(
+          t('chat.referencedFileNotFound', { path: target.path }),
+        );
+        return;
+      }
+      await workspaceStore.selectFile(target.path);
+    } catch (error) {
+      ElMessage.error(
+        t('chat.openReferencedFileFailed', {
+          path: target.path,
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  })();
+  return true;
+}
+
 onMounted(() => {
   if (sectionsRef.value) {
-    unbindCopy = bindMarkdownCopyButtons(sectionsRef.value);
+    unbindMarkdownInteractions = bindMarkdownInteractions(sectionsRef.value, {
+      onLinkClick: handleMarkdownLink,
+    });
   }
 });
 onUnmounted(() => {
-  unbindCopy?.();
+  unbindMarkdownInteractions?.();
   if (copiedResetTimer) clearTimeout(copiedResetTimer);
 });
 </script>
@@ -1771,6 +1818,7 @@ onUnmounted(() => {
             "
             :call-id="section.id"
             :tool-name="section.name"
+            :tool-arguments="section.arguments"
             :interaction="section.interaction"
             @resolve-tool-approval="handleResolveToolApproval"
             @resolve-ask-user="handleResolveAskUser"
@@ -1802,6 +1850,7 @@ onUnmounted(() => {
               v-if="section.interaction?.kind === 'tool_approval'"
               :call-id="section.id"
               :tool-name="section.name"
+              :tool-arguments="section.arguments"
               :interaction="section.interaction"
               @resolve-tool-approval="handleResolveToolApproval"
               @resolve-ask-user="handleResolveAskUser"
@@ -1833,6 +1882,7 @@ onUnmounted(() => {
               v-if="section.interaction?.kind === 'tool_approval'"
               :call-id="section.id"
               :tool-name="section.name"
+              :tool-arguments="section.arguments"
               :interaction="section.interaction"
               @resolve-tool-approval="handleResolveToolApproval"
               @resolve-ask-user="handleResolveAskUser"

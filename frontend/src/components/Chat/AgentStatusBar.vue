@@ -33,11 +33,20 @@ const view = computed(() => {
         hint: t('chat.statusRunningToolHint'),
       };
     case 'approval':
+      if (props.status.toolName === 'doom_loop') {
+        return {
+          label: t('chat.statusAwaitDoomLoop'),
+          hint: t('chat.statusAwaitApprovalHint'),
+        };
+      }
+      if (props.status.toolName === 'stagedChanges') {
+        return {
+          label: t('chat.statusAwaitStagedChanges'),
+          hint: t('chat.statusAwaitStagedChangesHint'),
+        };
+      }
       return {
-        label:
-          props.status.toolName === 'doom_loop'
-            ? t('chat.statusAwaitDoomLoop')
-            : t('chat.statusAwaitApproval', { name: props.status.toolName }),
+        label: t('chat.statusAwaitApproval', { name: props.status.toolName }),
         hint: t('chat.statusAwaitApprovalHint'),
       };
     default:
