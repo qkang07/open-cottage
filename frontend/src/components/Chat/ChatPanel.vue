@@ -7,6 +7,7 @@ import {
   DocumentTextOutline,
   FolderOpenOutline,
   LayersOutline,
+  ListOutline,
   Pin,
   PinOutline,
   SearchOutline,
@@ -79,6 +80,7 @@ import {
 import ChatComposer from './ChatComposer.vue';
 import ChatMessageList from './ChatMessageList.vue';
 import StagedReviewBanner from './StagedReviewBanner.vue';
+import PlanCenter from '../Plan/PlanCenter.vue';
 import { getPendingAsk, resolvePendingAsk } from '../../agent/askUserTool';
 import { isAskUserTool } from '../../agent/toolNames';
 import AgentStatusBar from './AgentStatusBar.vue';
@@ -172,6 +174,7 @@ const activeModelStatus = computed<ActiveModelStatus>(() => {
   return hasKey ? { kind: 'ok' } : { kind: 'missing-key', provider };
 });
 const historyOpen = ref(false);
+const plansOpen = ref(false);
 const historyQuery = ref('');
 function projectHistoryForReadonlyView(history: readonly StoredMessage[]): CottageMessage[] {
   const messages: CottageMessage[] = [];
@@ -636,6 +639,17 @@ function handleSetSearchSource(source: SearchSource) {
         </NEllipsis>
       </div>
       <div class="cottage-button-row">
+        <CottageTooltip :content="t('chat.planCenter')" placement="top">
+          <ElButton
+            class="cottage-history-btn"
+            plain
+            :disabled="!snapshot"
+            @click="plansOpen = true"
+          >
+            <template #icon><NIcon :component="ListOutline" /></template>
+            {{ t('chat.modeSpec') }}
+          </ElButton>
+        </CottageTooltip>
         <CottageTooltip :content="t('chat.newChat')" placement="top">
           <ElButton
             class="cottage-new-chat-btn"
@@ -917,6 +931,19 @@ function handleSetSearchSource(source: SearchSource) {
             </span>
           </div>
         </div>
+      </div>
+    </div>
+    <div v-if="plansOpen" class="chat-history-overlay">
+      <div class="panel-header chat-history-overlay-header">
+        <span class="chat-history-overlay-title">{{ t('chat.planCenter') }}</span>
+        <CottageTooltip :content="t('common.close')" placement="top">
+          <ElButton class="cottage-icon-btn" text @click="plansOpen = false">
+            <template #icon><NIcon :component="CloseOutline" /></template>
+          </ElButton>
+        </CottageTooltip>
+      </div>
+      <div class="chat-history-overlay-body">
+        <PlanCenter @close="plansOpen = false" />
       </div>
     </div>
   </div>

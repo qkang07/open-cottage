@@ -47,6 +47,8 @@ export interface CreatePlanToolGuardOptions {
     risk: CapabilityRiskLevel | 'control',
     predictedPaths: string[],
   ) => void | Promise<void>;
+  /** 记录已经实际发起的外部调用；审批拒绝和范围预检失败不计入预算。 */
+  onExternalCall: (succeeded: boolean) => void | Promise<void>;
 }
 
 const CONTROL_TOOLS = new Set([
@@ -328,6 +330,9 @@ export const createPlanToolGuard = (
     async afterExecute(verdict, succeeded, report) {
       if (verdict.risk === 'read' || verdict.risk === 'control') return;
       try {
+        if (verdict.risk === 'external') {
+          await options.onExternalCall(succeeded);
+        }
         const hasMutation = Boolean(
           report &&
             (report.created.length ||
@@ -335,7 +340,7 @@ export const createPlanToolGuard = (
               report.deleted.length ||
               report.moved.length),
         );
-        if (report && (succeeded || hasMutation)) {
+        if (report && hasMutation) {
           await options.onMutation(report, verdict.risk, verdict.paths);
         }
         const unexpected = report && verdict.paths.length

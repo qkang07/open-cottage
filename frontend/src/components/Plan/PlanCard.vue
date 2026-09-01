@@ -42,6 +42,9 @@ const saving = ref(false);
 const restoring = ref(false);
 const instruction = ref('');
 const acceptanceNote = ref('');
+const adjustmentFeedback = ref('');
+const requestingChanges = ref(false);
+const pendingAction = ref<string | null>(null);
 const lockState = ref<WorkspaceWriteLockState>(workspaceWriteCoordinator.currentState);
 const checkpointUsage = ref<CheckpointObjectIndex | null>(null);
 const unsubscribeLock = workspaceWriteCoordinator.subscribe((state) => {
@@ -140,6 +143,45 @@ const allAcceptanceCriteria = computed(() => [
   ...props.definition.steps.flatMap((step) => step.acceptance),
   ...props.definition.finalAcceptance,
 ]);
+const unavailableCriteria = computed(() =>
+  allAcceptanceCriteria.value.filter(
+    (criterion) =>
+      criterion.providerId !== 'user.acceptance' &&
+      !props.definition.verificationCapabilitySnapshot.find(
+        (item) => item.providerId === criterion.providerId,
+      )?.available,
+  ),
+);
+const humanCriteriaCount = computed(
+  () => allAcceptanceCriteria.value.filter((item) => item.providerId === 'user.acceptance').length,
+);
+const functionalCriteriaCount = computed(() =>
+  allAcceptanceCriteria.value.filter((criterion) =>
+    props.definition.verificationCapabilitySnapshot.some(
+      (item) =>
+        item.providerId === criterion.providerId &&
+        item.available &&
+        item.assurance === 'functional',
+    ),
+  ).length,
+);
+const structuralCriteriaCount = computed(
+  () => Math.max(0, allAcceptanceCriteria.value.length - humanCriteriaCount.value - functionalCriteriaCount.value),
+);
+const requiresRiskAcceptance = computed(
+  () =>
+    props.run.requiresHumanAcceptance === true ||
+    props.run.finalVerification?.verdict !== 'pass',
+);
+const acceptanceActionLabel = computed(() =>
+  requiresRiskAcceptance.value ? '接受未验证项并完成' : '确认人工验收并完成',
+);
+const finalVerificationLabel = computed(() => {
+  const verdict = props.run.finalVerification?.verdict;
+  if (verdict === 'pass') return '机器验证通过';
+  if (verdict === 'fail') return '机器验证失败';
+  return '仍有未验证项';
+});
 const heldByAnotherPlan = computed(
   () =>
     lockState.value.status === 'held' &&
@@ -279,16 +321,105 @@ async function saveEdits() {
   }
 }
 
+async function runAction(
+  name: string,
+  action: () => Promise<unknown>,
+  success?: string,
+) {
+  if (pendingAction.value) return false;
+  pendingAction.value = name;
+  try {
+    await action();
+    if (success) ElMessage.success(success);
+    return true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+    return false;
+  } finally {
+    pendingAction.value = null;
+  }
+}
+
+async function approveCurrentPlan() {
+  await runAction('approve', () => agentStore.approvePlan());
+}
+
+async function pauseCurrentPlan() {
+  await runAction('pause', () => agentStore.pausePlan());
+}
+
+async function continueCurrentPlan() {
+  await runAction('continue', () => agentStore.continuePlan());
+}
+
+async function cancelCurrentPlan() {
+  try {
+    await ElMessageBox.confirm(
+      '取消会终止当前计划，但会保留已经产生的工作区修改和恢复数据。',
+      '取消计划',
+      { confirmButtonText: '确认取消', cancelButtonText: '返回', type: 'warning' },
+    );
+  } catch {
+    return;
+  }
+  await runAction('cancel', () => agentStore.cancelPlan(), '计划已取消，现有修改已保留');
+}
+
+async function requestChanges() {
+  const feedback = adjustmentFeedback.value.trim();
+  if (!feedback) return;
+  const succeeded = await runAction(
+    'adjust',
+    () => agentStore.requestPlanChanges(feedback),
+    '修改意见已提交，正在起草新的计划版本',
+  );
+  if (succeeded) {
+    adjustmentFeedback.value = '';
+    requestingChanges.value = false;
+  }
+}
+
+async function acceptCurrentPlan() {
+  const uncovered = props.run.finalVerification?.uncovered ?? [];
+  const detail = requiresRiskAcceptance.value
+    ? `以下内容尚未得到受信的功能验证：\n${uncovered.length ? uncovered.map((item) => `- ${item}`).join('\n') : '- 需要人工确认整体结果'}\n\n确认接受这些未验证项并完成计划吗？`
+    : '机器验证已通过。确认你已检查交付结果并完成计划吗？';
+  try {
+    await ElMessageBox.confirm(detail, acceptanceActionLabel.value, {
+      confirmButtonText: acceptanceActionLabel.value,
+      cancelButtonText: '继续检查',
+      type: requiresRiskAcceptance.value ? 'warning' : 'info',
+    });
+  } catch {
+    return;
+  }
+  await runAction('accept', () => agentStore.acceptPlan(acceptanceNote.value));
+}
+
+async function acceptCriterion(criterionId: string) {
+  await runAction(
+    `criterion:${criterionId}`,
+    () => agentStore.acceptPlanCriteria([criterionId], acceptanceNote.value),
+    '验收项已记录',
+  );
+}
+
 async function restoreCurrentStep() {
   if (!props.run.currentStepId) return;
+  let preview: Awaited<ReturnType<typeof agentStore.previewPlanRestore>>;
   try {
-    const preview = await agentStore.previewPlanRestore(props.run.currentStepId);
-    const impact = [
-      ...preview.create.map((path) => `创建：${path}`),
-      ...preview.overwrite.map((path) => `覆盖：${path}`),
-      ...preview.delete.map((path) => `删除：${path}`),
-      ...preview.move.map((item) => `移动：${item.from} → ${item.to}`),
-    ];
+    preview = await agentStore.previewPlanRestore(props.run.currentStepId);
+  } catch (error) {
+    ElMessage.error(`无法读取恢复预览：${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  const impact = [
+    ...preview.create.map((path) => `创建：${path}`),
+    ...preview.overwrite.map((path) => `覆盖：${path}`),
+    ...preview.delete.map((path) => `删除：${path}`),
+    ...preview.move.map((item) => `移动：${item.from} → ${item.to}`),
+  ];
+  try {
     await ElMessageBox.confirm(
       `恢复将执行以下操作：\n${impact.length ? impact.join('\n') : '没有文件变化'}\n\n是否继续？`,
       '确认恢复步骤检查点',
@@ -319,8 +450,10 @@ async function skipCurrentStep() {
   } catch {
     return;
   }
-  await agentStore.skipPlanStep(props.run.currentStepId);
-  await agentStore.continuePlan();
+  await runAction('skip', async () => {
+    await agentStore.skipPlanStep(props.run.currentStepId!);
+    await agentStore.continuePlan();
+  });
 }
 
 async function deleteCheckpoint(stepId?: string) {
@@ -336,8 +469,10 @@ async function deleteCheckpoint(stepId?: string) {
   } catch {
     return;
   }
-  await agentStore.deletePlanCheckpoint(targetStepId);
-  checkpointUsage.value = await agentStore.getPlanCheckpointUsage();
+  await runAction('delete-checkpoint', async () => {
+    await agentStore.deletePlanCheckpoint(targetStepId);
+    checkpointUsage.value = await agentStore.getPlanCheckpointUsage();
+  }, '步骤恢复数据已删除');
 }
 
 async function archiveCurrentPlan() {
@@ -350,14 +485,18 @@ async function archiveCurrentPlan() {
   } catch {
     return;
   }
-  await agentStore.archivePlan();
+  await runAction('archive', () => agentStore.archivePlan(), '计划已归档');
 }
 
 async function submitInstruction() {
   if (!instruction.value.trim()) return;
-  await agentStore.queuePlanInstruction(instruction.value);
-  instruction.value = '';
-  ElMessage.success('指令已排队，将在安全边界生效');
+  const text = instruction.value;
+  const succeeded = await runAction('instruction', () => agentStore.queuePlanInstruction(text), '指令已排队，将在安全边界生效');
+  if (succeeded) instruction.value = '';
+}
+
+async function unarchiveCurrentPlan() {
+  await runAction('unarchive', () => agentStore.unarchivePlan(props.definition.id), '计划已恢复到活动执行链');
 }
 </script>
 
@@ -367,39 +506,57 @@ async function submitInstruction() {
       <div class="plan-title">
         <strong>{{ definition.goal }}</strong>
         <ElTag size="small" :type="statusType">{{ statusLabel[run.status] }}</ElTag>
+        <ElTag v-if="run.archivedAt" size="small" effect="plain">已归档</ElTag>
         <ElTag size="small" effect="plain">revision {{ definition.revision }}</ElTag>
       </div>
+      <ElButton
+        v-if="run.archivedAt && !['completed', 'failed', 'cancelled'].includes(run.status)"
+        size="small"
+        plain
+        :loading="pendingAction === 'unarchive'"
+        @click="unarchiveCurrentPlan"
+      >恢复计划</ElButton>
       <div v-if="isActive && !run.repositoryCorrupt" class="plan-actions">
-        <ElButton v-if="canEdit && !editing" size="small" @click="editing = true">编辑</ElButton>
+        <ElButton v-if="canEdit && !editing" size="small" @click="editing = true">高级编辑</ElButton>
+        <ElButton
+          v-if="canEdit && !editing"
+          size="small"
+          @click="requestingChanges = !requestingChanges"
+        >要求修改</ElButton>
         <ElButton
           v-if="run.status === 'awaiting_approval'"
           size="small"
           type="primary"
-          @click="agentStore.approvePlan()"
+          :loading="pendingAction === 'approve'"
+          @click="approveCurrentPlan"
         >批准并执行</ElButton>
         <ElButton
           v-if="run.status === 'running'"
           size="small"
-          @click="agentStore.pausePlan()"
+          :loading="pendingAction === 'pause'"
+          @click="pauseCurrentPlan"
         >暂停</ElButton>
         <ElButton
           v-if="['paused', 'waiting_for_user'].includes(run.status)"
           size="small"
           type="primary"
-          @click="agentStore.continuePlan()"
+          :loading="pendingAction === 'continue'"
+          @click="continueCurrentPlan"
         >继续</ElButton>
         <ElButton
           v-if="run.status === 'awaiting_acceptance'"
           size="small"
           type="success"
-          @click="agentStore.acceptPlan(acceptanceNote)"
-        >验收完成</ElButton>
+          :loading="pendingAction === 'accept'"
+          @click="acceptCurrentPlan"
+        >{{ acceptanceActionLabel }}</ElButton>
         <ElButton
           v-if="!['completed', 'failed', 'cancelled'].includes(run.status)"
           size="small"
           type="danger"
           plain
-          @click="agentStore.cancelPlan()"
+          :loading="pendingAction === 'cancel'"
+          @click="cancelCurrentPlan"
         >取消</ElButton>
         <ElButton
           v-if="!run.archivedAt && run.status !== 'running' && run.status !== 'verifying'"
@@ -409,6 +566,57 @@ async function submitInstruction() {
         >归档</ElButton>
       </div>
     </header>
+
+    <div v-if="isActive && run.status === 'awaiting_approval' && !editing" class="approval-review">
+      <div class="approval-review-head">
+        <strong>批准前请确认</strong>
+        <span>{{ definition.steps.length }} 个步骤 · {{ definition.allowedPathPrefixes.length }} 个路径范围</span>
+      </div>
+      <div class="approval-grid">
+        <div>
+          <small>允许写入</small>
+          <div class="tag-list">
+            <ElTag v-for="path in definition.allowedPathPrefixes" :key="path" effect="plain">{{ path }}</ElTag>
+          </div>
+        </div>
+        <div>
+          <small>执行预算</small>
+          <span>{{ definition.budgets.maxTurns }} 轮 / {{ definition.budgets.maxChangedFiles }} 个文件 / {{ definition.budgets.maxExternalCalls }} 次外部调用</span>
+        </div>
+        <div>
+          <small>验收覆盖</small>
+          <span>{{ functionalCriteriaCount }} 项功能验证 / {{ structuralCriteriaCount }} 项结构检查 / {{ humanCriteriaCount }} 项人工验收<span v-if="unavailableCriteria.length">，其中 {{ unavailableCriteria.length }} 项当前不可用</span></span>
+        </div>
+        <div>
+          <small>仍会单独确认</small>
+          <span>删除、移动、外部副作用、路径扩展与预算变化</span>
+        </div>
+      </div>
+      <ol class="approval-steps">
+        <li v-for="step in definition.steps" :key="step.id">
+          <strong>{{ step.title }}</strong>
+          <small v-if="step.detail">{{ step.detail }}</small>
+        </li>
+      </ol>
+    </div>
+
+    <div v-if="isActive && requestingChanges && canEdit && !editing" class="adjustment-box">
+      <ElInput
+        v-model="adjustmentFeedback"
+        type="textarea"
+        :rows="3"
+        placeholder="例如：第 2 步不要修改公共 API；最终验收增加移动端预览。"
+      />
+      <div class="editor-actions">
+        <ElButton @click="requestingChanges = false">取消</ElButton>
+        <ElButton
+          type="primary"
+          :disabled="!adjustmentFeedback.trim()"
+          :loading="pendingAction === 'adjust'"
+          @click="requestChanges"
+        >提交修改意见</ElButton>
+      </div>
+    </div>
 
     <template v-if="editing">
       <div class="editor-grid">
@@ -573,6 +781,13 @@ async function submitInstruction() {
         </small>
       </div>
       <div v-if="run.pendingReason" class="pending-reason">{{ run.pendingReason }}</div>
+      <div
+        v-if="isActive && run.status === 'awaiting_acceptance' && requiresRiskAcceptance"
+        class="acceptance-warning"
+      >
+        <strong>这不是“自动验证通过”</strong>
+        <span>仍有未验证或需要人工判断的内容。完成操作表示你明确接受这些未覆盖项。</span>
+      </div>
       <ElInput
         v-if="isActive && run.status === 'awaiting_acceptance'"
         v-model="acceptanceNote"
@@ -680,11 +895,12 @@ async function submitInstruction() {
             <ElButton
               v-else-if="isActive && !run.repositoryCorrupt && run.status === 'awaiting_acceptance' && criterion.providerId === 'user.acceptance'"
               size="small"
-              @click="agentStore.acceptPlanCriteria([criterion.id], acceptanceNote)"
+              :loading="pendingAction === `criterion:${criterion.id}`"
+              @click="acceptCriterion(criterion.id)"
             >接受此项</ElButton>
           </div>
           <div v-if="run.finalVerification" class="verification-summary">
-            <strong>最终验证：{{ run.finalVerification.verdict }}</strong>
+            <strong>最终验证：{{ finalVerificationLabel }}</strong>
             <span v-for="item in run.finalVerification.uncovered" :key="item">{{ item }}</span>
           </div>
           <div class="section-title">事件时间线</div>
@@ -729,6 +945,16 @@ async function submitInstruction() {
 .required-switch { display: flex; align-items: center; gap: 8px; color: var(--el-text-color-secondary); font-size: 12px; }
 .budget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
 .editor-actions { justify-content: flex-end; margin-top: 14px; }
+.approval-review { margin: 12px 0; padding: 12px; border: 1px solid var(--el-color-primary-light-7); border-radius: 10px; background: var(--el-color-primary-light-9); }
+.approval-review-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.approval-review-head span, .approval-grid small, .approval-steps small { color: var(--el-text-color-secondary); }
+.approval-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.approval-grid > div { display: grid; gap: 5px; }
+.approval-steps { display: grid; gap: 8px; margin: 12px 0 0; padding-left: 20px; }
+.approval-steps li { padding-left: 3px; }
+.approval-steps li strong, .approval-steps li small { display: block; }
+.adjustment-box { margin: 12px 0; padding: 12px; border: 1px solid var(--el-border-color); border-radius: 10px; }
+.acceptance-warning { display: grid; gap: 4px; margin: 10px 0; padding: 10px; border-radius: 8px; background: var(--el-color-warning-light-9); color: var(--el-color-warning-dark-2); }
 .pending-reason { margin: 10px 0; padding: 8px 10px; border-radius: 8px; background: var(--el-color-warning-light-9); color: var(--el-color-warning-dark-2); }
 .revision-diff { display: grid; gap: 4px; margin: 10px 0; padding: 8px 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 8px; }
 .current-step { display: grid; gap: 3px; margin: 10px 0; }
@@ -748,6 +974,7 @@ async function submitInstruction() {
 .instruction-box { display: flex; gap: 8px; margin: 10px 0; }
 @media (max-width: 640px) {
   .budget-grid { grid-template-columns: 1fr; }
+  .approval-grid { grid-template-columns: 1fr; }
   .plan-actions { width: 100%; }
 }
 </style>

@@ -187,6 +187,7 @@ export function buildChatPlanModeBundle(
       getContext: ctx.planCallbacks.getActivePlan,
       onBlocked: ctx.planCallbacks.onGuardBlocked,
       onMutation: ctx.planCallbacks.onGuardMutation,
+      onExternalCall: ctx.planCallbacks.onGuardExternalCall,
     });
   }
   if (ctx.adaptForMoonshot && modeTools.length) {

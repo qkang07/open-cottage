@@ -82,9 +82,11 @@ import {
   createPlanRun,
   getVerificationRegistry,
   listActiveSessionPlans,
+  listWorkspacePlans,
   loadPlanDefinition,
   nextReadyStep,
   refreshReadySteps,
+  recoverStoredPlan,
   releasePlanWriter,
   resolvePendingPlanApproval,
   cancelPendingPlanApproval,
@@ -230,6 +232,12 @@ export const useAgentStore = defineStore('agent', () => {
   const pendingPlanSuggestionRef = shallowRef<{
     goal: string;
     reason?: string;
+    sessionId: string;
+  } | null>(null);
+  const pendingPlanRevisionFeedbackRef = shallowRef<{
+    planId: string;
+    revision: number;
+    feedback: string;
     sessionId: string;
   } | null>(null);
   let observedForeignPlanWriter = false;
@@ -444,6 +452,7 @@ export const useAgentStore = defineStore('agent', () => {
     agent.watch('assistantComplete', () => {
       setTimeout(() => {
         void maybeKickoffPendingPlan(sessionId);
+        void maybeKickoffPendingPlanRevision(sessionId);
         // 仅供已在内存中的旧 Spec Agent 收口；新建/恢复会话不会再挂载该模式。
         void maybeContinuePlanAfterTurn(sessionId);
       }, 0);
@@ -953,6 +962,30 @@ export const useAgentStore = defineStore('agent', () => {
     const run = activePlanRunRef.value;
     if (!definition || !run || definition.id !== run.planId) return null;
     return { definition, run };
+  }
+
+  function selectSingleActivePlan(
+    plans: Awaited<ReturnType<typeof listActiveSessionPlans>>,
+    notifyConflict = true,
+  ): boolean {
+    if (plans.length > 1) {
+      if (notifyConflict) {
+        ElNotification({
+          title: '发现多个活动计划',
+          message: '为避免静默选择错误计划，已停止自动恢复。请从计划中心明确打开一个计划。',
+          type: 'warning',
+          duration: 0,
+        });
+      }
+      return false;
+    }
+    const stored = plans[0];
+    if (!stored) return false;
+    planMode.value = true;
+    activePlanIdRef.value = stored.definition.id;
+    activePlanDefinitionRef.value = stored.definition;
+    activePlanRunRef.value = stored.run;
+    return true;
   }
 
   function syncPlanSection(definition: PlanDefinition, run: PlanRun) {
@@ -1514,8 +1547,7 @@ export const useAgentStore = defineStore('agent', () => {
       counters: {
         ...transition.run.counters,
         changedFiles: changedFiles.length,
-        externalCalls:
-          transition.run.counters.externalCalls + (risk === 'external' ? 1 : 0),
+        externalCalls: transition.run.counters.externalCalls,
       },
       updatedAt: Date.now(),
     };
@@ -1523,6 +1555,23 @@ export const useAgentStore = defineStore('agent', () => {
       ...transition.event,
       type: yieldForTakeover ? 'takeover_yielded' : transition.event.type,
       detail: { report, predictedPaths, risk },
+    });
+  }
+
+  async function recordPlanGuardExternalCall(succeeded: boolean) {
+    const context = getActivePlanContext();
+    if (!context || context.run.status !== 'running') return;
+    const externalCalls = context.run.counters.externalCalls + 1;
+    const run: PlanRun = {
+      ...context.run,
+      counters: { ...context.run.counters, externalCalls },
+      updatedAt: Date.now(),
+    };
+    await commitPlan(context.definition, run, {
+      type: 'external_call_recorded',
+      at: Date.now(),
+      stepId: run.currentStepId,
+      detail: { succeeded, externalCalls },
     });
   }
 
@@ -1615,6 +1664,7 @@ export const useAgentStore = defineStore('agent', () => {
       getActivePlan: getActivePlanContext,
       onGuardBlocked: handlePlanGuardBlocked,
       onGuardMutation: recordPlanGuardMutation,
+      onGuardExternalCall: recordPlanGuardExternalCall,
     };
   }
 
@@ -1690,9 +1740,45 @@ export const useAgentStore = defineStore('agent', () => {
     releasePlanWriter(context.definition.id);
   }
 
+  async function requestPlanChanges(feedback: string) {
+    const text = feedback.trim();
+    const sessionId = activeChatIdRef.value;
+    const context = getActivePlanContext();
+    if (!text || !sessionId || !context) return;
+    if (!['awaiting_approval', 'paused', 'waiting_for_user'].includes(context.run.status)) {
+      throw new Error('请先暂停正在执行的计划，再要求修改');
+    }
+    pendingPlanRevisionFeedbackRef.value = {
+      planId: context.definition.id,
+      revision: context.definition.revision,
+      feedback: text,
+      sessionId,
+    };
+    try {
+      const resolved = resolvePendingPlanApproval('adjust', sessionId, text);
+      if (!resolved) {
+        const transition = planRunner.requestRevision(
+          context.run,
+          `用户要求修改计划：${text}`,
+        );
+        await commitPlan(context.definition, transition.run, {
+          ...transition.event,
+          detail: { feedback: text },
+        });
+        releasePlanWriter(context.definition.id);
+      }
+      await maybeKickoffPendingPlanRevision(sessionId);
+    } catch (error) {
+      pendingPlanRevisionFeedbackRef.value = null;
+      throw error;
+    }
+  }
+
   async function cancelPlan() {
-    cancelPendingPlanApproval(new Error('用户取消了计划'), activeChatIdRef.value);
-    if (chatRef.value?.busy) chatRef.value.abort();
+    const sessionId = activeChatIdRef.value;
+    pendingPlanRevisionFeedbackRef.value = null;
+    const resolvedApproval = resolvePendingPlanApproval('cancel', sessionId);
+    if (!resolvedApproval && chatRef.value?.busy) chatRef.value.abort();
     const context = getActivePlanContext();
     if (!context) return;
     const transition = planRunner.cancelRun(context.run);
@@ -2002,6 +2088,8 @@ export const useAgentStore = defineStore('agent', () => {
   async function archivePlan() {
     const context = getActivePlanContext();
     if (!context) return;
+    pendingPlanRevisionFeedbackRef.value = null;
+    resolvePendingPlanApproval('cancel', activeChatIdRef.value);
     const run: PlanRun = { ...context.run, archivedAt: Date.now(), updatedAt: Date.now() };
     await commitPlan(context.definition, run, {
       type: 'archived',
@@ -2014,6 +2102,66 @@ export const useAgentStore = defineStore('agent', () => {
     await applyMountedChatRuntime();
   }
 
+  async function unarchivePlan(planId: string) {
+    const active = getActivePlanContext();
+    if (active && active.definition.id !== planId) {
+      throw new Error(`当前聊天已有活动计划 ${active.definition.id}，请先暂停并归档它`);
+    }
+    const stored = await planRepository.load(planId);
+    if (!stored) throw new Error('找不到要恢复的计划');
+    if (!stored.run.archivedAt) return;
+    if (['completed', 'failed', 'cancelled'].includes(stored.run.status)) {
+      throw new Error('已结束的计划可继续查看，但不能重新进入执行链');
+    }
+    const run: PlanRun = {
+      ...stored.run,
+      archivedAt: undefined,
+      status: stored.run.status === 'verifying' || stored.run.status === 'running'
+        ? 'paused'
+        : stored.run.status,
+      pendingReason: '计划已从归档恢复，请确认后继续',
+      recoveryRequired: stored.run.status === 'verifying' || stored.run.status === 'running',
+      updatedAt: Date.now(),
+    };
+    await commitPlan(stored.definition, run, {
+      type: 'unarchived',
+      at: Date.now(),
+      revision: stored.definition.revision,
+    });
+    planMode.value = true;
+    await applyMountedChatRuntime();
+  }
+
+  async function openPlan(planId: string) {
+    let stored = await planRepository.load(planId);
+    if (!stored) throw new Error('找不到计划');
+    const current = getActivePlanContext();
+    if (current?.definition.id === planId) return;
+    if (
+      current &&
+      current.definition.sessionId === stored.definition.sessionId &&
+      current.definition.id !== planId
+    ) {
+      throw new Error(`当前会话正在使用计划 ${current.definition.id}，请先归档后再打开另一个计划`);
+    }
+    if (stored.definition.sessionId !== activeChatIdRef.value) {
+      await switchChat(stored.definition.sessionId);
+    }
+    if (stored.run.archivedAt && !['completed', 'failed', 'cancelled'].includes(stored.run.status)) {
+      await unarchivePlan(planId);
+      return;
+    }
+    if (!['completed', 'failed', 'cancelled'].includes(stored.run.status)) {
+      stored = await recoverStoredPlan(planId) ?? stored;
+      activePlanIdRef.value = stored.definition.id;
+      activePlanDefinitionRef.value = stored.definition;
+      activePlanRunRef.value = stored.run;
+      planMode.value = true;
+      syncPlanSection(stored.definition, stored.run);
+      await applyMountedChatRuntime();
+    }
+  }
+
   async function recoverPlan(
     sessionId: string,
     preserveRunning = false,
@@ -2021,6 +2169,10 @@ export const useAgentStore = defineStore('agent', () => {
   ) {
     const active = await listActiveSessionPlans(sessionId);
     if (!active.length) return;
+    if (active.length > 1) {
+      selectSingleActivePlan(active);
+      return;
+    }
     const stored = active[0]!;
     let run = stored.run;
     if (
@@ -2108,6 +2260,24 @@ export const useAgentStore = defineStore('agent', () => {
     if (!instance || !planMode.value) return;
     void instance.next(
       `请为以下目标先做只读影响分析，再调用 submitPlan 提交可批准的版本化计划：\n${pending.goal}`,
+    );
+  }
+
+  async function maybeKickoffPendingPlanRevision(sessionId: string) {
+    const pending = pendingPlanRevisionFeedbackRef.value;
+    const instance = chatRef.value;
+    if (!pending || pending.sessionId !== sessionId || !instance || instance.busy) return;
+    const context = getActivePlanContext();
+    if (!context || context.definition.id !== pending.planId) return;
+    if (context.definition.revision > pending.revision) {
+      pendingPlanRevisionFeedbackRef.value = null;
+      return;
+    }
+    pendingPlanRevisionFeedbackRef.value = null;
+    void instance.next(
+      `用户要求修改当前计划 revision ${pending.revision}：\n${pending.feedback}\n\n` +
+        `请保持 planId=${pending.planId}，先只读核对影响，再以 baseRevision=${pending.revision} ` +
+        '调用 submitPlan 提交新 revision。未经重新批准不要写入。',
     );
   }
 
@@ -2289,12 +2459,7 @@ export const useAgentStore = defineStore('agent', () => {
       activePlanRunRef.value = null;
       try {
         const activePlans = await listActiveSessionPlans(sessionId);
-        if (activePlans.length) {
-          planMode.value = true;
-          activePlanIdRef.value = activePlans[0]!.definition.id;
-          activePlanDefinitionRef.value = activePlans[0]!.definition;
-          activePlanRunRef.value = activePlans[0]!.run;
-        }
+        selectSingleActivePlan(activePlans, false);
       } catch (error) {
         console.warn('[Agent] 恢复复用会话的计划上下文失败:', error);
       }
@@ -2344,12 +2509,7 @@ export const useAgentStore = defineStore('agent', () => {
       activePlanRunRef.value = null;
       try {
         const activePlans = await listActiveSessionPlans(sessionId);
-        if (activePlans.length > 0) {
-          planMode.value = true;
-          activePlanIdRef.value = activePlans[0]!.definition.id;
-          activePlanDefinitionRef.value = activePlans[0]!.definition;
-          activePlanRunRef.value = activePlans[0]!.run;
-        }
+        selectSingleActivePlan(activePlans, false);
       } catch (error) {
         console.warn('[Agent] 检查未完成计划失败，已跳过:', error);
       }
@@ -2987,6 +3147,7 @@ export const useAgentStore = defineStore('agent', () => {
     setChatMode,
     approvePlan,
     adjustPlan,
+    requestPlanChanges,
     savePlanEdits,
     cancelPlan,
     pausePlan,
@@ -2999,6 +3160,9 @@ export const useAgentStore = defineStore('agent', () => {
     getPlanCheckpointUsage,
     deletePlanCheckpoint,
     archivePlan,
+    unarchivePlan,
+    openPlan,
+    listWorkspacePlans,
     queuePlanInstruction,
     copyLegacySpecToPlan,
   };

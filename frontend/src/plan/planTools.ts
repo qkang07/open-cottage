@@ -31,6 +31,7 @@ export interface PlanToolCallbacks {
     risk: 'read' | 'write' | 'external' | 'destructive' | 'control',
     predictedPaths: string[],
   ) => void | Promise<void>;
+  onGuardExternalCall: (succeeded: boolean) => void | Promise<void>;
 }
 
 export const CHAT_PLAN_MODE_TOOL_NAMES = [
@@ -95,18 +96,20 @@ const createSubmitPlanTool = (
         preserveStepIds: input.preserveStepIds,
       };
       const { definition, run } = await callbacks.registerPlan(draft);
-      const decision = await requestPlanApproval({
+      const resolution = await requestPlanApproval({
         definition,
         run,
         signal: config?.signal,
         sessionId,
       });
+      const { decision } = resolution;
       if (decision !== 'approved') {
         return {
           ok: false,
           reason:
             decision === 'adjust'
-              ? '用户要求调整计划。请根据反馈提交新的 revision，不要执行写入。'
+              ? `用户要求调整计划${resolution.feedback ? `：${resolution.feedback}` : ''}。` +
+                '请根据反馈提交新的 revision，不要执行写入。'
               : '用户取消了计划。请停止执行。',
         };
       }

@@ -7,11 +7,15 @@ import {
 import type { PlanDefinition, PlanRun } from './types';
 
 export type PlanApprovalDecision = 'approved' | 'adjust' | 'cancel';
+export interface PlanApprovalResolution {
+  decision: PlanApprovalDecision;
+  feedback?: string;
+}
 
 export interface PendingPlanApproval {
   definition: PlanDefinition;
   run: PlanRun;
-  resolve: (decision: PlanApprovalDecision) => void;
+  resolve: (resolution: PlanApprovalResolution) => void;
   reject: (reason: Error) => void;
 }
 
@@ -23,7 +27,7 @@ export const requestPlanApproval = (input: {
   run: PlanRun;
   signal?: AbortSignal;
   sessionId?: string | null;
-}): Promise<PlanApprovalDecision> =>
+}): Promise<PlanApprovalResolution> =>
   new Promise((resolve, reject) => {
     const key = writeInteractionKey(input.sessionId);
     if (input.signal?.aborted) {
@@ -39,11 +43,11 @@ export const requestPlanApproval = (input: {
     pending.set(key, {
       definition: input.definition,
       run: input.run,
-      resolve: (decision) => {
+      resolve: (resolution) => {
         input.signal?.removeEventListener('abort', abort);
         pending.delete(key);
         bumpInteractionRevision();
-        resolve(decision);
+        resolve(resolution);
       },
       reject: (reason) => {
         input.signal?.removeEventListener('abort', abort);
@@ -68,11 +72,12 @@ export const hasPendingPlanApprovalFor = (sessionId?: string | null) =>
 export const resolvePendingPlanApproval = (
   decision: PlanApprovalDecision,
   sessionId?: string | null,
+  feedback?: string,
 ) => {
   const key = sessionId === undefined ? activeInteractionKey() : writeInteractionKey(sessionId);
   const item = pending.get(key);
   if (!item) return false;
-  item.resolve(decision);
+  item.resolve({ decision, feedback: feedback?.trim() || undefined });
   return true;
 };
 

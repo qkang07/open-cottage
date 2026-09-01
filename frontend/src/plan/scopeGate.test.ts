@@ -42,6 +42,7 @@ describe('plan/scopeGate', () => {
       getContext: () => active,
       onBlocked: vi.fn(),
       onMutation: vi.fn(),
+      onExternalCall: vi.fn(),
     });
 
   it('allows case-insensitive paths inside an approved prefix', () => {
@@ -93,5 +94,25 @@ describe('plan/scopeGate', () => {
         source: 'script',
       }).allowed,
     ).toBe(false);
+  });
+
+  it('records every executed external call even without a workspace mutation report', async () => {
+    const onExternalCall = vi.fn();
+    const onMutation = vi.fn();
+    const guard = createPlanToolGuard({
+      getContext: () => context(),
+      onBlocked: vi.fn(),
+      onMutation,
+      onExternalCall,
+    });
+    const verdict = guard.check({
+      toolName: 'mcp__example__search',
+      args: { query: 'plan mode' },
+      source: 'agent',
+    });
+    expect(verdict.allowed).toBe(true);
+    await guard.afterExecute(verdict, true);
+    expect(onExternalCall).toHaveBeenCalledWith(true);
+    expect(onMutation).not.toHaveBeenCalled();
   });
 });

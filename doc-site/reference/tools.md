@@ -27,13 +27,17 @@
 
 网页自动化依赖已连接且具备相应能力的 Cottage Service；图片生成依赖已配置的生图厂商。
 
-## 计划模式（Spec）
+## 计划模式
 
 | 工具 | 说明 |
 |------|------|
-| `suggestSpec` | 建议进入计划模式 |
-| `submitSpec` | 提交可审阅的计划 |
-| `specUpdateTask` | 更新计划任务状态 |
-| `specComplete` / `specFail` | 标记计划完成或失败 |
+| `suggestPlanMode` | 建议用户确认切换到统一计划模式 |
+| `submitPlan` | 提交带路径范围、步骤依赖、预算和验收标准的版本化计划 |
+| `completePlanStep` / `blockPlanStep` | 提交步骤证据，或记录阻塞并暂停 |
+| `requestPlanRevision` | 请求新的 revision，并等待用户重新批准 |
+| `completePlanRun` / `failPlanRun` | 汇总验证并请求完成，或保留现场并记录失败 |
+| `dispatchPlanResearch` | 在研究或验证步骤中派生最多 3 个临时只读研究执行器 |
+
+旧 `Spec` 消息只作为历史记录显示，并可复制为新的 Plan；`suggestSpec`、`submitSpec` 等旧工具不属于当前公开计划流程。
 
 工具风险和参数以产品运行时提示为准。想了解怎么开启能力，请看 [能力总览](/packs/)；想按任务跟做，请看 [使用指南](/guide/introduction)。

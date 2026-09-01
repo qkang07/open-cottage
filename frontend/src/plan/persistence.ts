@@ -29,41 +29,52 @@ export type { StoredPlan } from './repository';
 export const loadStoredPlan = (planId: string): Promise<StoredPlan | null> =>
   planRepository.load(planId);
 
+const loadPlanForListing = async (id: string): Promise<StoredPlan | null> => {
+  try {
+    return await planRepository.load(id);
+  } catch (error) {
+    if (!(error instanceof PlanRepositoryError)) throw error;
+    const head = await planRepository.loadHead(id);
+    const pointedCommit = head
+      ? await planRepository.loadCommit(id, head.commitId)
+      : null;
+    const definition = head
+      ? await planRepository.loadDefinition(
+          id,
+          pointedCommit?.definitionRevision ?? head.approvedRevision,
+        )
+      : await planRepository.loadLatestDefinition(id);
+    if (!definition) return null;
+    const run: PlanRun = {
+      ...createPlanRun(definition),
+      approvedRevision: head?.approvedRevision ?? 0,
+      status: 'paused',
+      recoveryRequired: true,
+      repositoryCorrupt: true,
+      pendingReason: `recovery_required：${error.message}`,
+      updatedAt: Date.now(),
+    };
+    return { definition, run, head: head ?? undefined };
+  }
+};
+
 export const listSessionPlans = async (sessionId: string): Promise<StoredPlan[]> => {
   if (!workspace.isOpen) return [];
   const ids = await planRepository.listPlanIds();
-  const plans = (await Promise.all(ids.map(async (id) => {
-    try {
-      return await planRepository.load(id);
-    } catch (error) {
-      if (!(error instanceof PlanRepositoryError)) throw error;
-      const head = await planRepository.loadHead(id);
-      const pointedCommit = head
-        ? await planRepository.loadCommit(id, head.commitId)
-        : null;
-      const definition = head
-        ? await planRepository.loadDefinition(
-            id,
-            pointedCommit?.definitionRevision ?? head.approvedRevision,
-          )
-        : await planRepository.loadLatestDefinition(id);
-      if (!definition) return null;
-      const run: PlanRun = {
-        ...createPlanRun(definition),
-        approvedRevision: head?.approvedRevision ?? 0,
-        status: 'paused',
-        recoveryRequired: true,
-        repositoryCorrupt: true,
-        pendingReason: `recovery_required：${error.message}`,
-        updatedAt: Date.now(),
-      };
-      return { definition, run, head: head ?? undefined };
-    }
-  }))).filter(
+  const plans = (await Promise.all(ids.map(loadPlanForListing))).filter(
     (item): item is StoredPlan => Boolean(item),
   );
   return plans
     .filter((item) => item.run.sessionId === sessionId)
+    .sort((a, b) => b.run.updatedAt - a.run.updatedAt);
+};
+
+export const listWorkspacePlans = async (): Promise<StoredPlan[]> => {
+  if (!workspace.isOpen) return [];
+  const ids = await planRepository.listPlanIds();
+  const plans = await Promise.all(ids.map(loadPlanForListing));
+  return plans
+    .filter((item): item is StoredPlan => Boolean(item))
     .sort((a, b) => b.run.updatedAt - a.run.updatedAt);
 };
 
