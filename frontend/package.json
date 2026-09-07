@@ -12,6 +12,8 @@
     "analyze": "vite build --mode analyze",
     "preview": "vite preview",
     "test": "vitest run",
+    "eval:deterministic": "node scripts/run-deterministic-evals.mjs",
+    "eval:live": "node scripts/run-live-evals.mjs",
     "fonts:pdf": "node scripts/fetch-pdf-fonts.mjs",
     "asbuild": "asc assembly/cosine.ts --target release"
   },

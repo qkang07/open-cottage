@@ -1,0 +1,2 @@
+mode=dev
+region=cn

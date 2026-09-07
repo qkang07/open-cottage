@@ -15,6 +15,12 @@ export interface MutationJournalOptions {
   onBeforePath?: (path: string) => void | Promise<void>;
 }
 
+export interface MutationJournalRuntime {
+  begin(options: MutationJournalOptions): void;
+  end(): Promise<ToolMutationReport>;
+  abort(): void;
+}
+
 interface ActiveJournal {
   options: MutationJournalOptions;
   before: Map<string, MutationSnapshot>;
@@ -210,3 +216,10 @@ export const abortMutationJournal = () => {
 };
 
 export const mutationJournalActive = () => active !== null;
+
+/** 生产默认实现；评测可注入绑定隔离工作区的同契约 journal。 */
+export const workspaceMutationJournal: MutationJournalRuntime = {
+  begin: beginMutationJournal,
+  end: endMutationJournal,
+  abort: abortMutationJournal,
+};

@@ -278,6 +278,43 @@ export class PlanRunner {
     return { run: next, event: { type: 'step_started', at: Date.now(), stepId }, boundary: true };
   }
 
+  recordTurnCompleted(definition: PlanDefinition, run: PlanRun): RunnerTransition {
+    this.assertRevision(definition, run);
+    if (run.status !== 'running') {
+      fail('invalid_transition', '只有正在执行的计划可以记录完成轮次', {
+        status: run.status,
+      });
+    }
+    const turns = run.counters.turns + 1;
+    const exhausted = turns >= definition.budgets.maxTurns;
+    const next: PlanRun = {
+      ...run,
+      status: exhausted ? 'paused' : 'running',
+      counters: { ...run.counters, turns },
+      pendingReason: exhausted
+        ? `达到最大执行轮次 ${definition.budgets.maxTurns}，需要用户确认后继续`
+        : run.pendingReason,
+      updatedAt: Date.now(),
+    };
+    return {
+      run: next,
+      event: exhausted
+        ? {
+            type: 'budget_exhausted',
+            at: Date.now(),
+            stepId: run.currentStepId,
+            detail: { budget: 'maxTurns', value: turns },
+          }
+        : {
+            type: 'turn_completed',
+            at: Date.now(),
+            stepId: run.currentStepId,
+            detail: { turn: turns },
+          },
+      boundary: exhausted,
+    };
+  }
+
   recordMutation(
     definition: PlanDefinition,
     run: PlanRun,

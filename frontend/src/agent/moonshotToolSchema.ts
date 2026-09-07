@@ -122,7 +122,20 @@ const setType = (out: JsonRecord, types: string[]): void => {
 };
 
 const ensureMoonshotNodeType = (out: JsonRecord): void => {
-  if (out.type !== undefined) return;
+  // openApi3 用 nullable:true 表示 null；Moonshot 接受 JSON Schema type 数组，
+  // 折叠 union 时必须把 nullable 显式还原成 null 类型。
+  const nullable = out.nullable === true;
+  if (nullable) delete out.nullable;
+  if (out.type !== undefined) {
+    if (nullable) {
+      const declared = Array.isArray(out.type) ? out.type : [out.type];
+      setType(
+        out,
+        [...new Set([...declared.filter((type): type is string => typeof type === 'string'), 'null'])],
+      );
+    }
+    return;
+  }
   if (typeof out.$ref === 'string') return;
 
   for (const key of ['anyOf', 'oneOf'] as const) {
@@ -131,8 +144,9 @@ const ensureMoonshotNodeType = (out: JsonRecord): void => {
       // 纯标量联合（如 string|number|boolean|null）折叠为 type 数组，去掉 anyOf
       if (branch.every(isScalarBranch)) {
         const types = collectBranchTypes(branch);
+        if (nullable) types.push('null');
         if (types.length) {
-          setType(out, types);
+          setType(out, [...new Set(types)]);
           delete out[key];
         }
         return;
@@ -140,24 +154,29 @@ const ensureMoonshotNodeType = (out: JsonRecord): void => {
       // 含对象/数组等复合分支：Moonshot 要求 type 只能定义在各 anyOf/oneOf
       // 子项里，父级不得带 type（否则报 "type should be defined in anyOf
       // items instead of the parent schema"）。子项已在递归 sanitize 时各自补齐 type。
+      if (nullable && !branch.some((item) => isRecord(item) && item.type === 'null')) {
+        branch.push({ type: 'null' });
+      }
       return;
     }
   }
 
   if (Array.isArray(out.allOf) && out.allOf.length > 0) {
-    out.type = 'object';
+    setType(out, nullable ? ['object', 'null'] : ['object']);
     return;
   }
   if (Array.isArray(out.enum) && out.enum.length > 0) {
-    setType(out, [...new Set(out.enum.map(jsonTypeOf))]);
+    const types = out.enum.map(jsonTypeOf);
+    if (nullable) types.push('null');
+    setType(out, [...new Set(types)]);
     return;
   }
   if (isRecord(out.properties) || out.additionalProperties !== undefined) {
-    out.type = 'object';
+    setType(out, nullable ? ['object', 'null'] : ['object']);
     return;
   }
   if (out.items !== undefined) {
-    out.type = 'array';
+    setType(out, nullable ? ['array', 'null'] : ['array']);
     return;
   }
 

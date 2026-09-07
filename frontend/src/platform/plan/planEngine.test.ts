@@ -66,7 +66,7 @@ describe('planEngine', () => {
       { requirePlanFor: ['write'] },
     );
     expect(verdict.allowed).toBe(false);
-    expect(verdict.reason).toContain('maxFiles');
+    expect(verdict.reason).toContain('文件写入/修改');
   });
 
   it('blocks when turn budget exceeded and resets per plan', () => {
@@ -95,7 +95,7 @@ describe('planEngine', () => {
       { requirePlanFor: ['write'] },
     );
     expect(verdict.allowed).toBe(false);
-    expect(verdict.reason).toContain('maxTurns');
+    expect(verdict.reason).toContain('工具调用');
 
     // 重新提交计划后 turns 归零，重新放行
     session.submit({

@@ -4,6 +4,7 @@ import {
   CloseOutline,
   ConstructOutline,
   HardwareChipOutline,
+  PulseOutline,
   TerminalOutline,
 } from '@vicons/ionicons5';
 import { ElButton } from 'element-plus';
@@ -13,6 +14,7 @@ import { storeToRefs } from 'pinia';
 import { onMounted, onUnmounted, watch } from 'vue';
 import { useDebugPanelStore } from '../../stores/debugPanel';
 import ChatDebugTab from './ChatDebugTab.vue';
+import LiveEvalTab from './LiveEvalTab.vue';
 import ToolInvokeTab from './ToolInvokeTab.vue';
 import WorkerMonitorTab from './WorkerMonitorTab.vue';
 
@@ -143,6 +145,15 @@ onUnmounted(() => {
             <NIcon :component="TerminalOutline" />
             <span>工具调用</span>
           </button>
+          <button
+            type="button"
+            class="debug-panel-tab"
+            :class="{ 'is-active': activeTab === 'evals' }"
+            @click="activeTab = 'evals'"
+          >
+            <NIcon :component="PulseOutline" />
+            <span>模型评测</span>
+          </button>
         </nav>
 
         <div class="debug-panel-body">
@@ -157,6 +168,10 @@ onUnmounted(() => {
           <ToolInvokeTab
             v-show="activeTab === 'tools'"
             :visible="open && activeTab === 'tools'"
+          />
+          <LiveEvalTab
+            v-show="activeTab === 'evals'"
+            :visible="open && activeTab === 'evals'"
           />
         </div>
       </aside>

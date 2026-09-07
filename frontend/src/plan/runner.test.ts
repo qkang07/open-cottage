@@ -124,6 +124,29 @@ describe('PlanRunner', () => {
     expect(blocked.stepStates.a?.status).toBe('blocked');
   });
 
+  it('records turn budget centrally and pauses exactly at the configured limit', () => {
+    const definition = makeDefinition();
+    definition.budgets.maxTurns = 2;
+    const runner = new PlanRunner();
+    const approved = runner.approveRevision(definition, createPlanRun(definition)).run;
+    let run = runner.startStep(definition, approved, 'a').run;
+
+    const first = runner.recordTurnCompleted(definition, run);
+    expect(first.run.status).toBe('running');
+    expect(first.run.counters.turns).toBe(1);
+    expect(first.event.type).toBe('turn_completed');
+
+    run = first.run;
+    const second = runner.recordTurnCompleted(definition, run);
+    expect(second.run.status).toBe('paused');
+    expect(second.run.counters.turns).toBe(2);
+    expect(second.run.pendingReason).toContain('最大执行轮次 2');
+    expect(second.event).toMatchObject({
+      type: 'budget_exhausted',
+      detail: { budget: 'maxTurns', value: 2 },
+    });
+  });
+
   it('never auto-completes from structural verification alone', () => {
     const definition = makeDefinition();
     const run = createPlanRun(definition);

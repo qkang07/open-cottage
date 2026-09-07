@@ -1,0 +1,77 @@
+name: Live Model Evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Configured provider id"
+        required: true
+        default: "openai"
+        type: string
+      model:
+        description: "Exact model id"
+        required: true
+        type: string
+      case:
+        description: "Optional exact case id"
+        required: false
+        type: string
+
+jobs:
+  live-eval:
+    runs-on: ubuntu-latest
+    environment: live-eval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Run bounded live evaluation suite
+        if: inputs.case == ''
+        working-directory: frontend
+        env:
+          COTTAGE_LIVE_CI_API_KEY: ${{ secrets.LIVE_EVAL_API_KEY }}
+          COTTAGE_LIVE_PROVIDER_INPUT: ${{ inputs.provider }}
+          COTTAGE_LIVE_MODEL_INPUT: ${{ inputs.model }}
+        run: >-
+          pnpm eval:live -- --live
+          --provider "$COTTAGE_LIVE_PROVIDER_INPUT"
+          --model "$COTTAGE_LIVE_MODEL_INPUT"
+          --api-key-env COTTAGE_LIVE_CI_API_KEY
+          --max-cases 3
+          --max-model-calls 8
+          --max-total-tokens 12000
+          --max-duration-ms 180000
+      - name: Run one bounded live evaluation case
+        if: inputs.case != ''
+        working-directory: frontend
+        env:
+          COTTAGE_LIVE_CI_API_KEY: ${{ secrets.LIVE_EVAL_API_KEY }}
+          COTTAGE_LIVE_PROVIDER_INPUT: ${{ inputs.provider }}
+          COTTAGE_LIVE_MODEL_INPUT: ${{ inputs.model }}
+          COTTAGE_LIVE_CASE_INPUT: ${{ inputs.case }}
+        run: >-
+          pnpm eval:live -- --live
+          --provider "$COTTAGE_LIVE_PROVIDER_INPUT"
+          --model "$COTTAGE_LIVE_MODEL_INPUT"
+          --api-key-env COTTAGE_LIVE_CI_API_KEY
+          --case "$COTTAGE_LIVE_CASE_INPUT"
+          --max-cases 1
+          --max-model-calls 4
+          --max-total-tokens 5000
+          --max-duration-ms 120000
+      - name: Upload live eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-model-eval-report
+          path: frontend/.artifacts/evals/live-report.json
+          if-no-files-found: warn

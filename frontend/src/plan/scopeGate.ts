@@ -49,6 +49,17 @@ export interface CreatePlanToolGuardOptions {
   ) => void | Promise<void>;
   /** 记录已经实际发起的外部调用；审批拒绝和范围预检失败不计入预算。 */
   onExternalCall: (succeeded: boolean) => void | Promise<void>;
+  runtime?: PlanGuardRuntime;
+}
+
+export interface PlanGuardRuntime {
+  webLocksAvailable(): boolean;
+  acquireWriteLease(
+    workspaceId: string,
+    planId: string,
+  ): Promise<WorkspaceWriteLease | null>;
+  resolveWorkspacePath(path: string): Promise<string[] | null>;
+  captureStepPaths(planId: string, stepId: string, paths: string[]): Promise<void>;
 }
 
 const CONTROL_TOOLS = new Set([
@@ -201,6 +212,14 @@ const resolveExistingAncestor = async (path: string): Promise<string[] | null> =
 export const createPlanToolGuard = (
   options: CreatePlanToolGuardOptions,
 ): PlanToolGuard => {
+  const runtime: PlanGuardRuntime = options.runtime ?? {
+    webLocksAvailable: () =>
+      typeof navigator !== 'undefined' && 'locks' in navigator,
+    acquireWriteLease: (workspaceId, planId) =>
+      workspaceWriteCoordinator.acquire(workspaceId, planId),
+    resolveWorkspacePath: resolveExistingAncestor,
+    captureStepPaths: capturePlanStepPaths,
+  };
   return {
     check(input) {
       // 控制类工具归一化匹配，避免 snake_case / 大小写变体绕过豁免
@@ -293,13 +312,13 @@ export const createPlanToolGuard = (
       if (!verdict.allowed || verdict.risk === 'read' || verdict.risk === 'control' || verdict.paths.length === 0) return;
       const context = options.getContext();
       const stepId = context?.run.currentStepId;
-      if (typeof navigator === 'undefined' || !('locks' in navigator)) {
+      if (!runtime.webLocksAvailable()) {
         const reason = '当前浏览器不支持 Web Locks；Plan 自动写入已暂停，请改为逐次人工授权';
         await options.onBlocked(reason);
         throw new Error(reason);
       }
       if (!context || !stepId) throw new Error('计划没有当前执行步骤');
-      const lease = await workspaceWriteCoordinator.acquire(
+      const lease = await runtime.acquireWriteLease(
         context.definition.workspaceId,
         context.definition.id,
       );
@@ -310,7 +329,7 @@ export const createPlanToolGuard = (
       }
       verdict.lease = lease;
       for (const path of verdict.paths) {
-        const resolved = await resolveExistingAncestor(path);
+        const resolved = await runtime.resolveWorkspacePath(path);
         if (!resolved || resolved.join('/').toLowerCase() !== path.toLowerCase()) {
           const reason = `路径无法确认位于当前工作区：${path}`;
           await options.onBlocked(reason);
@@ -320,7 +339,7 @@ export const createPlanToolGuard = (
         }
       }
       try {
-        await capturePlanStepPaths(context.definition.id, stepId, verdict.paths);
+        await runtime.captureStepPaths(context.definition.id, stepId, verdict.paths);
       } catch (error) {
         lease.release();
         verdict.lease = undefined;

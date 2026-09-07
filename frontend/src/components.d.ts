@@ -46,6 +46,7 @@ declare module 'vue' {
     IndexPanel: typeof import('./components/Rag/IndexPanel.vue')['default']
     IndexProgressSteps: typeof import('./components/Rag/IndexProgressSteps.vue')['default']
     LayerTabs: typeof import('./components/Settings/LayerTabs.vue')['default']
+    LiveEvalTab: typeof import('./components/DebugPanel/LiveEvalTab.vue')['default']
     LocaleSelect: typeof import('./components/LocaleSelect.vue')['default']
     MarkdownPreview: typeof import('./components/Preview/MarkdownPreview.vue')['default']
     McpServersFields: typeof import('./components/Settings/McpServersFields.vue')['default']

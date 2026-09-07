@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
 /** 调试面板可切换的标签页 */
-export type DebugPanelTab = 'chat' | 'workers' | 'index' | 'tools';
+export type DebugPanelTab = 'chat' | 'workers' | 'index' | 'tools' | 'evals';
 
 /**
  * 调试面板全局状态。

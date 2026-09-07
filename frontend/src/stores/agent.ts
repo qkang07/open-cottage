@@ -68,6 +68,7 @@ import {
   hasPendingPlanApprovalFor as hasPendingExecutionPlanApprovalFor,
 } from '../platform/plan';
 import type { PlanToolCallbacks } from '../plan/planTools';
+import { buildPlanExecutionContext } from '../plan/executionContext';
 import type {
   AcceptanceCriterion,
   PlanDefinition,
@@ -1188,7 +1189,7 @@ export const useAgentStore = defineStore('agent', () => {
   async function completePlanStep(input: {
     stepId: string;
     summary: string;
-    changedFiles: string[];
+    changedFiles?: string[];
   }): Promise<PlanRun> {
     const context = getActivePlanContext();
     if (!context) throw new Error('当前没有活动计划');
@@ -1200,29 +1201,7 @@ export const useAgentStore = defineStore('agent', () => {
     if (context.run.currentStepId !== input.stepId) {
       throw new Error(`步骤 ${input.stepId} 与当前步骤不一致`);
     }
-    const reported = [...new Set(input.changedFiles.map((path) => path.replace(/\\/g, '/')))].filter(Boolean);
-    const untracked = reported.filter((path) => !state.changedFiles.includes(path));
-    const omitted = state.changedFiles.filter((path) => !reported.includes(path));
-    if (untracked.length || omitted.length) {
-      const reason = untracked.length
-        ? `步骤报告了未经过 Mutation Journal 记录的文件：${untracked.join(', ')}`
-        : `步骤遗漏了实际变更文件：${omitted.join(', ')}`;
-      const transition = planRunner.blockStep(
-        context.definition,
-        context.run,
-        step.id,
-        reason,
-      );
-      const blocked: PlanRun = { ...transition.run, status: 'paused' };
-      await commitPlan(context.definition, blocked, {
-        type: 'step_evidence_rejected',
-        at: Date.now(),
-        stepId: step.id,
-        detail: { reason, untracked, omitted },
-      });
-      releasePlanWriter(context.definition.id);
-      return blocked;
-    }
+    const actualChangedFiles = [...state.changedFiles];
     const verifyingRun: PlanRun = {
       ...context.run,
       status: 'verifying',
@@ -1247,7 +1226,7 @@ export const useAgentStore = defineStore('agent', () => {
       verifyingRun,
       step.id,
       results,
-      reported,
+      actualChangedFiles,
       step.acceptance.filter((criterion) => criterion.required).map((criterion) => criterion.id),
     );
     if (transition.run.status === 'paused') {
@@ -1869,40 +1848,14 @@ export const useAgentStore = defineStore('agent', () => {
     }
     const current = context.definition.steps.find((step) => step.id === run.currentStepId);
     if (!current) {
-      void instance.next('计划的实现步骤已经结束。请调用 completePlanRun 汇总当前可用验证并请求完成。');
+      instance.replaceLlmHistoryProjection([]);
+      void instance.next({
+        llmContent: buildPlanExecutionContext({ definition: context.definition, run }),
+        userText: '计划实现步骤已结束，开始汇总验证。',
+        references: [],
+      });
       return;
     }
-    const dependencies = current.dependsOn
-      .map((id) => context.definition.steps.find((step) => step.id === id)?.title)
-      .filter(Boolean);
-    const dependencyEvidence = current.dependsOn.flatMap((id) =>
-      (run.stepStates[id]?.evidence ?? []).map((item) => `- ${id}: ${item.summary}`),
-    );
-    const failureHistory = Object.entries(run.stepStates)
-      .filter(([, state]) => state.failureReason)
-      .map(([id, state]) => `- ${id}: ${state.failureReason}`);
-    const verificationCapabilities = getVerificationRegistry()
-      .capabilities()
-      .map(
-        (item) =>
-          `- ${item.providerId}: ${item.available ? 'available' : 'unavailable'} (${item.runtime})`,
-      );
-    const remainingBudget = {
-      turns: Math.max(0, context.definition.budgets.maxTurns - run.counters.turns),
-      changedFiles: Math.max(
-        0,
-        context.definition.budgets.maxChangedFiles - run.counters.changedFiles,
-      ),
-      externalCalls: Math.max(
-        0,
-        context.definition.budgets.maxExternalCalls - run.counters.externalCalls,
-      ),
-      retries: Math.max(
-        0,
-        context.definition.budgets.maxStepRetries -
-          Math.max(0, (run.stepStates[current.id]?.attempts ?? 1) - 1),
-      ),
-    };
     const instructions = [...run.operatorInstructions];
     if (instructions.length) {
       run = { ...run, operatorInstructions: [], updatedAt: Date.now() };
@@ -1912,18 +1865,17 @@ export const useAgentStore = defineStore('agent', () => {
         detail: { count: instructions.length },
       });
     }
-    void instance.next(
-      `继续执行已批准计划 revision ${context.definition.revision}。\n` +
-        `当前步骤 (${current.id})：${current.title}\n${current.detail}\n` +
-        `依赖已完成：${dependencies.join('、') || '无'}\n` +
-        `前序证据：\n${dependencyEvidence.join('\n') || '- 无'}\n` +
-        `当前验证能力：\n${verificationCapabilities.join('\n')}\n` +
-        `剩余预算：${JSON.stringify(remainingBudget)}\n` +
-        `失败记录：\n${failureHistory.join('\n') || '- 无'}\n` +
-        `允许路径：${(current.allowedPathPrefixes ?? context.definition.allowedPathPrefixes).join('、')}\n` +
-        (instructions.length ? `用户追加指令：\n${instructions.map((item) => `- ${item}`).join('\n')}\n` : '') +
-        `完成后调用 completePlanStep，并如实提交实际修改文件。当前环境没有本地命令执行能力。`,
-    );
+    instance.replaceLlmHistoryProjection([]);
+    void instance.next({
+      llmContent: buildPlanExecutionContext({
+        definition: context.definition,
+        run,
+        currentStepId: current.id,
+        operatorInstructions: instructions,
+      }),
+      userText: `继续计划步骤：${current.title}`,
+      references: [],
+    });
   }
 
   async function queuePlanInstruction(instruction: string) {
@@ -2304,34 +2256,15 @@ export const useAgentStore = defineStore('agent', () => {
     const instance = chatRef.value;
     if (!context || !instance || context.run.status !== 'running') return;
     if (getPendingPlanApproval(sessionId) || instance.busy) return;
-    const turns = context.run.counters.turns + 1;
-    if (turns >= context.definition.budgets.maxTurns) {
-      const run: PlanRun = {
-        ...context.run,
-        status: 'paused',
-        counters: { ...context.run.counters, turns },
-        pendingReason: `达到最大执行轮次 ${context.definition.budgets.maxTurns}，需要用户确认后继续`,
-        updatedAt: Date.now(),
-      };
-      await commitPlan(context.definition, run, {
-        type: 'budget_exhausted',
-        at: Date.now(),
-        detail: { budget: 'maxTurns', value: turns },
-      });
+    const transition = planRunner.recordTurnCompleted(
+      context.definition,
+      context.run,
+    );
+    await commitPlan(context.definition, transition.run, transition.event);
+    if (transition.run.status === 'paused') {
       releasePlanWriter(context.definition.id);
       return;
     }
-    const run: PlanRun = {
-      ...context.run,
-      counters: { ...context.run.counters, turns },
-      updatedAt: Date.now(),
-    };
-    await commitPlan(context.definition, run, {
-      type: 'turn_completed',
-      at: Date.now(),
-      stepId: run.currentStepId,
-      detail: { turn: turns },
-    });
     await continuePlan();
   }
 

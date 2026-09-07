@@ -4,6 +4,21 @@ import { basenameOf, parentDirOf } from '../../workspace/suggestEntryPath';
 import type { ExplorerEntry } from '../../workspace/explorerTypes';
 import type { StagedEntry, StagingStore } from './stagingStore';
 
+export interface StagingWorkspaceBackend {
+  exists(path: string): Promise<boolean>;
+  readFile(path: string): Promise<{ path: string; content: string }>;
+  getEntryKind(path: string): Promise<EntryKind>;
+  readFileBytes(path: string): Promise<Uint8Array>;
+  statFile(path: string): Promise<{ size: number; modified: number } | null>;
+  listDirectoryContents(
+    dirPath?: string,
+    options?: { includeFileMetadata?: boolean },
+  ): Promise<ExplorerEntry[]>;
+  writeFile(path: string, content: string): Promise<unknown>;
+  deleteFile(path: string): Promise<unknown>;
+  listFiles(prefix?: string): Promise<string[]>;
+}
+
 /**
  * 暂存感知的 workspace 门面：包裹真实 workspace 单例，拦截工具实际调用的
  * read / exists / write / list 等只读与写入路径。
@@ -13,14 +28,17 @@ import type { StagedEntry, StagingStore } from './stagingStore';
  * - commit() 在用户批准后逐文件写真实磁盘；discard() 仅清空。
  */
 export class StagingWorkspace {
-  constructor(private readonly store: StagingStore) {}
+  constructor(
+    private readonly store: StagingStore,
+    private readonly backend: StagingWorkspaceBackend = workspace,
+  ) {}
 
   private realExists(path: string): Promise<boolean> {
-    return workspace.exists(path);
+    return this.backend.exists(path);
   }
 
   private async realRead(path: string): Promise<string> {
-    const { content } = await workspace.readFile(path);
+    const { content } = await this.backend.readFile(path);
     return content;
   }
 
@@ -31,7 +49,7 @@ export class StagingWorkspace {
       if (entry.deleted) return { path: normalized, content: '' };
       return { path: normalized, content: entry.after };
     }
-    return workspace.readFile(normalized);
+    return this.backend.readFile(normalized);
   }
 
   async exists(path: string): Promise<boolean> {
@@ -55,7 +73,7 @@ export class StagingWorkspace {
     ) {
       return 'directory';
     }
-    return workspace.getEntryKind(normalized);
+    return this.backend.getEntryKind(normalized);
   }
 
   async readFileBytes(path: string): Promise<Uint8Array> {
@@ -65,7 +83,7 @@ export class StagingWorkspace {
       if (entry.deleted) return new Uint8Array();
       return new TextEncoder().encode(entry.after);
     }
-    return workspace.readFileBytes(normalized);
+    return this.backend.readFileBytes(normalized);
   }
 
   async statFile(
@@ -77,7 +95,7 @@ export class StagingWorkspace {
       if (entry.deleted) return null;
       return { size: new TextEncoder().encode(entry.after).length, modified: Date.now() };
     }
-    return workspace.statFile(normalized);
+    return this.backend.statFile(normalized);
   }
 
   async listDirectoryContents(
@@ -85,7 +103,7 @@ export class StagingWorkspace {
     options?: { includeFileMetadata?: boolean },
   ): Promise<ExplorerEntry[]> {
     const base = normalizePath(dirPath);
-    const real = await workspace.listDirectoryContents(base, {
+    const real = await this.backend.listDirectoryContents(base, {
       includeFileMetadata: options?.includeFileMetadata ?? true,
     });
     const map = new Map(real.map((e) => [e.name, e]));
@@ -186,7 +204,7 @@ export class StagingWorkspace {
 
   async listFiles(prefix = ''): Promise<string[]> {
     const base = normalizePath(prefix);
-    const real = await workspace.listFiles(base);
+    const real = await this.backend.listFiles(base);
     const set = new Set(real);
     for (const entry of this.store.entriesList()) {
       if (entry.deleted) {
@@ -207,12 +225,12 @@ export class StagingWorkspace {
     for (const entry of entries) {
       if (entry.deleted) {
         if (await this.realExists(entry.path)) {
-          await workspace.deleteFile(entry.path);
+          await this.backend.deleteFile(entry.path);
         }
         committed.push(entry);
         continue;
       }
-      await workspace.writeFile(entry.path, entry.after);
+      await this.backend.writeFile(entry.path, entry.after);
       committed.push(entry);
     }
     this.store.clear();

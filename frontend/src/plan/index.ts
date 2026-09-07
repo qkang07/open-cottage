@@ -11,3 +11,4 @@ export * from './planTools';
 export * from './scopeGate';
 export * from './checkpoints';
 export * from './workspaceLock';
+export * from './executionContext';

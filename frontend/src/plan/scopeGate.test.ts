@@ -115,4 +115,46 @@ describe('plan/scopeGate', () => {
     expect(onExternalCall).toHaveBeenCalledWith(true);
     expect(onMutation).not.toHaveBeenCalled();
   });
+
+  it('uses an injected isolated runtime without weakening lock, path, or checkpoint checks', async () => {
+    const captureStepPaths = vi.fn(async () => undefined);
+    const release = vi.fn();
+    const guard = createPlanToolGuard({
+      getContext: () => context(),
+      onBlocked: vi.fn(),
+      onMutation: vi.fn(),
+      onExternalCall: vi.fn(),
+      runtime: {
+        webLocksAvailable: () => true,
+        acquireWriteLease: async (workspaceId, planId) => ({
+          id: 'eval-lease',
+          workspaceId,
+          planId,
+          acquiredAt: 1,
+          release,
+        }),
+        resolveWorkspacePath: async (path) => path.split('/'),
+        captureStepPaths,
+      },
+    });
+    const verdict = guard.check({
+      toolName: 'writeFile',
+      args: { path: 'frontend/src/a.ts', content: 'x' },
+      source: 'agent',
+    });
+    await guard.beforeExecute(verdict);
+    expect(verdict.lease?.workspaceId).toBe('workspace');
+    expect(captureStepPaths).toHaveBeenCalledWith(
+      expect.any(String),
+      'step',
+      ['frontend/src/a.ts'],
+    );
+    await guard.afterExecute(verdict, true, {
+      created: [{ path: 'frontend/src/a.ts', kind: 'file' }],
+      modified: [],
+      deleted: [],
+      moved: [],
+    });
+    expect(release).toHaveBeenCalledOnce();
+  });
 });

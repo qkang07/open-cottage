@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "open-cottage-live-eval-run",
+  "batchId": "2026-09-06T14-10-50-043Z-1bb8bad3",
+  "runId": "run-01",
+  "createdAt": "2026-09-06T14:10:50.055Z",
+  "model": {
+    "provider": "openrouter",
+    "model": "minimax/minimax-m3",
+    "connectionId": "connection_1786257651969_eglda"
+  },
+  "selection": {
+    "caseIds": [
+      "plan-multifile-approved-dag",
+      "plan-step-scope-order",
+      "plan-prompt-injection-scope",
+      "plan-unavailable-verification-human"
+    ],
+    "tags": []
+  },
+  "budget": {
+    "maxCases": 4,
+    "maxModelCalls": 77,
+    "maxTotalTokens": 400000,
+    "maxDurationMs": 900000,
+    "maxOutputTokens": 30000
+  },
+  "minimumScore": 0.8
+}

@@ -17,7 +17,7 @@ export interface PlanToolCallbacks {
   completeStep: (input: {
     stepId: string;
     summary: string;
-    changedFiles: string[];
+    changedFiles?: string[];
   }) => Promise<PlanRun>;
   blockStep: (stepId: string, reason: string) => Promise<PlanRun>;
   requestRevision: (reason: string) => Promise<PlanRun>;
@@ -85,7 +85,7 @@ const createSubmitPlanTool = (
     async (input, config) => {
       const draft: PlanDraft = {
         planId: input.planId,
-        baseRevision: input.baseRevision,
+        baseRevision: input.baseRevision === 0 ? undefined : input.baseRevision,
         goal: input.goal,
         requirements: input.requirements,
         design: input.design,
@@ -132,10 +132,10 @@ const createSubmitPlanTool = (
     {
       name: 'submitPlan',
       description:
-        '提交版本化计划供用户批准。计划必须声明允许写入的路径前缀、依赖关系和基于当前浏览器能力的验收标准；不得填写 npm/build/tsc 等未注册命令。',
+        '提交版本化计划供用户批准。新计划省略 baseRevision 或传 0；修订已有计划时传当前正整数 revision。计划必须声明允许写入的路径前缀、依赖关系和基于当前浏览器能力的验收标准；不得填写 npm/build/tsc 等未注册命令。',
       schema: z.object({
         planId: z.string().optional(),
-        baseRevision: z.number().int().positive().optional(),
+        baseRevision: z.number().int().nonnegative().optional(),
         goal: z.string().min(1),
         requirements: z.array(z.string()).default([]),
         design: z.string().default(''),
@@ -173,11 +173,11 @@ const createCompleteStepTool = (callbacks: PlanToolCallbacks): CottageTool =>
     {
       name: 'completePlanStep',
       description:
-        '提交当前计划步骤的实现摘要和实际修改文件。系统会检查依赖、路径范围和当前可用的浏览器验证器，再决定是否完成步骤。',
+        '提交当前计划步骤的实现摘要。changedFiles 只是可选提示；系统以 Mutation Journal 的实际记录为准，并检查依赖、路径范围和批准时的验证能力快照。',
       schema: z.object({
         stepId: z.string().min(1),
         summary: z.string().min(1),
-        changedFiles: z.array(z.string()).default([]),
+        changedFiles: z.array(z.string()).optional(),
       }),
     },
   );

@@ -58,6 +58,14 @@ const findNodesMissingType = (
     missing.push(path);
   }
   for (const [key, value] of Object.entries(record)) {
+    // properties/$defs 的值是 schema 映射，映射本身不是 schema 节点；
+    // 字段名可能恰好叫 items/properties，不能因此把容器误判为无 type。
+    if ((key === 'properties' || key === '$defs') && value && typeof value === 'object') {
+      for (const [name, schema] of Object.entries(value as Record<string, unknown>)) {
+        findNodesMissingType(schema, `${path}.${key}.${name}`, missing);
+      }
+      continue;
+    }
     findNodesMissingType(value, `${path}.${key}`, missing);
   }
   return missing;

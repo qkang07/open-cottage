@@ -9,6 +9,12 @@ export interface PersistedStagingState {
   updatedAt: number;
 }
 
+export interface StagingStatePersistence {
+  save(sessionId: string, store: StagingStore): Promise<void>;
+  load(sessionId: string): Promise<PersistedStagingState | null>;
+  clear(sessionId: string): Promise<void>;
+}
+
 export const saveSessionStaging = async (
   sessionId: string,
   store: StagingStore,
@@ -58,4 +64,11 @@ export const clearSessionStaging = async (sessionId: string): Promise<void> => {
   } catch {
     // 删除失败时 cleared 快照已足够让 load 返回 null
   }
+};
+
+/** 默认浏览器工作区实现；可在确定性 eval 中注入独立内存实现。 */
+export const workspaceStagingPersistence: StagingStatePersistence = {
+  save: saveSessionStaging,
+  load: loadSessionStaging,
+  clear: clearSessionStaging,
 };

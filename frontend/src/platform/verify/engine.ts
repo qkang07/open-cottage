@@ -283,7 +283,7 @@ export const runVerify = async (input: RunVerifyInput): Promise<VerifyReport> =>
 
   const uncovered = results
     .filter((r) => !r.pass)
-    .map((r) => r.description ?? r.id);
+    .map((r) => r.reason ?? r.description ?? r.id);
 
   const verdict: VerifyReport['verdict'] =
     results.length === 0 ? 'unverified' : uncovered.length === 0 ? 'pass' : 'fail';

@@ -16,7 +16,9 @@ vi.mock('../../workspace/FileSystemWorkspace', () => ({
 vi.mock('../../agent/runScript', () => ({
   runScriptInWorker: vi.fn(async (script: string) => {
     if (script.includes('THROW')) throw new Error('脚本爆炸');
-    if (script.includes('BAD')) return { result: { ok: false } };
+    if (script.includes('BAD') || script.includes('ok: false')) {
+      return { result: { ok: false } };
+    }
     return { result: { ok: true } };
   }),
 }));

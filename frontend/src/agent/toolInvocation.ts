@@ -9,9 +9,8 @@ import type { TraceRecorder, TraceToolStatus } from '../platform/trace';
 import { stripCottageImages, stripWriteSnapshot } from './cottageTools';
 import type { PlanGuardVerdict, PlanToolGuard } from '../plan/scopeGate';
 import {
-  abortMutationJournal,
-  beginMutationJournal,
-  endMutationJournal,
+  workspaceMutationJournal,
+  type MutationJournalRuntime,
 } from '../plan/mutationJournal';
 import { capturePlanStepPaths } from '../plan/checkpoints';
 import type { ToolMutationReport } from '../plan/types';
@@ -172,6 +171,13 @@ export interface CreateToolExecutorOptions {
   policyOverrides?: Partial<
     Record<ToolInvocationSource, Partial<SourceGovernancePolicy>>
   >;
+  /** 默认绑定真实工作区；评测可绑定隔离工作区，安全契约保持不变。 */
+  mutationJournal?: MutationJournalRuntime;
+  capturePlanStepPaths?: (
+    planId: string,
+    stepId: string,
+    paths: string[],
+  ) => Promise<void>;
 }
 
 export interface UnifiedToolExecutor {
@@ -228,6 +234,8 @@ const isAbortError = (error: unknown): boolean =>
 export const createUnifiedToolExecutor = (
   options: CreateToolExecutorOptions,
 ): UnifiedToolExecutor => {
+  const mutationJournal = options.mutationJournal ?? workspaceMutationJournal;
+  const capturePlanPaths = options.capturePlanStepPaths ?? capturePlanStepPaths;
   const resolvePolicy = (
     source: ToolInvocationSource,
   ): SourceGovernancePolicy => {
@@ -562,11 +570,11 @@ export const createUnifiedToolExecutor = (
       planGuardVerdict.risk !== 'control'
     ) {
       try {
-        beginMutationJournal({
+        mutationJournal.begin({
           allowedPathPrefixes: planGuardVerdict.mutationScopePrefixes,
           onBeforePath: async (path) => {
             if (planGuardVerdict?.planId && planGuardVerdict.stepId) {
-              await capturePlanStepPaths(
+              await capturePlanPaths(
                 planGuardVerdict.planId,
                 planGuardVerdict.stepId,
                 [path],
@@ -593,7 +601,7 @@ export const createUnifiedToolExecutor = (
         stripCottageImages(output);
       const { resultText, snapshot } = stripWriteSnapshot(outputSansImages);
       if (journalStarted) {
-        mutationReport = await endMutationJournal();
+        mutationReport = await mutationJournal.end();
         journalStarted = false;
       }
       if (planToolGuard && planGuardVerdict) {
@@ -631,14 +639,14 @@ export const createUnifiedToolExecutor = (
       let journalFinalizeFailed = false;
       if (journalStarted) {
         try {
-          mutationReport = await endMutationJournal();
+          mutationReport = await mutationJournal.end();
         } catch {
           journalFinalizeFailed = true;
-          abortMutationJournal();
+          mutationJournal.abort();
         }
         journalStarted = false;
       } else if (planGuardVerdict?.mutationScopePrefixes?.length) {
-        abortMutationJournal();
+        mutationJournal.abort();
       }
       if (planToolGuard && planGuardVerdict) {
         await planToolGuard

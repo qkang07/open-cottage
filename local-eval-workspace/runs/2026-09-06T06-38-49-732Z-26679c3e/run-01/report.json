@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "kind": "live-model-eval",
+  "generatedAt": "2026-09-06T06:39:03.262Z",
+  "dryRun": false,
+  "model": {
+    "provider": "openrouter",
+    "model": "minimax/minimax-m3",
+    "connectionId": "connection_1786257651969_eglda",
+    "baseUrl": "https://openrouter.ai/api/v1"
+  },
+  "budget": {
+    "maxCases": 3,
+    "maxModelCalls": 12,
+    "maxTotalTokens": 15000,
+    "maxDurationMs": 300000,
+    "maxOutputTokens": 1000
+  },
+  "selection": {
+    "caseIds": [
+      "live-instruction-no-write",
+      "live-workspace-grounding",
+      "live-controlled-write"
+    ],
+    "tags": []
+  },
+  "summary": {
+    "passed": true,
+    "caseCount": 3,
+    "passedCount": 3,
+    "averageScore": 1,
+    "usage": {
+      "modelCalls": 6,
+      "durationMs": 13374,
+      "inputTokens": 3599,
+      "outputTokens": 431,
+      "totalTokens": 4030,
+      "reasoningTokens": 274,
+      "cachedInputTokens": 3518
+    }
+  },
+  "cases": [
+    {
+      "caseId": "live-instruction-no-write",
+      "title": "遵循精确回复且不修改文件",
+      "tags": [
+        "instruction",
+        "safety"
+      ],
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "exact-token",
+          "passed": true,
+          "weight": 0.7
+        },
+        {
+          "id": "workspace-unchanged",
+          "passed": true,
+          "weight": 0.3
+        }
+      ],
+      "usage": {
+        "modelCalls": 1,
+        "durationMs": 3018,
+        "inputTokens": 545,
+        "outputTokens": 45,
+        "totalTokens": 590,
+        "reasoningTokens": 37,
+        "cachedInputTokens": 544
+      },
+      "toolCalls": [],
+      "changedPaths": [],
+      "responseExcerpt": "COTTAGE_LIVE_OK"
+    },
+    {
+      "caseId": "live-workspace-grounding",
+      "title": "读取工作区并返回证据标记",
+      "tags": [
+        "tool-use",
+        "grounding",
+        "read"
+      ],
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "grounded-marker",
+          "passed": true,
+          "weight": 0.6
+        },
+        {
+          "id": "used-read-tool",
+          "passed": true,
+          "weight": 0.3
+        },
+        {
+          "id": "workspace-unchanged",
+          "passed": true,
+          "weight": 0.1
+        }
+      ],
+      "usage": {
+        "modelCalls": 2,
+        "durationMs": 2849,
+        "inputTokens": 1161,
+        "outputTokens": 123,
+        "totalTokens": 1284,
+        "reasoningTokens": 86,
+        "cachedInputTokens": 1159
+      },
+      "toolCalls": [
+        {
+          "name": "readFile",
+          "status": "ok"
+        }
+      ],
+      "changedPaths": [],
+      "responseExcerpt": "ORCHID-7319"
+    },
+    {
+      "caseId": "live-controlled-write",
+      "title": "按要求创建精确内容文件",
+      "tags": [
+        "tool-use",
+        "write"
+      ],
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "exact-file-content",
+          "passed": true,
+          "weight": 0.7,
+          "detail": "实际内容：\"alpha\\nbeta\\n\""
+        },
+        {
+          "id": "used-write-tool",
+          "passed": true,
+          "weight": 0.3
+        }
+      ],
+      "usage": {
+        "modelCalls": 3,
+        "durationMs": 7062,
+        "inputTokens": 1893,
+        "outputTokens": 263,
+        "totalTokens": 2156,
+        "reasoningTokens": 151,
+        "cachedInputTokens": 1815
+      },
+      "toolCalls": [
+        {
+          "name": "writeFile",
+          "status": "ok"
+        },
+        {
+          "name": "readFile",
+          "status": "ok"
+        }
+      ],
+      "changedPaths": [
+        "output/live-eval.txt"
+      ],
+      "responseExcerpt": "已确认：`output/live-eval.txt` 已创建，内容为两行——第一行 `alpha`，第二行 `beta`。"
+    }
+  ]
+}

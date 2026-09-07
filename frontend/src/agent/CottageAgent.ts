@@ -131,16 +131,17 @@ import type { PlanGate } from '../platform/plan';
 import { cancelPendingPlanApproval, recordPlanToolOutcome } from '../platform/plan';
 import type { PlanSession } from '../platform/plan';
 import type { UnifiedToolExecutor } from './toolInvocation';
-import type { StagingStore } from '../platform/staging';
-import type { StagingWorkspace } from '../platform/staging';
+import type {
+  StagingStatePersistence,
+  StagingStore,
+  StagingWorkspace,
+} from '../platform/staging';
 import {
   cancelPendingStagedApproval,
   deferPendingStagedApproval,
-  clearSessionStaging,
   hasPendingStagedApprovalFor,
-  loadSessionStaging,
   requestStagedChangesApproval,
-  saveSessionStaging,
+  workspaceStagingPersistence,
 } from '../platform/staging';
 import { cancelPendingAsk } from './askUserTool';
 import { normalizeAskUserOptions } from '../chat/askUserOptions';
@@ -184,6 +185,8 @@ export interface CreateCottageAgentOptions {
   /** 本回合写工具的暂存区；回合末批量审批后合并落盘 */
   stagingStore?: StagingStore;
   stagingWorkspace?: StagingWorkspace;
+  /** 暂存状态持久化；默认写入当前工作区 sessions/{id}/staging.json。 */
+  stagingPersistence?: StagingStatePersistence;
   /** 应用层重试参数，缺省使用 DEFAULT_LLM_RETRY_OPTIONS */
   retryOptions?: Pick<
     LlmRetryOptions,
@@ -201,6 +204,10 @@ export interface CreateCottageAgentOptions {
   eventBus?: EventBus;
   /** 当前会话 ID，用于 conversation checkpoint 和 trace */
   sessionId?: string;
+  /** 确定性 replay 可关闭自动对话检查点；生产默认开启。 */
+  enableConversationCheckpoints?: boolean;
+  /** 测试/评测可关闭 models.dev 目录预热；生产默认开启。 */
+  prewarmModelCatalog?: boolean;
   /** 回合进行中视图更新回调（供节流中途落盘） */
   onInFlightUpdate?: () => void;
 }
@@ -209,6 +216,7 @@ export class CottageAgent {
   private readonly agentViewState: AgentViewState;
   private readonly eventBus: EventBus | null;
   private readonly sessionId: string | null;
+  private readonly enableConversationCheckpoints: boolean;
   private _busy = false;
 
   private systemPrompt: string;
@@ -226,6 +234,7 @@ export class CottageAgent {
   private readonly toolExecutor: UnifiedToolExecutor | undefined;
   private readonly stagingStore: StagingStore | undefined;
   private readonly stagingWorkspace: StagingWorkspace | undefined;
+  private readonly stagingPersistence: StagingStatePersistence;
   private readonly retryOptions: Pick<
     LlmRetryOptions,
     'maxRetries' | 'baseDelayMs' | 'maxDelayMs'
@@ -263,6 +272,8 @@ export class CottageAgent {
     this.agentViewState = options.viewState ?? createAgentViewState();
     this.eventBus = options.eventBus ?? null;
     this.sessionId = options.sessionId ?? null;
+    this.enableConversationCheckpoints =
+      options.enableConversationCheckpoints ?? true;
     this.systemPrompt = options.systemPrompt;
     this.model = options.model;
     this.tools = options.tools;
@@ -278,8 +289,10 @@ export class CottageAgent {
     this.modelConfig = options.modelConfig;
     this.resolveExpectedModelConfig = options.resolveExpectedModelConfig;
     this.assertRuntimeCurrent();
-    // 提前预热 models.dev 目录，使上下文窗口能尽早用上真实值
-    ensureModelsDevCatalog();
+    // 真实模型提前预热 models.dev；replay/eval 未传模型配置时必须保持纯离线。
+    if (this.modelConfig && options.prewarmModelCatalog !== false) {
+      ensureModelsDevCatalog();
+    }
     this.policyGate = options.policyGate;
     this.planGate = options.planGate;
     this.planSession = options.planSession;
@@ -287,6 +300,8 @@ export class CottageAgent {
     this.toolExecutor = options.toolExecutor;
     this.stagingStore = options.stagingStore;
     this.stagingWorkspace = options.stagingWorkspace;
+    this.stagingPersistence =
+      options.stagingPersistence ?? workspaceStagingPersistence;
     this.retryOptions = options.retryOptions ?? {};
     this.traceRecorder = options.traceRecorder ?? null;
     this.agentMode = options.mode ?? 'chat';
@@ -543,7 +558,7 @@ export class CottageAgent {
     label: string,
     workspaceVersionId: string | null,
   ): Promise<void> {
-    if (!this.sessionId) return;
+    if (!this.sessionId || !this.enableConversationCheckpoints) return;
     try {
       const entry = await createConversationCheckpoint({
         sessionId: this.sessionId,
@@ -700,6 +715,15 @@ export class CottageAgent {
   /** 当前发给模型的上下文投影（含 compaction 摘要） */
   getLlmHistory(): StoredMessage[] {
     return [...this.llmHistory];
+  }
+
+  /** 仅替换模型上下文投影；完整展示与审计历史保持不变。 */
+  replaceLlmHistoryProjection(history: readonly StoredMessage[]): void {
+    this.llmHistory = repairToolCallHistory(
+      history.filter((message) => message.role !== 'system'),
+    ).map((message) => message.id ? message : { ...message, id: newMessageId() });
+    this.contextUsage = null;
+    this.syncContextUsage();
   }
 
   /** 当前回合是否进行中 */
@@ -938,9 +962,9 @@ export class CottageAgent {
     if (!this.sessionId || !this.stagingStore) return;
     try {
       if (this.stagingStore.isEmpty()) {
-        await clearSessionStaging(this.sessionId);
+        await this.stagingPersistence.clear(this.sessionId);
       } else {
-        await saveSessionStaging(this.sessionId, this.stagingStore);
+        await this.stagingPersistence.save(this.sessionId, this.stagingStore);
       }
     } catch (error) {
       console.warn('[CottageAgent] 暂存落盘失败:', error);
@@ -955,11 +979,11 @@ export class CottageAgent {
     if (hasPendingStagedApprovalFor(this.sessionId)) return;
 
     if (this.stagingStore.isEmpty()) {
-      const state = await loadSessionStaging(this.sessionId);
+      const state = await this.stagingPersistence.load(this.sessionId);
       if (!state) return;
       this.stagingStore.hydrate(state.entries);
       if (this.stagingStore.isEmpty()) {
-        await clearSessionStaging(this.sessionId);
+        await this.stagingPersistence.clear(this.sessionId);
         return;
       }
     }
@@ -2127,7 +2151,7 @@ export class CottageAgent {
                 if (traceStatus === 'ok') traceStatus = 'aborted';
                 break;
               }
-              traceStatus = 'error';
+              if (traceStatus === 'ok') traceStatus = 'error';
               resultText =
                 error instanceof Error ? error.message : String(error);
               this.doomLoopDetector.record({
@@ -2198,7 +2222,8 @@ export class CottageAgent {
               content: resultText,
               toolCallId: callId,
               name: toolName,
-              isError: traceStatus === 'error',
+              isError:
+                traceStatus === 'error' || traceStatus === 'unknown_tool',
             }),
           );
           this.appendHistoryMessage({

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "kind": "open-cottage-live-eval-run",
+  "batchId": "2026-09-06T06-48-30-094Z-72304ce6",
+  "runId": "run-01",
+  "createdAt": "2026-09-06T06:48:30.102Z",
+  "model": {
+    "provider": "openrouter",
+    "model": "minimax/minimax-m3",
+    "connectionId": "connection_1786257651969_eglda"
+  },
+  "selection": {
+    "caseIds": [
+      "live-instruction-no-write",
+      "live-workspace-grounding",
+      "live-controlled-write"
+    ],
+    "tags": []
+  },
+  "budget": {
+    "maxCases": 3,
+    "maxModelCalls": 12,
+    "maxTotalTokens": 15000,
+    "maxDurationMs": 300000,
+    "maxOutputTokens": 1000
+  },
+  "minimumScore": 0.8
+}
