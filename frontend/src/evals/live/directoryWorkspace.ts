@@ -6,13 +6,22 @@ import {
 } from '../../workspace/workspacePersistence';
 import { normalizeEvalPath } from '../inMemoryWorkspace';
 import type { LiveEvalCase } from './cases';
+import {
+  liveEvalBaselineGroupsForReport,
+  selectLiveEvalReportGroup,
+  type LiveEvalBaselineGroup,
+} from './compare';
 import type { StoredLiveEvalReport } from './history';
 import type { LiveEvalWorkspaceFactory, LiveEvalWorkspaceSession } from './runner';
 import type { LiveEvalConfig, LiveEvalReport } from './types';
 
 const ROOT_HANDLE_ID = 'cottage:live-eval-root';
 const MARKER_FILE = 'eval-workspace.json';
-const BASELINE_FILE = 'current.json';
+const LEGACY_BASELINE_FILE = 'current.json';
+const BASELINE_FILES: Record<LiveEvalBaselineGroup, string> = {
+  agent: 'agent.json',
+  plan: 'plan.json',
+};
 const ROOT_KIND = 'open-cottage-live-eval-root';
 const ROOT_SCHEMA = 1;
 
@@ -38,6 +47,7 @@ export interface DirectoryStoredLiveEvalReport extends StoredLiveEvalReport {
 export interface DirectoryLiveEvalBaseline {
   schemaVersion: 1;
   kind: 'open-cottage-live-eval-baseline';
+  group: LiveEvalBaselineGroup;
   updatedAt: string;
   source: {
     reportId: string;
@@ -47,6 +57,14 @@ export interface DirectoryLiveEvalBaseline {
   };
   report: LiveEvalReport;
 }
+
+export type DirectoryLiveEvalBaselines = Partial<
+  Record<LiveEvalBaselineGroup, DirectoryLiveEvalBaseline>
+>;
+
+type StoredBaselineShape = Omit<DirectoryLiveEvalBaseline, 'group'> & {
+  group?: LiveEvalBaselineGroup;
+};
 
 const readText = async (
   directory: FileSystemDirectoryHandle,
@@ -332,27 +350,20 @@ export const deleteDirectoryLiveEvalRun = async (
   await batch.removeEntry(entry.runId, { recursive: true });
 };
 
-export const loadDirectoryLiveEvalBaseline = async (
-  root: FileSystemDirectoryHandle,
-): Promise<DirectoryLiveEvalBaseline | null> => {
-  let baselines: FileSystemDirectoryHandle;
-  try {
-    baselines = await root.getDirectoryHandle('baselines');
-  } catch {
-    return null;
-  }
-  const text = await readText(baselines, BASELINE_FILE);
-  if (!text) return null;
+const parseStoredBaseline = (
+  text: string,
+  path: string,
+): StoredBaselineShape => {
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch {
-    throw new Error('目录基线 baselines/current.json 无法解析');
+    throw new Error(`目录基线 ${path} 无法解析`);
   }
   if (!value || typeof value !== 'object') {
-    throw new Error('目录基线 baselines/current.json 格式不兼容');
+    throw new Error(`目录基线 ${path} 格式不兼容`);
   }
-  const baseline = value as Partial<DirectoryLiveEvalBaseline>;
+  const baseline = value as Partial<StoredBaselineShape>;
   if (
     baseline.schemaVersion !== 1 ||
     baseline.kind !== 'open-cottage-live-eval-baseline' ||
@@ -363,13 +374,52 @@ export const loadDirectoryLiveEvalBaseline = async (
     typeof baseline.source.batchId !== 'string' ||
     typeof baseline.source.runId !== 'string' ||
     !isLiveEvalReport(baseline.report)
-  ) throw new Error('目录基线 baselines/current.json 格式不兼容');
-  return baseline as DirectoryLiveEvalBaseline;
+  ) throw new Error(`目录基线 ${path} 格式不兼容`);
+  return baseline as StoredBaselineShape;
+};
+
+const normalizeStoredBaseline = (
+  baseline: StoredBaselineShape,
+  group: LiveEvalBaselineGroup,
+): DirectoryLiveEvalBaseline => ({
+  ...baseline,
+  group,
+  report: selectLiveEvalReportGroup(baseline.report, group),
+});
+
+export const loadDirectoryLiveEvalBaselines = async (
+  root: FileSystemDirectoryHandle,
+): Promise<DirectoryLiveEvalBaselines> => {
+  let directory: FileSystemDirectoryHandle;
+  try {
+    directory = await root.getDirectoryHandle('baselines');
+  } catch {
+    return {};
+  }
+  const result: DirectoryLiveEvalBaselines = {};
+  for (const group of ['agent', 'plan'] as const) {
+    const file = BASELINE_FILES[group];
+    const text = await readText(directory, file);
+    if (text) result[group] = normalizeStoredBaseline(
+      parseStoredBaseline(text, `baselines/${file}`),
+      group,
+    );
+  }
+
+  const legacyText = await readText(directory, LEGACY_BASELINE_FILE);
+  if (legacyText) {
+    const legacy = parseStoredBaseline(legacyText, `baselines/${LEGACY_BASELINE_FILE}`);
+    for (const group of liveEvalBaselineGroupsForReport(legacy.report)) {
+      result[group] ??= normalizeStoredBaseline(legacy, group);
+    }
+  }
+  return result;
 };
 
 export const saveDirectoryLiveEvalBaseline = async (
   root: FileSystemDirectoryHandle,
   entry: DirectoryStoredLiveEvalReport,
+  group: LiveEvalBaselineGroup,
 ): Promise<DirectoryLiveEvalBaseline> => {
   await initializeLiveEvalRoot(root);
   // UI 历史条目可能是 Vue 响应式 Proxy，structuredClone 无法克隆 Proxy。
@@ -381,6 +431,7 @@ export const saveDirectoryLiveEvalBaseline = async (
   const baseline: DirectoryLiveEvalBaseline = {
     schemaVersion: 1,
     kind: 'open-cottage-live-eval-baseline',
+    group,
     updatedAt: new Date().toISOString(),
     source: {
       reportId: entry.id,
@@ -388,19 +439,36 @@ export const saveDirectoryLiveEvalBaseline = async (
       batchId: entry.batchId,
       runId: entry.runId,
     },
-    report: reportSnapshot,
+    report: selectLiveEvalReportGroup(reportSnapshot, group),
   };
   const baselines = await root.getDirectoryHandle('baselines', { create: true });
-  await writeText(baselines, BASELINE_FILE, `${JSON.stringify(baseline, null, 2)}\n`);
+  await writeText(baselines, BASELINE_FILES[group], `${JSON.stringify(baseline, null, 2)}\n`);
   return baseline;
 };
 
 export const deleteDirectoryLiveEvalBaseline = async (
   root: FileSystemDirectoryHandle,
+  group: LiveEvalBaselineGroup,
 ): Promise<void> => {
   const baselines = await root.getDirectoryHandle('baselines', { create: true });
+  const legacyText = await readText(baselines, LEGACY_BASELINE_FILE);
+  if (legacyText) {
+    const legacy = parseStoredBaseline(legacyText, `baselines/${LEGACY_BASELINE_FILE}`);
+    for (const legacyGroup of liveEvalBaselineGroupsForReport(legacy.report)) {
+      if (legacyGroup === group) continue;
+      const existing = await readText(baselines, BASELINE_FILES[legacyGroup]);
+      if (existing) continue;
+      const preserved = normalizeStoredBaseline(legacy, legacyGroup);
+      await writeText(
+        baselines,
+        BASELINE_FILES[legacyGroup],
+        `${JSON.stringify(preserved, null, 2)}\n`,
+      );
+    }
+    await baselines.removeEntry(LEGACY_BASELINE_FILE);
+  }
   try {
-    await baselines.removeEntry(BASELINE_FILE);
+    await baselines.removeEntry(BASELINE_FILES[group]);
   } catch {
     // Clearing an already missing baseline is idempotent.
   }

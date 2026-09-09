@@ -41,19 +41,24 @@ import {
   LIVE_EVAL_SMOKE_CASE_IDS,
   type LiveEvalCase,
 } from '../../evals/live/cases';
-import { compareLiveEvalReports } from '../../evals/live/compare';
+import {
+  compareLiveEvalReports,
+  liveEvalBaselineGroupsForReport,
+  selectLiveEvalReportGroup,
+  type LiveEvalBaselineGroup,
+} from '../../evals/live/compare';
 import {
   createLiveEvalBatchId,
   deleteDirectoryLiveEvalBaseline,
   deleteDirectoryLiveEvalRun,
   initializeLiveEvalRoot,
-  loadDirectoryLiveEvalBaseline,
+  loadDirectoryLiveEvalBaselines,
   loadDirectoryLiveEvalHistory,
   prepareDirectoryRun,
   rememberLiveEvalRoot,
   restoreLiveEvalRoot,
   saveDirectoryLiveEvalBaseline,
-  type DirectoryLiveEvalBaseline,
+  type DirectoryLiveEvalBaselines,
   type DirectoryStoredLiveEvalReport,
 } from '../../evals/live/directoryWorkspace';
 import {
@@ -102,7 +107,10 @@ const progressLabel = ref('');
 const currentReport = ref<LiveEvalReport | null>(null);
 const history = ref<StoredLiveEvalReport[]>([]);
 const selectedHistoryId = ref('');
-const baseline = ref<DirectoryLiveEvalBaseline | null>(null);
+const baselines = ref<DirectoryLiveEvalBaselines>({});
+
+const baselineGroupLabel = (group: LiveEvalBaselineGroup) =>
+  group === 'agent' ? '普通 Agent' : 'Plan';
 
 const modelOptions = computed<ModelOption[]>(() => {
   void configRevision.value;
@@ -135,23 +143,23 @@ const progressPercentage = computed(() =>
 const selectedHistoryEntry = computed(() =>
   history.value.find((entry) => entry.id === selectedHistoryId.value) ?? null,
 );
-const comparison = computed(() =>
-  currentReport.value && baseline.value
-    ? compareLiveEvalReports(baseline.value.report, currentReport.value)
-    : null,
-);
-const comparisonCaseGroups = computed(() => [
-  {
-    key: 'agent',
-    label: '普通 Agent',
-    cases: comparison.value?.cases.filter((item) => item.group === 'agent') ?? [],
-  },
-  {
-    key: 'plan',
-    label: 'Plan',
-    cases: comparison.value?.cases.filter((item) => item.group === 'plan') ?? [],
-  },
-].filter((group) => group.cases.length > 0));
+const baselineComparisons = computed(() => {
+  const report = currentReport.value;
+  if (!report) return [];
+  return liveEvalBaselineGroupsForReport(report).flatMap((group) => {
+    const baseline = baselines.value[group];
+    if (!baseline) return [];
+    return [{
+      group,
+      label: baselineGroupLabel(group),
+      baseline,
+      comparison: compareLiveEvalReports(
+        baseline.report,
+        selectLiveEvalReportGroup(report, group),
+      ),
+    }];
+  });
+});
 const chatEvalCases = computed(() =>
   LIVE_EVAL_CASES.filter((item) => item.mode !== 'plan'),
 );
@@ -232,18 +240,18 @@ const refreshHistory = async () => {
     if (workspaceMode.value === 'directory') {
       if (!evalRoot.value) {
         history.value = [];
-        baseline.value = null;
+        baselines.value = {};
       } else {
         const [reports, savedBaseline] = await Promise.all([
           loadDirectoryLiveEvalHistory(evalRoot.value),
-          loadDirectoryLiveEvalBaseline(evalRoot.value),
+          loadDirectoryLiveEvalBaselines(evalRoot.value),
         ]);
         history.value = reports;
-        baseline.value = savedBaseline;
+        baselines.value = savedBaseline;
       }
     } else {
       history.value = await loadLiveEvalHistory();
-      baseline.value = null;
+      baselines.value = {};
     }
     if (
       selectedHistoryId.value &&
@@ -442,14 +450,19 @@ const showHistoryReport = (entry: StoredLiveEvalReport) => {
   selectedHistoryId.value = entry.id;
 };
 
-const setBaseline = async (entry: StoredLiveEvalReport) => {
+const setBaseline = async (
+  entry: StoredLiveEvalReport,
+  group: LiveEvalBaselineGroup,
+) => {
   if (workspaceMode.value !== 'directory' || !evalRoot.value) return;
   const directoryEntry = entry as DirectoryStoredLiveEvalReport;
-  if (baseline.value && baseline.value.source.reportId !== entry.id) {
+  if (!liveEvalBaselineGroupsForReport(entry.report).includes(group)) return;
+  const existing = baselines.value[group];
+  if (existing && existing.source.reportId !== entry.id) {
     try {
       await ElMessageBox.confirm(
-        `将用 ${entry.report.model.model} · ${formatDate(entry.generatedAt)} 替换当前基线。旧基线来源运行不会被删除。`,
-        '替换评测基线？',
+        `将替换${baselineGroupLabel(group)}分组的当前基线。旧基线来源运行不会被删除。`,
+        `替换${baselineGroupLabel(group)}基线？`,
         { confirmButtonText: '设为新基线', cancelButtonText: '取消', type: 'warning' },
       );
     } catch {
@@ -457,34 +470,47 @@ const setBaseline = async (entry: StoredLiveEvalReport) => {
     }
   }
   try {
-    baseline.value = await saveDirectoryLiveEvalBaseline(evalRoot.value, directoryEntry);
+    const saved = await saveDirectoryLiveEvalBaseline(evalRoot.value, directoryEntry, group);
+    baselines.value = { ...baselines.value, [group]: saved };
     currentReport.value = entry.report;
     selectedHistoryId.value = entry.id;
-    ElMessage.success('已保存为目录基线');
+    ElMessage.success(`已保存${baselineGroupLabel(group)}分组基线`);
   } catch (error) {
     ElMessage.error(`保存基线失败：${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
-const clearBaseline = async () => {
-  if (!evalRoot.value || !baseline.value) return;
+const clearBaseline = async (group: LiveEvalBaselineGroup) => {
+  if (!evalRoot.value || !baselines.value[group]) return;
   try {
     await ElMessageBox.confirm(
-      '只会删除 baselines/current.json，来源运行和历史报告仍会保留。',
-      '清除评测基线？',
+      `只会删除${baselineGroupLabel(group)}分组基线，其他分组、来源运行和历史报告仍会保留。`,
+      `清除${baselineGroupLabel(group)}基线？`,
       { confirmButtonText: '清除基线', cancelButtonText: '取消', type: 'warning' },
     );
   } catch {
     return;
   }
   try {
-    await deleteDirectoryLiveEvalBaseline(evalRoot.value);
-    baseline.value = null;
-    ElMessage.success('已清除目录基线');
+    await deleteDirectoryLiveEvalBaseline(evalRoot.value, group);
+    const next = { ...baselines.value };
+    delete next[group];
+    baselines.value = next;
+    ElMessage.success(`已清除${baselineGroupLabel(group)}分组基线`);
   } catch (error) {
     ElMessage.error(`清除基线失败：${error instanceof Error ? error.message : String(error)}`);
   }
 };
+
+const baselineGroupsForEntry = (entry: StoredLiveEvalReport) =>
+  (['agent', 'plan'] as const).filter(
+    (group) => baselines.value[group]?.source.reportId === entry.id,
+  );
+
+const unsetBaselineGroupsForEntry = (entry: StoredLiveEvalReport) =>
+  liveEvalBaselineGroupsForReport(entry.report).filter(
+    (group) => baselines.value[group]?.source.reportId !== entry.id,
+  );
 
 const downloadReport = (report: LiveEvalReport) => {
   const blob = new Blob([`${JSON.stringify(report, null, 2)}\n`], {
@@ -735,12 +761,17 @@ onMounted(async () => {
         </div>
         <div class="live-eval-result-actions">
           <ElButton
-            v-if="workspaceMode === 'directory' && selectedHistoryEntry"
+            v-for="group in workspaceMode === 'directory' && selectedHistoryEntry
+              ? liveEvalBaselineGroupsForReport(selectedHistoryEntry.report)
+              : []"
+            :key="group"
             text
-            :disabled="baseline?.source.reportId === selectedHistoryEntry.id"
-            @click="setBaseline(selectedHistoryEntry)"
+            :disabled="baselines[group]?.source.reportId === selectedHistoryEntry?.id"
+            @click="selectedHistoryEntry && setBaseline(selectedHistoryEntry, group)"
           >
-            {{ baseline?.source.reportId === selectedHistoryEntry.id ? '当前基线' : '设为基线' }}
+            {{ baselines[group]?.source.reportId === selectedHistoryEntry?.id
+              ? `当前${baselineGroupLabel(group)}基线`
+              : `设为${baselineGroupLabel(group)}基线` }}
           </ElButton>
           <ElButton text @click="downloadReport(currentReport)">
             <template #icon><NIcon :component="DownloadOutline" /></template>
@@ -784,75 +815,74 @@ onMounted(async () => {
         </article>
       </div>
 
-      <section v-if="baseline" class="live-eval-comparison">
+      <section v-if="baselineComparisons.length" class="live-eval-comparison">
         <div class="live-eval-comparison-head">
-          <div>
-            <strong>与目录基线比较</strong>
-            <span>
-              {{ baseline.report.model.model }} · {{ formatDate(baseline.source.generatedAt) }}
-            </span>
-          </div>
-          <ElButton text type="danger" @click="clearBaseline">清除基线</ElButton>
+          <strong>与分组基线比较</strong>
         </div>
-        <ElAlert
-          v-if="comparison && !comparison.compatible"
-          :title="comparison.reason"
-          type="warning"
-          :closable="false"
-          show-icon
-        />
-        <template v-else-if="comparison">
-          <div class="live-eval-comparison-metrics">
+        <section
+          v-for="item in baselineComparisons"
+          :key="item.group"
+          class="live-eval-baseline-group"
+        >
+          <div class="live-eval-baseline-group-head">
             <div>
-              <span>通过数</span>
-              <strong>{{ comparison.metrics.passedCount.baseline }} → {{ comparison.metrics.passedCount.current }}</strong>
-              <small>{{ formatDelta(comparison.metrics.passedCount.delta) }}</small>
+              <strong>{{ item.label }}</strong>
+              <span>
+                {{ item.baseline.report.model.model }} · {{ formatDate(item.baseline.source.generatedAt) }}
+              </span>
             </div>
-            <div>
-              <span>平均分</span>
-              <strong>{{ formatScore(comparison.metrics.averageScore.baseline) }} → {{ formatScore(comparison.metrics.averageScore.current) }}</strong>
-              <small>{{ formatScoreDelta(comparison.metrics.averageScore.delta) }}</small>
-            </div>
-            <div>
-              <span>模型调用</span>
-              <strong>{{ comparison.metrics.modelCalls.baseline }} → {{ comparison.metrics.modelCalls.current }}</strong>
-              <small>{{ formatDelta(comparison.metrics.modelCalls.delta) }}</small>
-            </div>
-            <div>
-              <span>Token</span>
-              <strong>{{ comparison.metrics.totalTokens.baseline }} → {{ comparison.metrics.totalTokens.current }}</strong>
-              <small>{{ formatDelta(comparison.metrics.totalTokens.delta) }}</small>
-            </div>
-            <div>
-              <span>耗时</span>
-              <strong>{{ (comparison.metrics.durationMs.baseline / 1000).toFixed(1) }}s → {{ (comparison.metrics.durationMs.current / 1000).toFixed(1) }}s</strong>
-              <small>{{ formatDelta(Number((comparison.metrics.durationMs.delta / 1000).toFixed(1)), 's') }}</small>
-            </div>
+            <ElButton text type="danger" @click="clearBaseline(item.group)">清除该组基线</ElButton>
           </div>
-          <div class="live-eval-comparison-cases">
-            <section v-for="group in comparisonCaseGroups" :key="group.key" class="live-eval-comparison-case-group">
-              <div class="live-eval-comparison-case-group-head">
-                <strong>{{ group.label }}</strong>
-                <ElTag size="small" effect="plain">{{ group.cases.length }} 项</ElTag>
+          <ElAlert
+            v-if="!item.comparison.compatible"
+            :title="item.comparison.reason"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
+          <template v-else>
+            <div class="live-eval-comparison-metrics">
+              <div>
+                <span>通过数</span>
+                <strong>{{ item.comparison.metrics.passedCount.baseline }} → {{ item.comparison.metrics.passedCount.current }}</strong>
+                <small>{{ formatDelta(item.comparison.metrics.passedCount.delta) }}</small>
               </div>
-              <div
-                v-for="item in group.cases"
-                :key="item.caseId"
-                class="live-eval-comparison-case-row"
-              >
+              <div>
+                <span>平均分</span>
+                <strong>{{ formatScore(item.comparison.metrics.averageScore.baseline) }} → {{ formatScore(item.comparison.metrics.averageScore.current) }}</strong>
+                <small>{{ formatScoreDelta(item.comparison.metrics.averageScore.delta) }}</small>
+              </div>
+              <div>
+                <span>模型调用</span>
+                <strong>{{ item.comparison.metrics.modelCalls.baseline }} → {{ item.comparison.metrics.modelCalls.current }}</strong>
+                <small>{{ formatDelta(item.comparison.metrics.modelCalls.delta) }}</small>
+              </div>
+              <div>
+                <span>Token</span>
+                <strong>{{ item.comparison.metrics.totalTokens.baseline }} → {{ item.comparison.metrics.totalTokens.current }}</strong>
+                <small>{{ formatDelta(item.comparison.metrics.totalTokens.delta) }}</small>
+              </div>
+              <div>
+                <span>耗时</span>
+                <strong>{{ (item.comparison.metrics.durationMs.baseline / 1000).toFixed(1) }}s → {{ (item.comparison.metrics.durationMs.current / 1000).toFixed(1) }}s</strong>
+                <small>{{ formatDelta(Number((item.comparison.metrics.durationMs.delta / 1000).toFixed(1)), 's') }}</small>
+              </div>
+            </div>
+            <div class="live-eval-comparison-cases">
+              <div v-for="caseItem in item.comparison.cases" :key="caseItem.caseId" class="live-eval-comparison-case-row">
                 <ElTag
                   size="small"
-                  :type="item.trend === 'improved' ? 'success' : item.trend === 'regressed' ? 'danger' : 'info'"
+                  :type="caseItem.trend === 'improved' ? 'success' : caseItem.trend === 'regressed' ? 'danger' : 'info'"
                 >
-                  {{ trendLabel(item.trend) }}
+                  {{ trendLabel(caseItem.trend) }}
                 </ElTag>
-                <span>{{ item.title }}</span>
-                <small>分数 {{ formatScore(item.score.baseline) }} → {{ formatScore(item.score.current) }}</small>
-                <small>Token {{ item.totalTokens.baseline }} → {{ item.totalTokens.current }}</small>
+                <span>{{ caseItem.title }}</span>
+                <small>分数 {{ formatScore(caseItem.score.baseline) }} → {{ formatScore(caseItem.score.current) }}</small>
+                <small>Token {{ caseItem.totalTokens.baseline }} → {{ caseItem.totalTokens.current }}</small>
               </div>
-            </section>
-          </div>
-        </template>
+            </div>
+          </template>
+        </section>
       </section>
     </div>
 
@@ -884,17 +914,21 @@ onMounted(async () => {
           <span>{{ entry.report.summary.usage.totalTokens ?? 0 }} tokens</span>
           <time>{{ formatDate(entry.generatedAt) }}</time>
           <div class="live-eval-history-actions">
-            <ElTag
-              v-if="workspaceMode === 'directory' && baseline?.source.reportId === entry.id"
-              size="small"
-              type="success"
-            >基线</ElTag>
+            <template v-if="workspaceMode === 'directory' && baselineGroupsForEntry(entry).length">
+              <ElTag
+                v-for="group in baselineGroupsForEntry(entry)"
+                :key="group"
+                size="small"
+                type="success"
+              >{{ baselineGroupLabel(group) }} 基线</ElTag>
+            </template>
             <ElButton
-              v-else-if="workspaceMode === 'directory'"
+              v-for="group in workspaceMode === 'directory' ? unsetBaselineGroupsForEntry(entry) : []"
+              :key="`set-${group}`"
               text
               size="small"
-              @click.stop="setBaseline(entry)"
-            >设为基线</ElButton>
+              @click.stop="setBaseline(entry, group)"
+            >设为{{ baselineGroupLabel(group) }}基线</ElButton>
             <ElButton text size="small" aria-label="删除这份评测历史" @click.stop="removeHistory(entry)">
               <NIcon :component="TrashOutline" />
             </ElButton>
@@ -999,16 +1033,15 @@ onMounted(async () => {
 .live-eval-error { color: var(--el-color-danger); }
 .live-eval-comparison { display: grid; gap: 12px; border-top: 1px solid var(--cottage-border); padding-top: 14px; }
 .live-eval-comparison-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.live-eval-comparison-head > div { display: grid; gap: 3px; }
-.live-eval-comparison-head span { color: var(--cottage-muted); font-size: 11px; }
+.live-eval-baseline-group { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--cottage-border); }
+.live-eval-baseline-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.live-eval-baseline-group-head > div { display: grid; gap: 3px; }
+.live-eval-baseline-group-head span { color: var(--cottage-muted); font-size: 11px; }
 .live-eval-comparison-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .live-eval-comparison-metrics > div { display: grid; gap: 3px; min-width: 0; padding: 9px 10px; border-radius: 9px; background: var(--cottage-surface-sunken); }
 .live-eval-comparison-metrics span, .live-eval-comparison-metrics small { color: var(--cottage-muted); font-size: 11px; }
 .live-eval-comparison-metrics strong { font-size: 13px; white-space: nowrap; }
 .live-eval-comparison-cases { display: grid; gap: 6px; }
-.live-eval-comparison-case-group { display: grid; gap: 4px; }
-.live-eval-comparison-case-group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 7px; }
-.live-eval-comparison-case-group-head strong { font-size: 12px; }
 .live-eval-comparison-case-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) auto auto; align-items: center; gap: 8px; min-height: 34px; padding: 5px 7px; border-radius: 7px; }
 .live-eval-comparison-case-row:hover { background: var(--cottage-surface-sunken); }
 .live-eval-comparison-cases small { color: var(--cottage-muted); }
@@ -1018,7 +1051,7 @@ onMounted(async () => {
 .live-eval-history-row.is-selected { border-color: var(--cottage-border); }
 .live-eval-history-model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-eval-history-row time { color: var(--cottage-muted); font-size: 11px; }
-.live-eval-history-actions { display: flex; justify-content: flex-end; align-items: center; gap: 2px; }
+.live-eval-history-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px; }
 @media (max-width: 860px) {
   .live-eval-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .live-eval-cases { grid-template-columns: 1fr; }
@@ -1037,6 +1070,7 @@ onMounted(async () => {
   .live-eval-directory :deep(.el-button) { width: 100%; }
   .live-eval-grid { grid-template-columns: 1fr; }
   .live-eval-comparison-head { align-items: flex-start; flex-direction: column; }
+  .live-eval-baseline-group-head { align-items: flex-start; flex-direction: column; }
   .live-eval-comparison-metrics { grid-template-columns: 1fr; }
   .live-eval-comparison-case-row { grid-template-columns: auto minmax(0, 1fr); }
   .live-eval-comparison-case-row small { display: none; }

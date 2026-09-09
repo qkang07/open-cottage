@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { compareLiveEvalReports } from './compare';
+import {
+  compareLiveEvalReports,
+  liveEvalBaselineGroupsForReport,
+  selectLiveEvalReportGroup,
+} from './compare';
 import type { LiveEvalCaseReport, LiveEvalReport } from './types';
 
 const evalCase = (
@@ -95,5 +99,22 @@ describe('compareLiveEvalReports', () => {
     expect(result.compatible).toBe(false);
     expect(result.reason).toContain('场景集合不同');
     expect(result.cases).toEqual([]);
+  });
+
+  it('splits a mixed report into independently comparable baseline groups', () => {
+    const mixed = report([
+      evalCase('agent-a', true, 1, 100),
+      evalCase('plan-a', false, 0.5, 300, ['plan']),
+    ]);
+
+    expect(liveEvalBaselineGroupsForReport(mixed)).toEqual(['agent', 'plan']);
+    const agent = selectLiveEvalReportGroup(mixed, 'agent');
+    const plan = selectLiveEvalReportGroup(mixed, 'plan');
+    expect(agent.selection.caseIds).toEqual(['agent-a']);
+    expect(agent.summary).toMatchObject({ caseCount: 1, passedCount: 1 });
+    expect(agent.summary.usage).toMatchObject({ modelCalls: 1, totalTokens: 100 });
+    expect(plan.selection.caseIds).toEqual(['plan-a']);
+    expect(plan.summary).toMatchObject({ caseCount: 1, passedCount: 0 });
+    expect(plan.summary.usage).toMatchObject({ modelCalls: 1, totalTokens: 300 });
   });
 });

@@ -218,7 +218,9 @@ export const createPlanToolGuard = (
     acquireWriteLease: (workspaceId, planId) =>
       workspaceWriteCoordinator.acquire(workspaceId, planId),
     resolveWorkspacePath: resolveExistingAncestor,
-    captureStepPaths: capturePlanStepPaths,
+    async captureStepPaths(planId, stepId, paths) {
+      await capturePlanStepPaths(planId, stepId, paths);
+    },
   };
   return {
     check(input) {

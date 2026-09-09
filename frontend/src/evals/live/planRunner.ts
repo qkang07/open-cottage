@@ -92,7 +92,10 @@ export const runPlanLiveEvalCase = async (input: {
   const verification: LiveEvalPlanTrace['verification'] = [];
   const checkpoints: LiveEvalPlanTrace['checkpoints'] = [];
   let headSequence = 0;
-  let active: { definition: PlanDefinition; run: PlanRun } | null = null;
+  type ActivePlan = { definition: PlanDefinition; run: PlanRun };
+  let active: ActivePlan | null = null;
+  // active 由 Plan 工具回调更新；通过读取函数避免控制流把闭包赋值误判为不可达。
+  const getActive = (): ActivePlan | null => active;
   let suggestion: LiveEvalPlanTrace['suggestion'];
   let suggestionAccepted = false;
   let agent: CottageAgent | null = null;
@@ -356,7 +359,9 @@ export const runPlanLiveEvalCase = async (input: {
       beforeSnapshot = workspace.snapshot();
     },
     async end() {
-      const before = await (beforeSnapshot ?? Promise.resolve({}));
+      const before: Record<string, string> = await (
+        beforeSnapshot ?? Promise.resolve<Record<string, string>>({})
+      );
       const after = await workspace.snapshot();
       const options = journalOptions;
       beforeSnapshot = null;
@@ -418,7 +423,8 @@ export const runPlanLiveEvalCase = async (input: {
       await agent.next(`${item.prompt}\n可用验收 provider：${item.verificationMode === 'human-only' ? '仅 user.acceptance' : 'eval.contentMatches（config: { path, expected }）、user.acceptance'}。`);
     }
 
-    if (item.scriptedGuardBlock && active?.run.status === 'running') {
+    const scriptedContext = getActive();
+    if (item.scriptedGuardBlock && scriptedContext?.run.status === 'running') {
       const verdict = guard.check({
         toolName: item.scriptedGuardBlock.toolName,
         args: item.scriptedGuardBlock.args,
@@ -429,7 +435,7 @@ export const runPlanLiveEvalCase = async (input: {
     }
 
     for (let continuation = 0; continuation < 8; continuation += 1) {
-      const context = active;
+      const context = getActive();
       if (!context) break;
       const lastTransition = transitions.at(-1);
       if (context.run.status === 'waiting_for_user' && lastTransition?.type === 'scope_blocked') {
@@ -491,6 +497,7 @@ export const runPlanLiveEvalCase = async (input: {
   const toolCalls = traceRecorder.events
     .filter((event) => event.type === 'tool_call')
     .map((event) => ({ name: event.name, status: event.status }));
+  const finalActive = getActive();
   return {
     response,
     initialWorkspace,
@@ -505,7 +512,9 @@ export const runPlanLiveEvalCase = async (input: {
       stepCompletions,
       verification,
       checkpoints,
-      ...(active ? { finalDefinition: clone(active.definition), finalRun: clone(active.run) } : {}),
+      ...(finalActive
+        ? { finalDefinition: clone(finalActive.definition), finalRun: clone(finalActive.run) }
+        : {}),
       finalWorkspace: clone(finalWorkspace),
       headSequence,
     },

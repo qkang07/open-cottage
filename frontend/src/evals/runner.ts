@@ -365,6 +365,8 @@ export const runAgentEvalScenario = async (
     : undefined;
 
   let activeStagingStore: ReturnType<typeof createEvalStagingRuntime>['store'] | null = null;
+  const getActiveStagingStore = (): ReturnType<typeof createEvalStagingRuntime>['store'] | null =>
+    activeStagingStore;
   const createAgent = (
     history?: Parameters<CottageAgent['loadHistory']>[0],
     llmHistory?: Parameters<CottageAgent['loadHistory']>[1],
@@ -397,8 +399,8 @@ export const runAgentEvalScenario = async (
         scenario.systemPrompt ?? 'You are running a deterministic regression scenario.',
       model: replay.driver,
       tools: scenarioTools,
-      history,
-      llmHistory,
+      history: history ? [...history] : undefined,
+      llmHistory: llmHistory ? [...llmHistory] : undefined,
       policyGate: policy.gate,
       planToolGuard,
       toolExecutor,
@@ -432,7 +434,7 @@ export const runAgentEvalScenario = async (
     for (let attempt = 0; attempt < 500; attempt += 1) {
       if (
         !getPendingStagedApproval(evalSessionId) &&
-        (activeStagingStore?.isEmpty() ?? true) &&
+        (getActiveStagingStore()?.isEmpty() ?? true) &&
         stagingPersistence.pendingPaths(evalSessionId).length === 0
       ) return;
       await new Promise((resolve) => setTimeout(resolve, 1));
@@ -532,7 +534,7 @@ export const runAgentEvalScenario = async (
   const changedPaths = changedEvalPaths(initialWorkspace, finalWorkspace);
   const requests = toRequestArtifacts(replay.calls);
   const history = agent?.getChatHistory() ?? [];
-  const pendingStagedPaths = activeStagingStore?.entriesList().map((entry) => entry.path) ?? [];
+  const pendingStagedPaths = getActiveStagingStore()?.entriesList().map((entry) => entry.path) ?? [];
   const persistedStagedPaths = stagingPersistence.pendingPaths(evalSessionId);
 
   addAssertion(

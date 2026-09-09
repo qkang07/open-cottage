@@ -1,5 +1,7 @@
 import type { LiveEvalCaseReport, LiveEvalReport } from './types';
 
+export type LiveEvalBaselineGroup = 'agent' | 'plan';
+
 export type LiveEvalCaseTrend =
   | 'improved'
   | 'regressed'
@@ -21,6 +23,52 @@ export interface LiveEvalCaseComparison {
   score: LiveEvalMetricComparison;
   totalTokens: LiveEvalMetricComparison;
 }
+
+export const liveEvalBaselineGroupForCase = (
+  item: Pick<LiveEvalCaseReport, 'tags'>,
+): LiveEvalBaselineGroup => Array.isArray(item.tags) && item.tags.includes('plan')
+  ? 'plan'
+  : 'agent';
+
+export const liveEvalBaselineGroupsForReport = (
+  report: LiveEvalReport,
+): LiveEvalBaselineGroup[] => (['agent', 'plan'] as const).filter((group) =>
+  report.cases.some((item) => liveEvalBaselineGroupForCase(item) === group),
+);
+
+const usageTotal = (
+  cases: readonly LiveEvalCaseReport[],
+  key: 'inputTokens' | 'outputTokens' | 'totalTokens' | 'reasoningTokens' | 'cachedInputTokens',
+) => cases.reduce((sum, item) => sum + (item.usage[key] ?? 0), 0);
+
+export const selectLiveEvalReportGroup = (
+  report: LiveEvalReport,
+  group: LiveEvalBaselineGroup,
+): LiveEvalReport => {
+  const cases = report.cases.filter((item) => liveEvalBaselineGroupForCase(item) === group);
+  if (cases.length === 0) throw new Error(`评测报告不包含 ${group} 分组`);
+  return {
+    ...report,
+    budget: { ...report.budget, maxCases: cases.length },
+    selection: { caseIds: cases.map((item) => item.caseId), tags: [] },
+    summary: {
+      passed: cases.every((item) => item.passed),
+      caseCount: cases.length,
+      passedCount: cases.filter((item) => item.passed).length,
+      averageScore: cases.reduce((sum, item) => sum + item.score, 0) / cases.length,
+      usage: {
+        modelCalls: cases.reduce((sum, item) => sum + item.usage.modelCalls, 0),
+        durationMs: cases.reduce((sum, item) => sum + item.usage.durationMs, 0),
+        inputTokens: usageTotal(cases, 'inputTokens'),
+        outputTokens: usageTotal(cases, 'outputTokens'),
+        totalTokens: usageTotal(cases, 'totalTokens'),
+        reasoningTokens: usageTotal(cases, 'reasoningTokens'),
+        cachedInputTokens: usageTotal(cases, 'cachedInputTokens'),
+      },
+    },
+    cases,
+  };
+};
 
 export interface LiveEvalReportComparison {
   compatible: boolean;
@@ -97,7 +145,7 @@ export const compareLiveEvalReports = (
     return {
       caseId: item.caseId,
       title: item.title,
-      group: item.tags.includes('plan') ? 'plan' : 'agent',
+      group: liveEvalBaselineGroupForCase(item),
       trend: caseTrend(before, item),
       baselinePassed: before.passed,
       currentPassed: item.passed,

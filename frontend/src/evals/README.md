@@ -146,9 +146,12 @@ Plan case 报告的 `plan` 字段记录建议、每个 definition revision、审
 部分写入失败和外部副作用分类；这些应作为后续 corpus，
 不能由本批通过结果代替。
 
-目录基线仍保存一份完整报告，并且只与 case 集合完全一致的当前报告比较。比较明细按照报告中的
-case tag 分为“普通 Agent”和“Plan”两组；这只是展示分组，不改变 `baselines/current.json` 格式，
-也不会把一个完整基线静默拆成多个独立基线。
+目录基线按 case tag 分为“普通 Agent”和“Plan”两个独立槽位，分别保存在
+`baselines/agent.json` 与 `baselines/plan.json`。只运行其中一组就能设置和比较该组基线，不需要补跑
+另一组；一份同时包含两组的报告会提供两个独立设置按钮，只有用户明确选择的槽位会被替换。
+每组仍只与 case 集合完全一致的当前分组报告比较，避免不同 corpus 产生误导性趋势。
+旧 `baselines/current.json` 会在读取时按报告内容映射到对应分组，不会自动覆盖；用户替换或清除旧基线时，
+会保留未操作的另一组以及来源运行。
 
 浏览器报告保存在独立的 `open-cottage-evals` IndexedDB 中，最多保留最近 50 份，可在界面中
 回看、删除或导出 JSON。报告不包含 API Key 和完整模型请求。CLI 仍用于无头执行与 CI，输出
@@ -168,7 +171,9 @@ fixtures/<case-id>/...
 runs/<batch-id>/run-<n>/run.json
 runs/<batch-id>/run-<n>/cases/<case-id>/workspace/...
 runs/<batch-id>/run-<n>/report.json
-baselines/current.json
+baselines/agent.json
+baselines/plan.json
+baselines/current.json  # 旧版基线，只读兼容
 ```
 
 每个 case 只获得自己 `workspace/` 子目录的句柄，路径解析禁止越过该根目录。fixture 不会交给
@@ -176,8 +181,8 @@ Agent；每一轮都会创建新的隔离运行目录。目录句柄保存在浏
 若不再授予权限，用户必须重新选择目录。目录历史直接扫描 `runs/`，因此换浏览器后重新授权同一
 目录即可读取既有报告。删除目录历史会同时删除对应轮次的隔离副本，需在界面中再次确认。
 
-目录历史中的任意一轮都可以设为基线。基线以完整报告快照写入 `baselines/current.json`，不会
-修改来源运行；替换或清除基线都需要明确操作，删除来源运行也不会破坏已经保存的基线。查看
-其他运行时，界面会比较通过数、平均分、调用次数、Token、耗时，以及每个 case 的改善或退化。
-只有场景集合相同的报告才会进行直接比较，模型可以不同，以便比较不同模型在同一 corpus 上的
-表现。评测目录可以整体纳入 Git，用提交历史记录 fixture、运行报告与基线的变化。
+目录历史中的任意一轮都可以按报告实际包含的分组设为基线。普通 Agent 与 Plan 基线分别保存，
+不会修改来源运行；替换或清除某组基线都需要明确操作，也不会影响另一组。删除来源运行不会破坏
+已经保存的基线。查看其他运行时，界面按分组比较通过数、平均分、调用次数、Token、耗时，以及
+每个 case 的改善或退化。每组只有场景集合相同才会直接比较，模型可以不同，以便比较不同模型在
+同一 corpus 上的表现。评测目录可以整体纳入 Git，用提交历史记录 fixture、运行报告与基线的变化。
