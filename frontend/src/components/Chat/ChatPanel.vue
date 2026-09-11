@@ -337,10 +337,11 @@ function handleRemoveAttachment(id: string) {
 const activeSession = computed(() =>
   chatSessions.value.find((s) => s.id === activeChatId.value),
 );
-type SessionStatusKind = 'running' | 'interrupted' | null;
+type SessionStatusKind = 'running' | 'approval' | 'interrupted' | null;
 function sessionStatusKind(sessionId: string): SessionStatusKind {
   const status = sessionRuntimeStatus.value[sessionId];
   if (!status) return null;
+  if (status.approval) return 'approval';
   if (status.busy) return 'running';
   if (status.inFlight) return 'interrupted';
   return null;
@@ -914,7 +915,13 @@ function handleSetSearchSource(source: SearchSource) {
               </div>
             </div>
             <span
-              v-if="sessionStatusKind(item.id) === 'running'"
+              v-if="sessionStatusKind(item.id) === 'approval'"
+              class="chat-session-badge chat-session-badge-approval"
+            >
+              {{ t('chat.sessionApproval') }}
+            </span>
+            <span
+              v-else-if="sessionStatusKind(item.id) === 'running'"
               class="chat-session-badge chat-session-badge-running"
             >
               <NSpin size="small" />

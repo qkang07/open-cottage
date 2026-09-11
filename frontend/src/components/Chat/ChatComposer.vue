@@ -284,6 +284,12 @@ const activeImagePresetValue = ref<string | null>(null);
 const imageGenerationEnabled = computed(() =>
   isToolGroupEffectivelyEnabled('imagegen'),
 );
+const enabledCapabilityCount = computed(
+  () =>
+    visibleToolGroups.value.filter((group) =>
+      isToolGroupEffectivelyEnabled(group.id),
+    ).length + (props.searchSource ? 1 : 0),
+);
 
 function resolveLayerActivePresetId(
   layerConfig: CottageConfig | null | undefined,
@@ -1354,11 +1360,11 @@ const canSend = computed(
                 trigger="click"
                 placement="top-start"
                 :width="320"
-                popper-class="chat-model-cap-popper"
+                popper-class="chat-model-popper"
               >
                 <template #reference>
                   <ElButton
-                    class="chat-model-cap-trigger"
+                    class="chat-model-cap-trigger chat-model-trigger"
                     :disabled="disabled || switchingModel"
                     :loading="switchingModel"
                   >
@@ -1369,7 +1375,7 @@ const canSend = computed(
                         class="chat-model-cap-key-warn"
                       />
                       <span class="chat-model-cap-trigger-name">
-                        {{ activeModelLabel || t('chat.modelAndCapabilities') }}
+                        {{ activeModelLabel || t('chat.modelSection') }}
                       </span>
                       <span
                         v-if="supportsThinkingControl && thinkingEnabled"
@@ -1445,6 +1451,51 @@ const canSend = computed(
                       />
                     </div>
                   </div>
+                </div>
+              </ElPopover>
+              <ElPopover
+                v-if="hasModelConfigured"
+                trigger="click"
+                placement="top-start"
+                :width="320"
+                popper-class="chat-capabilities-popper"
+              >
+                <template #reference>
+                  <ElButton
+                    class="chat-model-cap-trigger chat-capabilities-trigger"
+                    :disabled="disabled || switchingModel"
+                  >
+                    <span>{{ t('chat.capabilitiesSection') }}</span>
+                    <span v-if="enabledCapabilityCount" class="chat-capabilities-count">
+                      {{ enabledCapabilityCount }}
+                    </span>
+                    <NIcon :component="ChevronDownOutline" class="chat-model-cap-trigger-caret" />
+                  </ElButton>
+                </template>
+                <div class="chat-model-cap-panel">
+                  <div class="chat-model-cap-section">
+                    <NText depth="3" class="chat-model-cap-section-title">{{ t('chat.capabilitiesSection') }}</NText>
+                    <div class="chat-model-cap-cards">
+                      <div v-for="group in visibleToolGroups" :key="group.id" class="chat-model-cap-card-wrap">
+                        <CottageTooltip
+                          :content="!isToolGroupCottageReady(group.id) ? t('settings.packRequiresCottageService') : t(`chat.toolGroupDesc.${group.id}`)"
+                          placement="top"
+                          delay="normal"
+                        >
+                          <button
+                            type="button"
+                            class="chat-model-cap-card"
+                            :class="{ 'is-active': isToolGroupEffectivelyEnabled(group.id) }"
+                            :disabled="switchingModel || !canToggleToolGroup(group.id)"
+                            @click="handleToggleToolGroup(group.id, !isToolGroupEffectivelyEnabled(group.id))"
+                          >
+                            <span class="chat-model-cap-card-name">{{ t(`chat.toolGroup.${group.id}`) }}</span>
+                            <NIcon v-if="isToolGroupEffectivelyEnabled(group.id)" :component="CheckmarkOutline" class="chat-model-cap-card-check" />
+                          </button>
+                        </CottageTooltip>
+                      </div>
+                    </div>
+                  </div>
                   <div
                     v-if="imageGenerationEnabled"
                     class="chat-model-cap-section"
@@ -1478,55 +1529,8 @@ const canSend = computed(
                     </NText>
                   </div>
                   <div class="chat-model-cap-section">
-                    <NText depth="3" class="chat-model-cap-section-title">{{ t('chat.capabilitiesSection') }}</NText>
-                    <div class="chat-model-cap-cards">
-                      <div
-                        v-for="group in visibleToolGroups"
-                        :key="group.id"
-                        class="chat-model-cap-card-wrap"
-                      >
-                        <CottageTooltip
-                          :content="
-                            !isToolGroupCottageReady(group.id)
-                              ? t('settings.packRequiresCottageService')
-                              : t(`chat.toolGroupDesc.${group.id}`)
-                          "
-                          placement="top"
-                          delay="normal"
-                        >
-                          <button
-                            type="button"
-                            class="chat-model-cap-card"
-                            :class="{
-                              'is-active': isToolGroupEffectivelyEnabled(group.id),
-                            }"
-                            :disabled="switchingModel || !canToggleToolGroup(group.id)"
-                            @click="
-                              handleToggleToolGroup(
-                                group.id,
-                                !isToolGroupEffectivelyEnabled(group.id),
-                              )
-                            "
-                          >
-                            <span class="chat-model-cap-card-name">
-                              {{ t(`chat.toolGroup.${group.id}`) }}
-                            </span>
-                            <NIcon
-                              v-if="isToolGroupEffectivelyEnabled(group.id)"
-                              :component="CheckmarkOutline"
-                              class="chat-model-cap-card-check"
-                            />
-                          </button>
-                        </CottageTooltip>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="chat-model-cap-section">
                     <NText depth="3" class="chat-model-cap-section-title">{{ t('chat.searchSourceSection') }}</NText>
-                    <div
-                      v-if="availableSearchSources.length > 0"
-                      class="chat-model-cap-models"
-                    >
+                    <div v-if="availableSearchSources.length > 0" class="chat-model-cap-models">
                       <button
                         v-for="source in availableSearchSources"
                         :key="source"
@@ -1536,19 +1540,11 @@ const canSend = computed(
                         :disabled="disabled || busy || switchingModel"
                         @click="emit('setSearchSource', source)"
                       >
-                        <span class="chat-model-cap-model-name">
-                          {{ searchSourceLabel(source) }}
-                        </span>
-                        <NIcon
-                          v-if="searchSource === source"
-                          :component="CheckmarkOutline"
-                          class="chat-model-cap-model-check"
-                        />
+                        <span class="chat-model-cap-model-name">{{ searchSourceLabel(source) }}</span>
+                        <NIcon v-if="searchSource === source" :component="CheckmarkOutline" class="chat-model-cap-model-check" />
                       </button>
                     </div>
-                    <NText v-else depth="3" class="chat-optional-tools-hint">
-                      {{ t('chat.noSearchSourceHint') }}
-                    </NText>
+                    <NText v-else depth="3" class="chat-optional-tools-hint">{{ t('chat.noSearchSourceHint') }}</NText>
                   </div>
                 </div>
               </ElPopover>

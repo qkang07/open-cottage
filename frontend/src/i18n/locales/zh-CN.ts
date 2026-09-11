@@ -324,6 +324,7 @@ const zhCN = {
     activityBackground: '{count} 个会话仍在后台运行',
     fullTrace: '全链路 trace',
     sessionRunning: '运行中',
+    sessionApproval: '待批准',
     sessionInterrupted: '已中断',
     pinSession: '置顶',
     unpinSession: '取消置顶',

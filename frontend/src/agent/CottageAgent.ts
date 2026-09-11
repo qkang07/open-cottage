@@ -210,6 +210,8 @@ export interface CreateCottageAgentOptions {
   prewarmModelCatalog?: boolean;
   /** 回合进行中视图更新回调（供节流中途落盘） */
   onInFlightUpdate?: () => void;
+  /** 审批状态变化回调（后台会话也需要同步到历史列表） */
+  onStatusUpdate?: (status: AgentStatus) => void;
 }
 
 export class CottageAgent {
@@ -265,6 +267,7 @@ export class CottageAgent {
   /** 本回合已命中 doom loop 的次数（前几次软提醒，之后用户闸门） */
   private doomLoopHitCount = 0;
   private readonly onInFlightUpdate: (() => void) | undefined;
+  private readonly onStatusUpdate: ((status: AgentStatus) => void) | undefined;
   /** 当前 tool round 已建过 pre_risky 检查点则跳过（并行多工具只建一次） */
   private preRiskyCheckpointRound: number | null = null;
 
@@ -307,6 +310,7 @@ export class CottageAgent {
     this.agentMode = options.mode ?? 'chat';
     this.toolStreamContext = options.toolStreamContext;
     this.onInFlightUpdate = options.onInFlightUpdate;
+    this.onStatusUpdate = options.onStatusUpdate;
 
     // 暂存变更同步写入 sessions/{id}/staging.json，刷新后可恢复批准面板
     this.stagingStore?.setOnChange(() => {
@@ -487,6 +491,7 @@ export class CottageAgent {
 
   private setStatus(status: AgentStatus): void {
     this.agentViewState.status = status;
+    this.onStatusUpdate?.(status);
     this.emitStatusEvent(status);
   }
 

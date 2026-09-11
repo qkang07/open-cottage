@@ -1620,7 +1620,12 @@ function projectMessageSections(
     }
     out.push(section);
   }
-  return mergeAdjacentThinkSections(out);
+  // 思考标签切换时可能留下只包含换行/空格的正文段；它不是实际正文，
+  // 不应阻断连续 thinking 的折叠合并。
+  const withoutWhitespaceContent = out.filter(
+    (section) => section.type !== 'content' || section.text.trim(),
+  );
+  return mergeAdjacentThinkSections(withoutWhitespaceContent);
 }
 
 const sectionsView = computed<CottageSection[]>(() => {

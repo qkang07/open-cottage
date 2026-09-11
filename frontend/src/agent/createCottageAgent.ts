@@ -26,7 +26,7 @@ import {
 } from './constants';
 import type { Capability } from '../platform/capabilities';
 import { capabilitiesForEnabledTools } from './toolCatalog';
-import { CottageAgent } from './CottageAgent';
+import { CottageAgent, type AgentStatus } from './CottageAgent';
 import { isApiKeyRequiredForConfig } from '../config/llmKeyStatus';
 import { shouldApplyMoonshotThinking } from '../config/moonshotThinking';
 import { createChatModel, LlmConfigError } from './createModel';
@@ -238,6 +238,8 @@ export interface CreateCottageAgentOptions {
   onDispatchSubtask?: DispatchSubtaskFn;
   /** 回合进行中视图更新回调（供 store 节流中途落盘） */
   onInFlightUpdate?: () => void;
+  /** 审批状态变化回调（后台会话也需要同步到历史列表） */
+  onStatusUpdate?: (status: AgentStatus) => void;
   /** 当前会话生效的搜索来源；缺省读取配置或回退 cottageService */
   searchSource?: SearchSource;
   /** 第二层选中的第三方搜索 provider */
@@ -706,6 +708,7 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
     eventBus,
     sessionId: options.sessionId,
     onInFlightUpdate: options.onInFlightUpdate,
+    onStatusUpdate: options.onStatusUpdate,
   });
   agentRef = agent;
   return agent;

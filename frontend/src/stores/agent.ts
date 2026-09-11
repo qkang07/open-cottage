@@ -60,6 +60,7 @@ import type { CottageSection } from '../agent/messages';
 import type { CheckResult, VerifyReport } from '../platform/verify';
 import type { OrchestrationState } from '../orchestrator/types';
 import type { CottageAgentMode } from '../agent/createCottageAgent';
+import type { AgentStatus } from '../agent/CottageAgent';
 import type { SpecDoc } from '../spec/types';
 import { workspace, formatWorkspaceFsError } from '../workspace/FileSystemWorkspace';
 import { setActiveInteractionSession } from '../platform/interaction/interactionScope';
@@ -110,6 +111,7 @@ import {
 import {
   cancelPendingStagedApproval,
   hasPendingStagedApprovalFor,
+  loadSessionStaging,
 } from '../platform/staging';
 import {
   cancelPendingAsk,
@@ -136,6 +138,7 @@ interface TeardownChatOptions {
 export interface SessionRuntimeStatus {
   busy: boolean;
   inFlight: boolean;
+  approval: boolean;
   updatedAt: number;
 }
 
@@ -304,11 +307,12 @@ export const useAgentStore = defineStore('agent', () => {
   /** 写入会话运行时状态（合并式） */
   function setSessionRuntime(
     sessionId: string,
-    patch: Partial<Pick<SessionRuntimeStatus, 'busy' | 'inFlight'>>,
+    patch: Partial<Pick<SessionRuntimeStatus, 'busy' | 'inFlight' | 'approval'>>,
   ) {
     const prev = sessionRuntimeStatus.value[sessionId] ?? {
       busy: false,
       inFlight: false,
+      approval: false,
       updatedAt: 0,
     };
     sessionRuntimeStatus.value = {
@@ -551,6 +555,16 @@ export const useAgentStore = defineStore('agent', () => {
   async function syncSessionsFromDisk() {
     const index = await loadChatSessionsIndex();
     chatSessions.value = sortChatSessions(index.sessions);
+    // staging.json 是后台会话待批准状态的持久化兜底；即使页面刷新，
+    // 历史列表也应继续提醒用户，而不是等切回会话后才发现变更。
+    await Promise.all(
+      chatSessions.value.map(async (session) => {
+        const persisted = await loadSessionStaging(session.id);
+        if (persisted?.entries.length) {
+          setSessionRuntime(session.id, { approval: true });
+        }
+      }),
+    );
     return index;
   }
 
@@ -2385,6 +2399,7 @@ export const useAgentStore = defineStore('agent', () => {
       setSessionRuntime(sessionId, {
         busy: reuse.agent.busy || pending,
         inFlight: reuse.agent.isInFlight() || pending,
+        approval: reuse.agent.status.phase === 'approval' || pending,
       });
       planMode.value = false;
       activePlanIdRef.value = null;
@@ -2405,6 +2420,18 @@ export const useAgentStore = defineStore('agent', () => {
         } catch (error) {
           console.warn('[Agent] 复用会话时热切换运行时失败，已跳过:', error);
         }
+      }
+      try {
+        await reuse.agent.restoreStagedReviewIfNeeded();
+        setSessionRuntime(sessionId, {
+          busy: reuse.agent.busy || sessionHasPendingInteraction(sessionId),
+          inFlight: reuse.agent.isInFlight() || sessionHasPendingInteraction(sessionId),
+          approval:
+            reuse.agent.status.phase === 'approval' ||
+            sessionHasPendingInteraction(sessionId),
+        });
+      } catch (error) {
+        console.warn('[Agent] 复用会话时恢复暂存审批失败，已跳过:', error);
       }
       try {
         await recoverOrchestration(sessionId);
@@ -2524,6 +2551,9 @@ export const useAgentStore = defineStore('agent', () => {
           if (!cur?.busy) setSessionRuntime(sessionId, { busy: true, inFlight: true });
           schedulePersist(sessionId);
         },
+        onStatusUpdate: (status: AgentStatus) => {
+          setSessionRuntime(sessionId, { approval: status.phase === 'approval' });
+        },
       });
     } catch (error) {
       // 例如缺失 API Key：不抛出未处理 rejection，保留会话占位，
@@ -2555,6 +2585,8 @@ export const useAgentStore = defineStore('agent', () => {
         instance.isInFlight() ||
         Boolean(snapshot.runtime?.inFlight) ||
         pendingInteractionCallIds(history).size > 0,
+      approval: instance.status.phase === 'approval' ||
+        pendingInteractionCallIds(history).size > 0,
     });
 
     if (!isTask) {
@@ -2577,6 +2609,7 @@ export const useAgentStore = defineStore('agent', () => {
         setSessionRuntime(sessionId, {
           busy: instance.busy || sessionHasPendingInteraction(sessionId),
           inFlight: true,
+          approval: instance.status.phase === 'approval' || sessionHasPendingInteraction(sessionId),
         });
       }
     } catch (error) {

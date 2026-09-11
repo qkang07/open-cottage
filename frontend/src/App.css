@@ -2575,6 +2575,11 @@ html.dark .cottage-md-preview .md-editor-preview {
   background: var(--cottage-accent-bg);
 }
 
+.chat-session-badge-approval {
+  color: var(--cottage-danger);
+  background: color-mix(in srgb, var(--cottage-danger) 14%, transparent);
+}
+
 .chat-session-badge-interrupted {
   color: var(--cottage-warning);
   background: color-mix(in srgb, var(--cottage-warning) 14%, transparent);
@@ -5604,6 +5609,30 @@ html.dark .file-write-diff-line-del .file-write-diff-seg-del {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  max-height: min(520px, calc(100vh - 96px));
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.chat-model-popper.el-popover,
+.chat-capabilities-popper.el-popover {
+  max-height: min(560px, calc(100vh - 48px));
+  overflow: hidden;
+}
+
+.chat-capabilities-trigger {
+  margin-left: 2px;
+}
+
+.chat-capabilities-count {
+  min-width: 16px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--cottage-accent-bg);
+  color: var(--cottage-accent);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .chat-model-cap-section {

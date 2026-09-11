@@ -94,12 +94,27 @@ const chatTitleSchema = z.object({
 const stripTags = (text: string): string =>
   text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
+/** 编辑器文件节点在 userText 中的持久化占位符，不应泄漏到会话标题。 */
+const REF_PLACEHOLDER_RE = /\{\{ref:[^|}]+\|[^}]*\}\}/g;
+const REF_TITLE_RE = /\{\{ref:/i;
+
+const stripReferencePlaceholders = (text: string): string =>
+  text.replace(REF_PLACEHOLDER_RE, ' ').replace(/\s+/g, ' ').trim();
+
 /** 取第一条用户消息中适合展示的纯文本（优先用户原文） */
 const extractUserPromptText = (history: readonly StoredMessage[]): string => {
   const userMsg = history.find((m) => m.role === 'user');
   if (!userMsg) return '';
   const raw = (userMsg.userText ?? userMsg.content).trim();
-  return stripTags(raw);
+  const text = stripReferencePlaceholders(stripTags(raw));
+  if (text) return text;
+
+  // 只有文件引用时，用可读的标签/路径作为标题，避免显示 {{ref:...}}。
+  const references = userMsg.fileReferences ?? [];
+  return references
+    .map((reference) => reference.label.trim() || reference.path.trim())
+    .filter(Boolean)
+    .join('、');
 };
 
 /** 同步标题：优先用户首条输入（截断），无输入则为「新对话」 */
@@ -478,7 +493,12 @@ export const repairChatSessionsIndex = async (): Promise<ChatSessionsIndex> => {
       }
       continue;
     }
-    listed.push(session);
+    // 旧版本曾把引用占位符直接截成标题；启动修复时根据真实历史重建一次。
+    listed.push(
+      REF_TITLE_RE.test(session.title)
+        ? { ...session, title: fallbackTitleFromHistory(history) }
+        : session,
+    );
   }
 
   let activeId = index.activeId;
@@ -513,7 +533,13 @@ export const repairChatSessionsIndex = async (): Promise<ChatSessionsIndex> => {
   if (
     repaired.activeId !== index.activeId ||
     repaired.sessions.length !== index.sessions.length ||
-    repaired.sessions.some((s, i) => s.id !== index.sessions[i]?.id)
+    repaired.sessions.some(
+      (s, i) =>
+        s.id !== index.sessions[i]?.id ||
+        s.title !== index.sessions[i]?.title ||
+        s.updatedAt !== index.sessions[i]?.updatedAt ||
+        s.pinned !== index.sessions[i]?.pinned,
+    )
   ) {
     await saveChatSessionsIndex(repaired);
   }

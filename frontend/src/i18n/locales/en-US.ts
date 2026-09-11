@@ -331,6 +331,7 @@ const enUS: typeof zhCN = {
     activityBackground: '{count} chats are still running in the background',
     fullTrace: 'Full-trace',
     sessionRunning: 'Running',
+    sessionApproval: 'Approval needed',
     sessionInterrupted: 'Interrupted',
     pinSession: 'Pin',
     unpinSession: 'Unpin',
