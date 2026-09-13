@@ -3,16 +3,6 @@
 let _xlsxMod: typeof import('xlsx-js-style') | null = null;
 const getXLSX = async () => _xlsxMod ??= await import('xlsx-js-style');
 
-type JSZipModule = typeof import('jszip');
-let _jszipMod: JSZipModule | null = null;
-const getJSZip = async (): Promise<JSZipModule> => {
-  if (_jszipMod) return _jszipMod;
-  const mod = await import('jszip');
-  // export= CJS：Vite 运行时通常挂在 .default
-  _jszipMod = (mod as unknown as { default?: JSZipModule }).default ?? (mod as unknown as JSZipModule);
-  return _jszipMod;
-};
-
 type MammothModule = typeof import('mammoth');
 let _mammothMod: MammothModule | null = null;
 const getMammoth = async (): Promise<MammothModule> => {
@@ -21,9 +11,6 @@ const getMammoth = async (): Promise<MammothModule> => {
   _mammothMod = (mod as unknown as { default?: MammothModule }).default ?? (mod as MammothModule);
   return _mammothMod;
 };
-
-let _pptxgenMod: typeof import('pptxgenjs').default | null = null;
-const getPptxgen = async () => _pptxgenMod ??= (await import('pptxgenjs')).default;
 
 let _docxMod: typeof import('docx') | null = null;
 const getDocx = async () => _docxMod ??= await import('docx');
@@ -37,6 +24,30 @@ import {
   type WordRange,
 } from './officeRanges';
 import { workspace } from '../workspace/FileSystemWorkspace';
+import type {
+  PresentationDeckSpec,
+  PresentationDeckSpecV2,
+  PresentationDeckSpecV3,
+  PresentationTheme,
+} from '../domains/office/presentationModel';
+import { writePresentationV3 } from '../domains/office/presentationCompiler';
+import {
+  findPresentationSourceManifest,
+  markPresentationSourceManifestStale,
+  synchronizePresentationSourceManifest,
+} from '../domains/office/presentationSourceManifest';
+import { renderPresentation } from '../domains/office/presentationRenderer';
+import {
+  editPresentationOoxml,
+  inspectPresentation,
+  type PresentationEditOperation,
+} from '../domains/office/presentationOoxml';
+
+export type {
+  PresentationDeckSpec as PresentationWriteInput,
+  PresentationSlide,
+  PresentationTheme,
+} from '../domains/office/presentationModel';
 
 export type OfficeDocumentKind = 'spreadsheet' | 'word' | 'presentation';
 
@@ -114,53 +125,11 @@ export type WordWriteInput = {
   footer?: WordFooterOptions;
 };
 
-/** 内置风格预设，与 ppt-beautifier 技能保持一致 */
-export type PresentationThemeName =
-  | 'minimal-light'
-  | 'dark-tech'
-  | 'consulting-clean';
-
-/** 幻灯片版式：封面 / 章节分隔 / 正文 */
-export type PresentationSlideLayout = 'cover' | 'section' | 'content';
-
-/** 演示文稿主题；可选 name 套用预设，并允许逐项覆盖设计令牌（hex 可带或不带 #） */
-export type PresentationTheme = {
-  name?: PresentationThemeName;
-  /** 背景色 */
-  background?: string;
-  /** 正文/标题文字色 */
-  text?: string;
-  /** 强调色（标题、强调条） */
-  accent?: string;
-  /** 字体（中文建议 Noto Sans SC / 微软雅黑） */
-  fontFace?: string;
-};
-
-export type PresentationSlide = {
-  title?: string;
-  /** 副标题，常用于封面 */
-  subtitle?: string;
-  bullets?: string[];
-  notes?: string;
-  /** 版式；缺省 content，首页若未指定则按 cover 处理 */
-  layout?: PresentationSlideLayout;
-  /** 单页背景色覆盖（hex） */
-  background?: string;
-  /** 单页强调色覆盖（hex） */
-  accent?: string;
-};
-
-export type PresentationWriteInput = {
-  slides: PresentationSlide[];
-  /** 全局主题，套用到每一页 */
-  theme?: PresentationTheme;
-};
-
 export type DocumentWriteContent =
   | string
   | SpreadsheetContent
   | WordWriteInput
-  | PresentationWriteInput;
+  | PresentationDeckSpec;
 
 export type ReadOfficeOptions = {
   sheet?: string;
@@ -173,6 +142,12 @@ export type ReadOfficeOptions = {
   slideIndex?: number;
   /** 仅读取幻灯片内第 N 个文本块（1-based，需配合 slideIndex） */
   textIndex?: number;
+  includeElements?: boolean;
+  includeAssets?: boolean;
+  includeStyleProfile?: boolean;
+  includeLayouts?: boolean;
+  includeMasters?: boolean;
+  includeSourceManifest?: boolean;
 };
 
 export type PatchOfficeTarget = {
@@ -210,8 +185,26 @@ type StructuredWriteInput = {
   sheets?: SpreadsheetContent['sheets'];
   sheetNames?: string[];
   paragraphs?: string[];
-  slides?: PresentationWriteInput['slides'];
+  slides?: PresentationDeckSpecV2['slides'] | PresentationDeckSpecV3['slides'];
   theme?: PresentationTheme;
+  version?: 2 | 3;
+  pipeline?: 'html-layout';
+  slideWidth?: number;
+  slideHeight?: number;
+  sharedCss?: string;
+  referencePath?: string;
+  referenceMode?: PresentationDeckSpecV3['referenceMode'];
+  referenceSlideIndices?: number[];
+  draftOnly?: boolean;
+  sourceDraftId?: string;
+  title?: string;
+  subject?: string;
+  author?: string;
+  company?: string;
+  language?: string;
+  presentationFooter?: string;
+  presentationHeader?: string;
+  showSlideNumbers?: boolean;
   slide?: PresentationPatchInput['slide'];
   cells?: (string | number | boolean | null)[][];
 };
@@ -351,69 +344,28 @@ export const readWordDocumentHtml = async (path: string): Promise<{ html: string
   return { html: result.value };
 };
 
-const extractXmlTexts = (xml: string): string[] => {
-  const texts: string[] = [];
-  const re = /<a:t[^>]*>([^<]*)<\/a:t>/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(xml)) !== null) {
-    const t = match[1].trim();
-    if (t) texts.push(t);
-  }
-  return texts;
-};
-
 export const readPresentation = async (
   path: string,
-  options?: { slideIndex?: number; textIndex?: number },
-): Promise<{
-  slides: { index: number; texts: string[] }[];
-  slideIndex?: number;
-  textIndex?: number;
-}> => {
+  options?: {
+    slideIndex?: number;
+    textIndex?: number;
+    includeElements?: boolean;
+    includeAssets?: boolean;
+    includeStyleProfile?: boolean;
+    includeLayouts?: boolean;
+    includeMasters?: boolean;
+    includeSourceManifest?: boolean;
+  },
+) => {
   const ext = extOf(path);
   if (ext !== 'pptx') {
     throw new Error('仅支持 .pptx；旧版 .ppt 请先转换为 pptx');
   }
-  const bytes = await workspace.readFileBytes(path);
-  const JSZip = await getJSZip();
-  const zip = await JSZip.loadAsync(bytes);
-  const slideEntries = Object.keys(zip.files)
-    .filter((name) => /ppt\/slides\/slide\d+\.xml$/i.test(name))
-    .sort((a, b) => {
-      const na = Number(a.match(/slide(\d+)/i)?.[1] ?? 0);
-      const nb = Number(b.match(/slide(\d+)/i)?.[1] ?? 0);
-      return na - nb;
-    });
-
-  const slides: { index: number; texts: string[] }[] = [];
-  for (let i = 0; i < slideEntries.length; i += 1) {
-    const name = slideEntries[i];
-    const xml = await zip.file(name)!.async('string');
-    slides.push({ index: i + 1, texts: extractXmlTexts(xml) });
-  }
-
-  if (options?.slideIndex != null) {
-    const slide = slides.find((s) => s.index === options.slideIndex);
-    if (!slide) {
-      throw new Error(`幻灯片不存在: ${options.slideIndex}`);
-    }
-    if (options.textIndex != null) {
-      const block = slide.texts[options.textIndex - 1];
-      if (block === undefined) {
-        throw new Error(
-          `幻灯片 ${options.slideIndex} 无文本块 #${options.textIndex}`,
-        );
-      }
-      return {
-        slides: [{ index: slide.index, texts: [block] }],
-        slideIndex: options.slideIndex,
-        textIndex: options.textIndex,
-      };
-    }
-    return { slides: [slide], slideIndex: options.slideIndex };
-  }
-
-  return { slides };
+  const inspected = await inspectPresentation(path, options);
+  const sourceManifest = options?.includeSourceManifest
+    ? await findPresentationSourceManifest(path)
+    : undefined;
+  return { ...inspected, sourceManifest };
 };
 
 export const readOfficeDocument = async (
@@ -448,6 +400,12 @@ export const readOfficeDocument = async (
   const data = await readPresentation(path, {
     slideIndex: options?.slideIndex,
     textIndex: options?.textIndex,
+    includeElements: options?.includeElements,
+    includeAssets: options?.includeAssets,
+    includeStyleProfile: options?.includeStyleProfile,
+    includeLayouts: options?.includeLayouts,
+    includeMasters: options?.includeMasters,
+    includeSourceManifest: options?.includeSourceManifest,
   });
   return { kind, path, ...data };
 };
@@ -1015,234 +973,46 @@ export const writeWordDocument = async (path: string, content: WordWriteInput) =
   };
 };
 
-type ResolvedTheme = {
-  background: string;
-  text: string;
-  accent: string;
-  fontFace: string;
-};
-
-const PRESENTATION_THEME_PRESETS: Record<PresentationThemeName, ResolvedTheme> = {
-  'minimal-light': {
-    background: 'F8FAFC',
-    text: '0F172A',
-    accent: '2563EB',
-    fontFace: 'Noto Sans SC',
-  },
-  'dark-tech': {
-    background: '0B1020',
-    text: 'E5E7EB',
-    accent: '22D3EE',
-    fontFace: 'Noto Sans SC',
-  },
-  'consulting-clean': {
-    background: 'FFFFFF',
-    text: '111827',
-    accent: '0EA5E9',
-    fontFace: 'Noto Sans SC',
-  },
-};
-
-const DEFAULT_PRESENTATION_THEME: PresentationThemeName = 'minimal-light';
-
-/** 归一 hex：去掉 #，转大写；非法值返回 undefined */
-const normalizeHex = (value?: string): string | undefined => {
-  if (!value) return undefined;
-  const hex = value.trim().replace(/^#/, '').toUpperCase();
-  return /^[0-9A-F]{6}$/.test(hex) ? hex : undefined;
-};
-
-const resolvePresentationTheme = (theme?: PresentationTheme): ResolvedTheme => {
-  const preset =
-    PRESENTATION_THEME_PRESETS[theme?.name ?? DEFAULT_PRESENTATION_THEME] ??
-    PRESENTATION_THEME_PRESETS[DEFAULT_PRESENTATION_THEME];
-  return {
-    background: normalizeHex(theme?.background) ?? preset.background,
-    text: normalizeHex(theme?.text) ?? preset.text,
-    accent: normalizeHex(theme?.accent) ?? preset.accent,
-    fontFace: theme?.fontFace?.trim() || preset.fontFace,
-  };
-};
-
-/** 在淡色/深色背景上挑一个低对比的次要文字色（副标题、要点缓和处理） */
-const subtleTextColor = (theme: ResolvedTheme): string =>
-  theme.background === '0B1020' ? 'A5B4CB' : '475569';
-
-const renderPresentationSlide = (
-  s: any,
-  slide: PresentationSlide,
-  theme: ResolvedTheme,
-  isFirst: boolean,
-): void => {
-  const bg = normalizeHex(slide.background) ?? theme.background;
-  const accent = normalizeHex(slide.accent) ?? theme.accent;
-  s.background = { color: bg };
-
-  const layout: PresentationSlideLayout =
-    slide.layout ?? (isFirst ? 'cover' : 'content');
-  const title = slide.title?.trim();
-  const subtitle = slide.subtitle?.trim();
-  const bullets = (slide.bullets ?? []).filter((b) => b.trim());
-  const common = { fontFace: theme.fontFace };
-
-  if (layout === 'cover') {
-    if (title) {
-      s.addText(title, {
-        ...common,
-        x: 0.9,
-        y: 2.4,
-        w: 11.5,
-        h: 1.6,
-        fontSize: 44,
-        bold: true,
-        color: theme.text,
-        align: 'left',
-      });
-    }
-    s.addShape('rect', {
-      x: 0.95,
-      y: 4.15,
-      w: 2.2,
-      h: 0.08,
-      fill: { color: accent },
-      line: { color: accent },
-    });
-    if (subtitle) {
-      s.addText(subtitle, {
-        ...common,
-        x: 0.9,
-        y: 4.4,
-        w: 11.5,
-        h: 1.0,
-        fontSize: 20,
-        color: subtleTextColor(theme),
-        align: 'left',
-      });
-    }
-  } else if (layout === 'section') {
-    s.addShape('rect', {
-      x: 0,
-      y: 3.25,
-      w: 0.25,
-      h: 1.0,
-      fill: { color: accent },
-      line: { color: accent },
-    });
-    if (title) {
-      s.addText(title, {
-        ...common,
-        x: 0.9,
-        y: 3.0,
-        w: 11.5,
-        h: 1.5,
-        fontSize: 36,
-        bold: true,
-        color: theme.text,
-        align: 'left',
-        valign: 'middle',
-      });
-    }
-    if (subtitle) {
-      s.addText(subtitle, {
-        ...common,
-        x: 0.95,
-        y: 4.4,
-        w: 11.4,
-        h: 0.8,
-        fontSize: 18,
-        color: subtleTextColor(theme),
-      });
-    }
-  } else {
-    let y = 0.6;
-    if (title) {
-      s.addText(title, {
-        ...common,
-        x: 0.7,
-        y,
-        w: 12.0,
-        h: 0.9,
-        fontSize: 30,
-        bold: true,
-        color: theme.text,
-      });
-      s.addShape('rect', {
-        x: 0.75,
-        y: y + 0.95,
-        w: 1.6,
-        h: 0.06,
-        fill: { color: accent },
-        line: { color: accent },
-      });
-      y += 1.35;
-    }
-    if (subtitle) {
-      s.addText(subtitle, {
-        ...common,
-        x: 0.75,
-        y,
-        w: 11.9,
-        h: 0.6,
-        fontSize: 18,
-        italic: true,
-        color: subtleTextColor(theme),
-      });
-      y += 0.7;
-    }
-    if (bullets.length) {
-      s.addText(
-        bullets.map((text) => ({
-          text,
-          options: {
-            bullet: { characterCode: '2022' },
-            fontSize: 18,
-            color: theme.text,
-            fontFace: theme.fontFace,
-            paraSpaceAfter: 10,
-          },
-        })),
-        { x: 0.8, y, w: 11.8, h: 7.5 - y - 0.5, valign: 'top' },
-      );
-    }
-  }
-
-  if (slide.notes?.trim()) {
-    s.addNotes(slide.notes.trim());
-  }
-};
-
 export const writePresentation = async (
   path: string,
-  content: PresentationWriteInput,
+  content: PresentationDeckSpec,
 ) => {
   const ext = extOf(path);
   if (ext !== 'pptx') throw new Error('演示文稿仅支持写入 .pptx');
-
-  const theme = resolvePresentationTheme(content.theme);
-  const PptxGenJS = await getPptxgen();
-  const pres = new PptxGenJS();
-  pres.layout = 'LAYOUT_WIDE';
-  pres.theme = { bodyFontFace: theme.fontFace, headFontFace: theme.fontFace };
-
-  content.slides.forEach((slide, index) => {
-    const s = pres.addSlide();
-    renderPresentationSlide(s, slide, theme, index === 0);
-  });
-
-  const bytes = (await pres.write({ outputType: 'uint8array' })) as Uint8Array;
-  await workspace.writeFileBytes(path, bytes);
+  if (content.version === 3) return writePresentationV3(path, content);
+  const result = await renderPresentation(path, content);
   return {
-    path,
-    written: true,
-    slideCount: content.slides.length,
-    theme: content.theme?.name ?? DEFAULT_PRESENTATION_THEME,
+    path: result.path,
+    written: result.written,
+    slideCount: result.slideCount,
+    theme: result.theme,
+    warnings: result.scene.warnings,
   };
+};
+
+export const editPresentation = async (
+  path: string,
+  operations: PresentationEditOperation[],
+) => {
+  if (extOf(path) !== 'pptx') throw new Error('演示文稿仅支持编辑 .pptx');
+  const before = await inspectPresentation(path, { includeElements: true });
+  const result = await editPresentationOoxml(path, operations);
+  let sourceManifestStatus: 'synced' | 'stale' | 'absent';
+  try {
+    sourceManifestStatus = await synchronizePresentationSourceManifest(path, operations, before.slides);
+  } catch (error) {
+    sourceManifestStatus = await markPresentationSourceManifestStale(
+      path,
+      `PPT 已编辑，但源稿同步失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  return { ...result, sourceManifestStatus };
 };
 
 const normalizeWriteContent = (
   path: string,
   content: DocumentWriteContent,
-): SpreadsheetContent | WordWriteInput | PresentationWriteInput => {
+): SpreadsheetContent | WordWriteInput | PresentationDeckSpec => {
   const kind = detectOfficeKind(path);
   if (!kind) throw new Error('不支持的文档格式');
 
@@ -1288,24 +1058,31 @@ const normalizeWriteContent = (
       footer: w.footer,
     };
   }
+  if ('version' in content && content.version === 3) {
+    const v3 = content as PresentationDeckSpecV3;
+    if ((!v3.slides?.length && !v3.sourceDraftId) || v3.pipeline !== 'html-layout') {
+      throw new Error('PPT V3 须提供 pipeline=html-layout，并提供 slides 或 sourceDraftId');
+    }
+    return v3;
+  }
   if ('slides' in content && content.slides) {
     return {
+      version: content.version,
+      title: content.title,
+      subject: content.subject,
+      author: content.author,
+      company: content.company,
+      language: content.language,
       slides: content.slides,
-      theme: (content as PresentationWriteInput).theme,
+      theme: (content as PresentationDeckSpecV2).theme,
+      presentationHeader: content.presentationHeader,
+      presentationFooter: content.presentationFooter,
+      showSlideNumbers: content.showSlideNumbers,
     };
   }
 
   throw new Error('content 格式与目标文件类型不匹配');
 };
-
-const presentationSlidesToWriteInput = (
-  slides: { index: number; texts: string[] }[],
-): PresentationWriteInput => ({
-  slides: slides.map((s) => ({
-    title: s.texts[0] ?? '',
-    bullets: s.texts.slice(1),
-  })),
-});
 
 export const patchSpreadsheetRange = async (
   path: string,
@@ -1393,36 +1170,54 @@ export const patchPresentationSlide = async (
   target: PresentationTarget,
   patch: PresentationPatchInput['slide'],
 ) => {
-  const { slides: rawSlides } = await readPresentation(path);
-  const writeInput = presentationSlidesToWriteInput(rawSlides);
-  const pos = rawSlides.findIndex((s) => s.index === target.slideIndex);
-  if (pos < 0) {
-    throw new Error(`幻灯片不存在: ${target.slideIndex}`);
-  }
-
-  const writeSlide = writeInput.slides[pos];
-  const raw = rawSlides[pos];
-
+  const { slides } = await readPresentation(path, {
+    slideIndex: target.slideIndex,
+    includeElements: true,
+  });
+  const slide = slides[0];
+  const textElements = slide.elements.filter((element) =>
+    element.editable && element.texts.length > 0,
+  );
+  const operations: PresentationEditOperation[] = [];
   if (patch.textIndex != null) {
     if (patch.text === undefined) {
       throw new Error('指定 textIndex 时须提供 content.slide.text');
     }
-    const texts = [...raw.texts];
-    if (patch.textIndex < 1 || patch.textIndex > texts.length) {
+    let offset = 0;
+    const targetElement = textElements.find((element) => {
+      const contains = patch.textIndex! > offset && patch.textIndex! <= offset + element.texts.length;
+      offset += element.texts.length;
+      return contains;
+    });
+    if (!targetElement) {
       throw new Error(
-        `幻灯片 ${target.slideIndex} 无文本块 #${patch.textIndex}（共 ${texts.length} 块）`,
+        `幻灯片 ${target.slideIndex} 无文本块 #${patch.textIndex}（共 ${slide.texts.length} 块）`,
       );
     }
-    texts[patch.textIndex - 1] = patch.text;
-    writeSlide.title = texts[0] ?? '';
-    writeSlide.bullets = texts.slice(1);
+    const localIndex = patch.textIndex - (offset - targetElement.texts.length) - 1;
+    const texts = [...targetElement.texts];
+    texts[localIndex] = patch.text;
+    operations.push({
+      op: 'updateElement', slideIndex: target.slideIndex, elementId: targetElement.id,
+      patch: { text: texts.join('\n') },
+    });
   } else {
-    if (patch.title !== undefined) writeSlide.title = patch.title;
-    if (patch.bullets !== undefined) writeSlide.bullets = patch.bullets;
+    if (patch.title !== undefined) {
+      const title = textElements[0];
+      if (!title) throw new Error(`幻灯片 ${target.slideIndex} 没有可编辑标题文本框`);
+      operations.push({ op: 'updateElement', slideIndex: target.slideIndex, elementId: title.id, patch: { text: patch.title } });
+    }
+    if (patch.bullets !== undefined) {
+      const body = textElements[1];
+      if (!body) throw new Error(`幻灯片 ${target.slideIndex} 没有可编辑正文文本框`);
+      operations.push({ op: 'updateElement', slideIndex: target.slideIndex, elementId: body.id, patch: { text: patch.bullets.join('\n') } });
+    }
   }
-  if (patch.notes !== undefined) writeSlide.notes = patch.notes;
-
-  const result = await writePresentation(path, writeInput);
+  if (patch.notes !== undefined) operations.push({
+    op: 'updateSlideNotes', slideIndex: target.slideIndex, notes: patch.notes,
+  });
+  if (!operations.length) throw new Error('PPT patch 未提供任何修改内容');
+  const result = await editPresentationOoxml(path, operations);
   return {
     ...result,
     patched: true,
@@ -1510,5 +1305,5 @@ export const writeOfficeDocument = async (
   if (kind === 'word') {
     return writeWordDocument(path, normalized as WordWriteInput);
   }
-  return writePresentation(path, normalized as PresentationWriteInput);
+  return writePresentation(path, normalized as PresentationDeckSpec);
 };

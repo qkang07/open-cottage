@@ -110,6 +110,9 @@ importers:
       pptxgenjs:
         specifier: ^4.0.1
         version: 4.0.1
+      prosemirror-model:
+        specifier: ^1.25.9
+        version: 1.25.9
       vue:
         specifier: ^3.5.13
         version: 3.5.38(typescript@5.8.3)

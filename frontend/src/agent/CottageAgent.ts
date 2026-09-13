@@ -156,9 +156,6 @@ type CallSection = Extract<CottageSection, { type: 'call' }>;
 export type { AgentStatus } from './agentViewState';
 export type CottageAgentEvent = 'assistantComplete' | 'rewind' | 'stalled';
 
-/** 相同工具 + 相同参数最多自动执行次数，超出后由统一执行器请求用户确认 */
-const MAX_IDENTICAL_TOOL_CALLS = 2;
-
 export interface CreateCottageAgentOptions {
   systemPrompt: string;
   model: CottageModelDriver;
@@ -982,6 +979,9 @@ export class CottageAgent {
   async restoreStagedReviewIfNeeded(): Promise<void> {
     if (!this.sessionId || !this.stagingStore || !this.stagingWorkspace) return;
     if (hasPendingStagedApprovalFor(this.sessionId)) return;
+    // 前台切回时后台 Agent 可能仍在同一轮工具 loop 中；此时暂存区还会继续增长，
+    // 不能把中间批次提前挂成审批。只有当前 loop 已结束后，才允许恢复审批入口。
+    if (this.busy || this.turnInFlight) return;
 
     if (this.stagingStore.isEmpty()) {
       const state = await this.stagingPersistence.load(this.sessionId);
@@ -1665,7 +1665,6 @@ export class CottageAgent {
       response = await this.streamModel(runtimeMessages, assistantMsg, signal);
 
       let toolRound = 0;
-      const toolCallCounts = new Map<string, number>();
       let loopStopReason: string | null = null;
       /** 已落盘的累计正文/思考，用于切出每轮增量 */
       const persistCursor = { content: '', reasoning: '' };
@@ -1743,11 +1742,6 @@ export class CottageAgent {
 
           let resultText: string;
           let toolAttachments: ChatAttachment[] | undefined;
-          const fingerprint = toolCallFingerprint(toolName, call.args);
-          const priorCalls = toolCallCounts.get(fingerprint) ?? 0;
-          const callAttempt = priorCalls + 1;
-          toolCallCounts.set(fingerprint, callAttempt);
-
           let policyBlockedReason: string | null = null;
           let planBlockedReason: string | null = planTurnBoundaryReached
             ? '前一个计划控制调用已结束当前执行边界，请等待系统注入下一步骤上下文'
@@ -1761,7 +1755,6 @@ export class CottageAgent {
           });
           if (
             doomPattern &&
-            callAttempt <= MAX_IDENTICAL_TOOL_CALLS &&
             !planBlockedReason &&
             !this.toolExecutor
           ) {
@@ -1834,7 +1827,6 @@ export class CottageAgent {
           }
 
           if (
-            callAttempt <= MAX_IDENTICAL_TOOL_CALLS &&
             !planBlockedReason &&
             !doomLoopBlockedReason &&
             this.planToolGuard &&
@@ -1852,7 +1844,6 @@ export class CottageAgent {
             }
           }
           if (
-            callAttempt <= MAX_IDENTICAL_TOOL_CALLS &&
             !planBlockedReason &&
             !doomLoopBlockedReason &&
             this.planGate &&
@@ -1869,7 +1860,6 @@ export class CottageAgent {
             }
           }
           if (
-            callAttempt <= MAX_IDENTICAL_TOOL_CALLS &&
             !planBlockedReason &&
             !doomLoopBlockedReason &&
             this.policyGate &&
@@ -1939,7 +1929,7 @@ export class CottageAgent {
           }
 
           const toolCallStartedAt = Date.now();
-          // 供脚本桥将 cottage.* 子调用归属到宿主 runScript（parentCallId / 重复指纹作用域）
+          // 供脚本桥将 cottage.* 子调用归属到宿主 runScript（parentCallId / trace 归属）
           if (this.toolStreamContext) {
             this.toolStreamContext.currentCallId = callId;
           }
@@ -1951,17 +1941,7 @@ export class CottageAgent {
           let executedByUnifiedExecutor = false;
           let toolStreamed = false;
           let toolChunkCount = 0;
-          if (callAttempt > MAX_IDENTICAL_TOOL_CALLS && !this.toolExecutor) {
-            traceStatus = 'duplicate';
-            resultText =
-              `已阻止重复调用：${toolName} 使用相同参数已调用 ${callAttempt} 次。` +
-              '请先 readFile 确认文件现状，或向用户说明无法继续，勿再用相同参数重试。';
-            this.doomLoopDetector.record({
-              name: toolName,
-              args: call.args ?? {},
-              status: 'blocked',
-            });
-          } else if (doomLoopBlockedReason) {
+          if (doomLoopBlockedReason) {
             traceStatus = 'doom_loop';
             resultText = `🔁 循环检测：${doomLoopBlockedReason}`;
             this.doomLoopDetector.record({
@@ -2278,16 +2258,14 @@ export class CottageAgent {
         }
 
         if (planTurnBoundaryReached) {
-          loopStopReason = '计划状态已提交；下一执行轮将重新注入批准版本、步骤证据、验证能力和剩余预算。';
+          // 计划卡片已经展示具体状态；这里只记录内部执行边界，避免把恢复与预算
+          // 等实现细节作为助手正文暴露给用户。
+          loopStopReason = 'plan_state_boundary';
           break;
         }
 
         // loadTools 可能刚激活新工具：每轮请求重新读取当前工具数组。
         response = await this.streamModel(runtimeMessages, assistantMsg, signal);
-      }
-
-      if (loopStopReason) {
-        appendAssistantText(assistantMsg, `\n\n${loopStopReason}`);
       }
 
       finalizeAssistantStreaming(assistantMsg);
@@ -2955,9 +2933,6 @@ export class CottageAgent {
     return response;
   }
 }
-
-const toolCallFingerprint = (name: string, args: unknown): string =>
-  `${name}:${JSON.stringify(args ?? {})}`;
 
 /** 从文件写入工具的 args 中提取路径，用于 PatchApplied 事件 */
 const parseWriteSnapshotPath = (args: unknown): string | null => {

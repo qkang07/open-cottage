@@ -288,7 +288,7 @@ const enabledCapabilityCount = computed(
   () =>
     visibleToolGroups.value.filter((group) =>
       isToolGroupEffectivelyEnabled(group.id),
-    ).length + (props.searchSource ? 1 : 0),
+    ).length + (props.availableSearchSources.length > 0 ? 1 : 0),
 );
 
 function resolveLayerActivePresetId(

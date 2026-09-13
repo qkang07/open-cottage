@@ -1770,14 +1770,11 @@ onUnmounted(() => {
                 <template #title>
                   <span class="think-label">
                     <NSpin v-if="section.streaming" size="small" />
-                    <span>{{ t('chat.thinking') }}</span>
-                    <NText
-                      v-if="section.streaming"
-                      depth="3"
-                      class="think-status"
-                    >
-                      {{ t('chat.thinkingInProgress') }}
-                    </NText>
+                    <span>{{
+                      section.streaming
+                        ? t('chat.thinkingInProgress')
+                        : t('chat.thinking')
+                    }}</span>
                   </span>
                 </template>
                 <div class="think-body">

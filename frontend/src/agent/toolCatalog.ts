@@ -9,6 +9,7 @@ export const OFFICE_READ_TOOL_NAMES = ['readWord', 'readPresentation'] as const;
 export const OFFICE_WRITE_TOOL_NAMES = [
   'writeWord',
   'writePresentation',
+  'editPresentation',
   'renderOfficeTemplate',
   'batchGenerateOfficeDocs',
 ] as const;
@@ -224,20 +225,28 @@ export const optionalToolNamesForGroups = (
 export const optionalToolGroupsFromNames = (
   toolNames: readonly string[] | undefined,
 ): OptionalToolGroupId[] => {
-  const set = new Set(toolNames ?? []);
   return OPTIONAL_TOOL_GROUPS.filter((g) =>
-    g.toolNames.every((n) => set.has(n)),
+    g.toolNames.every((n) => isOptionalToolEnabled(toolNames, n)),
   ).map((g) => g.id);
 };
 
 export const isOptionalToolEnabled = (
   enabledTools: readonly string[] | undefined,
   name: OptionalToolName,
-): boolean => (enabledTools ?? []).includes(name);
+): boolean => {
+  const names = enabledTools ?? [];
+  if (names.includes(name)) return true;
+  // 兼容引入 editPresentation 之前保存的办公能力配置；不静默改写工作区文件。
+  return name === 'editPresentation' && names.includes('writePresentation');
+};
 
 export const capabilitiesForEnabledTools = (
   enabledTools: readonly string[] | undefined,
 ): Capability[] => {
   if (!enabledTools?.length) return [];
-  return getCapabilityRegistry().listForTools(enabledTools);
+  const expanded = [...enabledTools];
+  if (enabledTools.includes('writePresentation') && !enabledTools.includes('editPresentation')) {
+    expanded.push('editPresentation');
+  }
+  return getCapabilityRegistry().listForTools(expanded);
 };

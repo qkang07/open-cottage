@@ -52,6 +52,7 @@
     "pinia": "^3.0.2",
     "pizzip": "^3.2.0",
     "pptxgenjs": "^4.0.1",
+    "prosemirror-model": "^1.25.9",
     "vue": "^3.5.13",
     "vue-i18n": "^11.4.2",
     "web-tree-sitter": "^0.25.10",

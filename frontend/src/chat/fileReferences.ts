@@ -63,6 +63,7 @@ export type PresentationAnchor = {
   kind: 'presentation';
   slideIndex: number;
   textIndex?: number;
+  elementId?: string;
   selectedText?: string;
 };
 
@@ -129,6 +130,9 @@ export const formatReferenceLabel = (ref: ChatFileReference): string => {
     return `${ref.path}:¶${a.startParagraph}-${a.endParagraph}`;
   }
   if (a.kind === 'presentation') {
+    if (a.elementId) {
+      return `${ref.path}:slide${a.slideIndex}#${a.elementId}`;
+    }
     if (a.textIndex != null) {
       return `${ref.path}:slide${a.slideIndex}#${a.textIndex}`;
     }

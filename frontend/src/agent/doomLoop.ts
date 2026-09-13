@@ -7,7 +7,6 @@ type DoomLoopStatus = 'ok' | 'error' | 'blocked';
 
 interface DoomLoopRecord {
   name: string;
-  argsHash: string;
   status: DoomLoopStatus;
 }
 
@@ -22,17 +21,13 @@ export interface DoomLoopDetector {
 }
 
 export interface CreateDoomLoopDetectorOptions {
-  sameArgsThreshold?: number;
   sameNameFailThreshold?: number;
   windowSize?: number;
 }
 
-const hashArgs = (args: unknown): string => JSON.stringify(args ?? {});
-
 export const createDoomLoopDetector = (
   options: CreateDoomLoopDetectorOptions = {},
 ): DoomLoopDetector => {
-  const sameArgsThreshold = options.sameArgsThreshold ?? 3;
   const sameNameFailThreshold = options.sameNameFailThreshold ?? 3;
   const windowSize = options.windowSize ?? 12;
   const records: DoomLoopRecord[] = [];
@@ -44,19 +39,8 @@ export const createDoomLoopDetector = (
   };
 
   return {
-    check({ name, args }) {
-      const argsHash = hashArgs(args);
+    check({ name }) {
       const recent = records.slice(-windowSize);
-      const sameArgsCount = recent.filter(
-        (record) => record.name === name && record.argsHash === argsHash,
-      ).length;
-      if (sameArgsCount >= sameArgsThreshold - 1) {
-        return {
-          reason: '同工具同参数重复调用',
-          pattern: `${name} · ${argsHash.slice(0, 120)}`,
-        };
-      }
-
       const sameNameErrors = recent.filter(
         (record) => record.name === name && record.status === 'error',
       ).length;
@@ -72,7 +56,6 @@ export const createDoomLoopDetector = (
     record(input) {
       records.push({
         name: input.name,
-        argsHash: hashArgs(input.args),
         status: input.status,
       });
       trim();

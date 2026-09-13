@@ -38,7 +38,7 @@ export type WorkerOutbound =
 export const RUN_SCRIPT_TOOL_DESCRIPTION = `在隔离 Web Worker 中执行 JavaScript（参数 code）。
 
 约束：
-- 不能使用 import/require，不能访问 DOM、fetch，不能直接调用 Cottage 工具名（readFile 等）
+- 这里是浏览器 Web Worker，不是 Node.js：不能使用 import/require，不能访问 Node 内置模块或 Node 全局（node:fs、fs、path、child_process、process 等），也不能访问 DOM、fetch
 - 所有工作区 IO 必须通过注入的 api 对象；其他 agent 工具经 cottage 对象调用，均由主线程代理
 - 每次执行前需用户统一审批一次：脚本内经 cottage 调用的工具（含高危工具）随本次批准一并授权
 

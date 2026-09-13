@@ -460,6 +460,9 @@ export const useAgentStore = defineStore('agent', () => {
         void maybeKickoffPendingPlanRevision(sessionId);
         // 仅供已在内存中的旧 Spec Agent 收口；新建/恢复会话不会再挂载该模式。
         void maybeContinuePlanAfterTurn(sessionId);
+        // 计划完成后才离开 Plan runtime，保留已完成计划的审计记录；后续小修改
+        // 走普通对话的暂存/审批流程，避免已结束计划继续拦截新的编辑请求。
+        void maybeExitCompletedPlanModeAfterTurn(sessionId);
       }, 0);
     });
     const entry: AgentEntry = { sessionId, agent, persistTimer: null, onPersist };
@@ -1697,6 +1700,19 @@ export const useAgentStore = defineStore('agent', () => {
     schedulePersist(sessionId);
   }
 
+  /**
+   * Plan 的路径、预算与 Mutation Journal 只覆盖一次已批准的执行 run。
+   * 终态后继续保留 Plan runtime 会把下一条独立编辑请求误报为“未提交计划”。
+   * 因此仅在安全的 assistantComplete 边界切回 chat；完成记录仍留在 Plan 卡片和仓库中。
+   */
+  async function maybeExitCompletedPlanModeAfterTurn(sessionId: string) {
+    if (sessionId !== activeChatIdRef.value || !planMode.value) return;
+    const context = getActivePlanContext();
+    const instance = chatRef.value;
+    if (!context || context.run.status !== 'completed' || !instance || instance.busy) return;
+    await setChatMode('chat');
+  }
+
   async function approvePlan() {
     const sessionId = activeChatIdRef.value;
     if (resolvePendingPlanApproval('approved', sessionId)) return;
@@ -1947,6 +1963,7 @@ export const useAgentStore = defineStore('agent', () => {
       at: Date.now(),
     });
     releasePlanWriter(context.definition.id);
+    await maybeExitCompletedPlanModeAfterTurn(context.definition.sessionId);
   }
 
   async function acceptPlanCriteria(criterionIds: string[], note?: string) {
@@ -1989,6 +2006,9 @@ export const useAgentStore = defineStore('agent', () => {
       at: acceptedAt,
       detail: { criterionIds: ids, note },
     });
+    if (allAccepted) {
+      await maybeExitCompletedPlanModeAfterTurn(context.definition.sessionId);
+    }
   }
 
   async function restorePlanStep(stepId: string) {

@@ -167,6 +167,8 @@ const resetTargetPath = ref<string | null | undefined>(undefined);
 const resettingChanges = ref(false);
 const locatingCurrentFile = ref(false);
 const fileTreeRootRef = ref<HTMLElement | null>(null);
+const revealedPath = ref<string | null>(null);
+let clearRevealHighlightTimer: number | undefined;
 
 // ── 拖拽移动状态 ──
 // dragSourcePath: 当前正在拖拽的源路径（仅用于拖拽期间高亮判断，dragend 后清空）
@@ -767,6 +769,7 @@ function treeNodeClassName(data: TreeOption) {
   const path = String(data.key);
   const classes: string[] = [];
   if (selectedKeysSet.value.has(path)) classes.push('file-tree-node-selected');
+  if (revealedPath.value === path) classes.push('file-tree-node-revealed');
   const kind = aiChangedStore.kindOf(path);
   if (kind === 'created' || kind === 'generated') {
     classes.push('file-tree-node-ai-created');
@@ -776,6 +779,17 @@ function treeNodeClassName(data: TreeOption) {
     classes.push('file-tree-node-ai-subtree');
   }
   return classes.join(' ');
+}
+
+function highlightRevealedPath(path: string) {
+  if (clearRevealHighlightTimer !== undefined) {
+    window.clearTimeout(clearRevealHighlightTimer);
+  }
+  revealedPath.value = path;
+  clearRevealHighlightTimer = window.setTimeout(() => {
+    revealedPath.value = null;
+    clearRevealHighlightTimer = undefined;
+  }, 1800);
 }
 
 function treeChangeKind(path: string): 'created' | 'modified' | null {
@@ -851,6 +865,7 @@ interface ElTreeNodeShape {
 }
 interface ElTreeInstanceShape {
   getNode: (key: string) => ElTreeNodeShape | undefined;
+  setCurrentKey: (key: string | undefined) => void;
 }
 const treeRef = ref<ElTreeInstanceShape | null>(null);
 
@@ -866,7 +881,7 @@ const waitForTreeNode = async (
   return null;
 };
 
-/** 展开当前文件的所有父目录，并将对应树节点滚动到可视区域。 */
+/** 展开当前文件的所有父目录，将它滚到树的中央并短暂高亮。 */
 async function revealCurrentFileInTree() {
   const target = selectedPath.value;
   if (!target || locatingCurrentFile.value) return;
@@ -901,12 +916,15 @@ async function revealCurrentFileInTree() {
 
     workspaceStore.setCheckedPaths([target]);
     lastClickedPath.value = target;
+    treeRef.value?.setCurrentKey(target);
     await nextTick();
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     const targetElement = fileTreeRootRef.value?.querySelector<HTMLElement>(
       `[data-tree-key="${cssEscape(target)}"]`,
     );
     if (!targetElement) throw new Error(t('files.currentFileNotInTree'));
-    targetElement.scrollIntoView({ block: 'nearest' });
+    highlightRevealedPath(target);
+    targetElement.scrollIntoView({ block: 'center', inline: 'nearest' });
   } catch (error) {
     message.warning(error instanceof Error ? error.message : String(error));
   } finally {
@@ -1099,6 +1117,9 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown);
+  if (clearRevealHighlightTimer !== undefined) {
+    window.clearTimeout(clearRevealHighlightTimer);
+  }
 });
 const bodyClass = 'panel-body file-browser-body';
 </script>
@@ -1245,6 +1266,8 @@ const bodyClass = 'panel-body file-browser-body';
             :props="{ label: 'label', children: 'children', isLeaf: 'isLeaf' }"
             :node-class-name="treeNodeClassName"
             :default-expanded-keys="expandedKeys"
+            :current-node-key="selectedPath ?? undefined"
+            highlight-current
             style="background: transparent"
             @node-click="(onTreeNodeClick as any)"
             @node-contextmenu="(onTreeNodeContextMenu as any)"

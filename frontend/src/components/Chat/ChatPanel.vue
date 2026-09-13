@@ -742,25 +742,29 @@ function handleSetSearchSource(source: SearchSource) {
               </span>
             </template>
             <div class="chat-modified-files-list">
-              <CottageTooltip
+              <div
                 v-for="path in modifiedFiles"
                 :key="path"
-                :content="path"
-                placement="top"
-                delay="lazy"
+                class="chat-modified-files-entry"
               >
-                <button
-                  type="button"
-                  :class="
-                    path === selectedPath
-                      ? 'chat-modified-files-item chat-modified-files-item-active'
-                      : 'chat-modified-files-item'
-                  "
-                  @click="workspaceStore.selectFile(path)"
+                <CottageTooltip
+                  :content="path"
+                  placement="top"
+                  delay="lazy"
                 >
-                  {{ path }}
-                </button>
-              </CottageTooltip>
+                  <button
+                    type="button"
+                    :class="
+                      path === selectedPath
+                        ? 'chat-modified-files-item chat-modified-files-item-active'
+                        : 'chat-modified-files-item'
+                    "
+                    @click="workspaceStore.selectFile(path)"
+                  >
+                    {{ path }}
+                  </button>
+                </CottageTooltip>
+              </div>
             </div>
           </ElCollapseItem>
         </ElCollapse>

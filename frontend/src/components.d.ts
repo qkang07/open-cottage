@@ -61,6 +61,7 @@ declare module 'vue' {
     PlanCard: typeof import('./components/Plan/PlanCard.vue')['default']
     PlanCenter: typeof import('./components/Plan/PlanCenter.vue')['default']
     PresentationPreview: typeof import('./components/Preview/PresentationPreview.vue')['default']
+    PresentationSlideCanvas: typeof import('./components/Preview/PresentationSlideCanvas.vue')['default']
     Preview: typeof import('./components/Preview/Preview.vue')['default']
     ProviderManager: typeof import('./components/Settings/ProviderManager.vue')['default']
     RunScriptCard: typeof import('./components/Chat/RunScriptCard.vue')['default']

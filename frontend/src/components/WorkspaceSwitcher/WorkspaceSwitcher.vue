@@ -35,6 +35,7 @@ const {
 const open = ref(false);
 const triggerRef = ref<HTMLButtonElement | null>(null);
 const menuPos = ref({ x: 0, y: 0 });
+const menuMinWidth = ref(320);
 const formatOpenedAt = (timestamp: number) => {
   const date = new Date(timestamp);
   return date.toLocaleString(undefined, {
@@ -146,6 +147,12 @@ function toggleMenu() {
   if (!open.value && triggerRef.value) {
     const rect = triggerRef.value.getBoundingClientRect();
     menuPos.value = { x: rect.left, y: rect.bottom + 4 };
+    // 至少与左上角工作区输入区域同宽，并给窄视口留出边距。
+    const availableWidth = Math.max(0, window.innerWidth - rect.left - 8);
+    menuMinWidth.value = Math.min(
+      availableWidth,
+      Math.max(320, Math.ceil(rect.width)),
+    );
   }
   open.value = !open.value;
 }
@@ -179,6 +186,7 @@ function toggleMenu() {
     :y="menuPos.y"
     :options="menuOptions"
     class-name="workspace-switcher-menu"
+    :min-width="menuMinWidth"
     @select="onMenuSelect(String($event))"
     @update:show="open = $event"
   />

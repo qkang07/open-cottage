@@ -17,6 +17,8 @@ const props = defineProps<{
   y: number;
   options: DropdownOption[];
   className?: string;
+  /** 调用方可按触发器宽度设置菜单下限；未提供则沿用组件样式。 */
+  minWidth?: number;
 }>();
 
 const emit = defineEmits<{
@@ -64,7 +66,13 @@ function handleOptionClick(option: DropdownOption) {
       v-if="show"
       ref="panelRef"
       :class="['n-dropdown-menu', className]"
-      :style="{ position: 'fixed', left: `${x}px`, top: `${y}px`, zIndex: 2100 }"
+      :style="{
+        position: 'fixed',
+        left: `${x}px`,
+        top: `${y}px`,
+        zIndex: 2100,
+        minWidth: minWidth ? `${minWidth}px` : undefined,
+      }"
     >
       <template v-for="option in options" :key="String(option.key)">
         <div v-if="option.type === 'divider'" class="n-dropdown-divider" />

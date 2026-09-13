@@ -4,6 +4,7 @@ import { moonshotParametersFromZod } from './moonshotToolSchema';
 import { toolWriteSpreadsheetInputSchema } from './spreadsheetWriteSchema';
 import {
   toolBatchGenerateOfficeDocsInputSchema,
+  toolEditPresentationInputSchema,
   toolWritePresentationInputSchema,
 } from './officeWriteSchema';
 
@@ -116,6 +117,11 @@ describe('moonshotParametersFromZod', () => {
       expect(branch.type).toBeDefined();
     }
     // 其余非 union 节点仍需有 type
+    expect(findNodesMissingType(params)).toEqual([]);
+  });
+
+  it('keeps the flat presentation edit schema provider-compatible', () => {
+    const params = moonshotParametersFromZod(toolEditPresentationInputSchema);
     expect(findNodesMissingType(params)).toEqual([]);
   });
 

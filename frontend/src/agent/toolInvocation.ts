@@ -24,7 +24,7 @@ import { workspace } from '../workspace/FileSystemWorkspace';
 
 /**
  * 统一工具调用执行器：agent / script / manual 三类来源共用同一管线，
- * 按来源配置治理强度（黑名单、重复指纹、doom loop、计划闸门、审批、trace）。
+ * 按来源配置治理强度（黑名单、连续失败循环、计划闸门、审批、trace）。
  * 执行器只做「闸门判定 + 执行 + 结构化 outcome + trace」；
  * UI section、runtime tool result、附件注入、diff 卡片留在调用方。
  * 设计文档：docs/tool-invocation-design.md
@@ -78,7 +78,7 @@ export interface ToolInvocationRequest {
   signal?: AbortSignal;
   /** agent 轮次；script/manual 为 0 */
   round?: number;
-  /** script：宿主 runScript 的 callId（重复指纹计次作用域 + trace 归属） */
+  /** script：宿主 runScript 的 callId（trace 归属） */
   parentCallId?: string;
   /** 仅用于页面刷新后恢复已经持久化为 approved 的同一审批调用。 */
   approvalAlreadyGranted?: boolean;
@@ -105,8 +105,6 @@ export interface ToolInvocationOutcome {
 
 export interface SourceGovernancePolicy {
   blockedToolNames?: ReadonlySet<string>;
-  /** 相同工具+相同参数上限；0 = 不启用 */
-  maxIdenticalCalls: number;
   planGate: boolean;
   /** gate = 挂审批等待；auto-allow = confirm 放行、deny 仍拦 */
   policyApproval: 'gate' | 'auto-allow';
@@ -119,7 +117,6 @@ export const DEFAULT_SOURCE_POLICIES: Record<
   SourceGovernancePolicy
 > = {
   agent: {
-    maxIdenticalCalls: 2,
     planGate: true,
     policyApproval: 'gate',
     doomLoop: 'full',
@@ -127,7 +124,6 @@ export const DEFAULT_SOURCE_POLICIES: Record<
   },
   script: {
     blockedToolNames: BLOCKED_SCRIPT_TOOL_NAMES,
-    maxIdenticalCalls: 5,
     planGate: true,
     // 前提：宿主 runScript 已经统一审批（含脚本内高危子调用一并授权）
     policyApproval: 'auto-allow',
@@ -136,7 +132,6 @@ export const DEFAULT_SOURCE_POLICIES: Record<
   },
   manual: {
     blockedToolNames: BLOCKED_SCRIPT_TOOL_NAMES,
-    maxIdenticalCalls: 0,
     planGate: false,
     // destructive 的二次确认由 UI（DebugPanel）负责
     policyApproval: 'auto-allow',
@@ -189,9 +184,6 @@ export interface UnifiedToolExecutor {
 const MANUAL_RESULT_MAX_CHARS = 64 * 1024;
 /** trace resultSnippet 截断上限 */
 const TRACE_RESULT_SNIPPET_MAX = 8000;
-/** 重复指纹作用域（每次脚本运行一个）保留上限，超出按先进先出淘汰 */
-const MAX_DUPLICATE_SCOPES = 64;
-
 /** 永不 abort 的占位 signal（PolicyGate 要求必传） */
 const neverAbortSignal = (): AbortSignal => new AbortController().signal;
 
@@ -249,23 +241,6 @@ export const createUnifiedToolExecutor = (
       resolved.policyApproval = 'gate';
     }
     return resolved;
-  };
-
-  /** 重复指纹计次：按 parentCallId（每次脚本运行）隔离作用域 */
-  const duplicateScopes = new Map<string, Map<string, number>>();
-  const bumpDuplicateCount = (scope: string, fingerprint: string): number => {
-    let counts = duplicateScopes.get(scope);
-    if (!counts) {
-      if (duplicateScopes.size >= MAX_DUPLICATE_SCOPES) {
-        const oldest = duplicateScopes.keys().next().value;
-        if (oldest !== undefined) duplicateScopes.delete(oldest);
-      }
-      counts = new Map();
-      duplicateScopes.set(scope, counts);
-    }
-    const next = (counts.get(fingerprint) ?? 0) + 1;
-    counts.set(fingerprint, next);
-    return next;
   };
 
   const invoke = async (
@@ -362,7 +337,7 @@ export const createUnifiedToolExecutor = (
       if (!policyGate || !req.onAwaitingApproval) {
         return {
           allowed: false,
-          reason: '检测到重复调用，但当前调用来源无法向用户发起确认',
+          reason: '检测到连续失败，但当前调用来源无法向用户发起确认',
         };
       }
       return policyGate({
@@ -385,38 +360,8 @@ export const createUnifiedToolExecutor = (
       });
     };
 
-    // 重复指纹：agent 可见调用超过来源上限后先询问用户，不再直接拦截。
-    if (policy.maxIdenticalCalls > 0) {
-      const scope = req.parentCallId ?? `${req.source}:session`;
-      const fingerprint = `${req.toolName}:${JSON.stringify(args)}`;
-      const attempt = bumpDuplicateCount(scope, fingerprint);
-      if (attempt > policy.maxIdenticalCalls) {
-        try {
-          const verdict = await requestLoopRetryApproval({
-            reason: `同工具同参数已调用 ${attempt} 次`,
-            pattern: `${req.toolName} · ${JSON.stringify(args).slice(0, 120)}`,
-          });
-          if (!verdict.allowed) {
-            detector?.record({ name: req.toolName, args, status: 'blocked' });
-            return finish({
-              status: 'duplicate',
-              resultText: `🔁 用户未允许再次执行「${req.toolName}」：${verdict.reason ?? '已拒绝重复调用'}`,
-            });
-          }
-          loopRetryApproved = true;
-        } catch (error) {
-          if (req.signal?.aborted) {
-            return finish({ status: 'aborted', resultText: '⛔ 已停止' });
-          }
-          return finish({
-            status: 'duplicate',
-            resultText: `🔁 重复调用确认失败：${error instanceof Error ? error.message : String(error)}`,
-          });
-        }
-      }
-    }
-
-    // doom loop：full 先 check 再执行；record-only 只在执行后写入共享 detector
+    // 连续失败循环：full 先 check 再执行；record-only 只在执行后写入共享 detector。
+    // 相同工具和相同参数的重复调用本身始终允许。
     if (detector && policy.doomLoop === 'full' && !loopRetryApproved) {
       const pattern = detector.check({ name: req.toolName, args });
       if (pattern) {

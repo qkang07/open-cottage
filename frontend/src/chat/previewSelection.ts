@@ -92,19 +92,21 @@ export const getPresentationAnchorFromSelection = (
     range.commonAncestorContainer,
     (el) =>
       el instanceof HTMLElement &&
-      el.classList.contains('presentation-slide-card'),
+      (el.classList.contains('presentation-slide-card') || el.dataset.slideIndex != null),
   );
   if (!slideCard) return null;
 
-  const title = slideCard.querySelector('.ant-card-head-title')?.textContent ?? '';
+  const title = slideCard.querySelector('.el-card__header')?.textContent ?? '';
   const slideMatch = title.match(/幻灯片\s*(\d+)/);
-  const slideIndex = slideMatch ? Number(slideMatch[1]) : 1;
+  const slideIndex = Number(slideCard.dataset.slideIndex) || (slideMatch ? Number(slideMatch[1]) : 1);
 
   const listItems = [...slideCard.querySelectorAll('.presentation-slide-texts li')];
   let textIndex: number | undefined;
+  let elementId: string | undefined;
   listItems.forEach((li, index) => {
     if (rangeIntersectsNode(range, li)) {
       textIndex = index + 1;
+      elementId = (li as HTMLElement).dataset.elementId;
     }
   });
 
@@ -112,6 +114,7 @@ export const getPresentationAnchorFromSelection = (
     kind: 'presentation',
     slideIndex,
     textIndex,
+    elementId,
     selectedText: selectedText || undefined,
   };
 };

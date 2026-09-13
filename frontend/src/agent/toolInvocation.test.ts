@@ -244,97 +244,24 @@ describe('createUnifiedToolExecutor', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('script 来源相同调用第 6 次被拦（上限 5，按脚本运行隔离）', async () => {
+  it('相同工具和参数的多次调用均正常执行，不触发循环确认', async () => {
     const { tool, invoke } = makeTool('readFile');
-    const executor = createUnifiedToolExecutor({ getTool: () => tool });
+    const policyGate = vi.fn(async () => ({ allowed: true }));
+    const executor = createUnifiedToolExecutor({
+      getTool: () => tool,
+      getPolicyGate: () => policyGate,
+    });
     const request = {
       toolName: 'readFile',
       args: { path: 'a.txt' },
-      source: 'script' as const,
-      parentCallId: 'agent:run-1',
+      source: 'agent' as const,
     };
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       const outcome = await executor.invoke(request);
       expect(outcome.status).toBe('ok');
     }
-    const blocked = await executor.invoke(request);
-    expect(blocked.status).toBe('duplicate');
-    expect(blocked.resultText).toContain('重复调用');
-    expect(invoke).toHaveBeenCalledTimes(5);
-
-    // 另一次脚本运行（不同 parentCallId）重新计次
-    const nextRun = await executor.invoke({
-      ...request,
-      parentCallId: 'agent:run-2',
-    });
-    expect(nextRun.status).toBe('ok');
-  });
-
-  it('agent 来源相同调用超过上限时先询问用户，允许后继续执行', async () => {
-    const { tool, invoke } = makeTool('readFile');
-    const onAwaitingApproval = vi.fn();
-    const policyGate = vi.fn(async (input: {
-      toolName: string;
-      onAwaitingApproval?: (request: { message: string }) => void;
-    }) => {
-      if (input.toolName === 'doom_loop') {
-        input.onAwaitingApproval?.({ message: '允许再试一次？' });
-      }
-      return { allowed: true };
-    });
-    const executor = createUnifiedToolExecutor({
-      getTool: () => tool,
-      getPolicyGate: () => policyGate,
-    });
-    const request = {
-      toolName: 'readFile',
-      args: { path: 'a.txt' },
-      source: 'agent' as const,
-      onAwaitingApproval,
-    };
-    await executor.invoke(request);
-    await executor.invoke(request);
-    const retried = await executor.invoke(request);
-
-    expect(retried.status).toBe('ok');
-    expect(invoke).toHaveBeenCalledTimes(3);
-    expect(onAwaitingApproval).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolName: 'readFile',
-        approvalKind: 'doom_loop',
-      }),
-    );
-  });
-
-  it('agent 来源相同调用超过上限时，用户拒绝后不执行', async () => {
-    const { tool, invoke } = makeTool('readFile');
-    const policyGate = vi.fn(async (input: {
-      toolName: string;
-      onAwaitingApproval?: (request: { message: string }) => void;
-    }) => {
-      if (input.toolName === 'doom_loop') {
-        input.onAwaitingApproval?.({ message: '允许再试一次？' });
-        return { allowed: false, reason: '用户拒绝了该操作' };
-      }
-      return { allowed: true };
-    });
-    const executor = createUnifiedToolExecutor({
-      getTool: () => tool,
-      getPolicyGate: () => policyGate,
-    });
-    const request = {
-      toolName: 'readFile',
-      args: { path: 'a.txt' },
-      source: 'agent' as const,
-      onAwaitingApproval: vi.fn(),
-    };
-    await executor.invoke(request);
-    await executor.invoke(request);
-    const rejected = await executor.invoke(request);
-
-    expect(rejected.status).toBe('duplicate');
-    expect(rejected.resultText).toContain('用户未允许');
-    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenCalledTimes(6);
+    expect(policyGate).not.toHaveBeenCalled();
   });
 
   it('script 来源 record-only：执行结果写入共享 doom detector', async () => {

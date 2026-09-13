@@ -538,6 +538,9 @@ const zhCN = {
     taskAutoRunning: '任务自动执行中',
     taskAutoRunningHint: '可在「任务」页暂停或取消。下方为当前任务对话日志。',
     loadOlder: '加载更早的消息（还有 {n} 条）',
+    turnNavigation: '对话导航',
+    turnNavigationItem: '跳转到第 {turn} 轮：{title}',
+    turnNavigationUntitled: '未命名提问',
     toolGroup: {
       office: '办公文档',
       coding: '代码改造',

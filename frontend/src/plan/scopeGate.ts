@@ -135,7 +135,7 @@ const collectMutationPaths = (
     collectPathValues(args.targetDir, 'targetDir', out);
     return out;
   }
-  if (['writeSpreadsheet', 'writeWord', 'writePresentation'].includes(toolName)) {
+  if (['writeSpreadsheet', 'writeWord', 'writePresentation', 'editPresentation'].includes(toolName)) {
     collectPathValues(args.path, 'path', out);
     return out;
   }

@@ -33,7 +33,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   copyPaths: '批量复制文件或目录。',
   compress: '将多个路径压缩为 zip。',
   extract: '解压工作空间内的 zip。',
-  runScript: '在隔离 Worker 中执行 JS 脚本处理数据；脚本内可经 cottage.<工具名>() 调用其他 agent 工具做批量/组合操作。',
+  runScript: '在浏览器隔离 Worker 中执行 JS 脚本处理数据；脚本只能调用注入的 api.* 与 cottage.<工具名>()，不能使用 Node 内置模块。',
   loadTools: '加载延后工具的 skill 并在本回合启用（类似技能按需读取）。',
 
   // 联网
@@ -46,7 +46,8 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   readWord: '读取 Word 文档段落内容。',
   readPresentation: '读取 PPT 幻灯片文本内容。',
   writeWord: '写入带样式的 Word（blocks + theme；支持标题/列表/表格/图/页眉页脚）。',
-  writePresentation: '写入或编辑 PPT 幻灯片（replace / patch），支持主题预设与版式配色。',
+  writePresentation: '通过语义布局或 HTML 布局编译新建原生可编辑 PPT，支持参考模板和回读验收。',
+  editPresentation: '按稳定元素 ID 原位编辑 PPT，并维护 V3 源稿状态。',
   renderOfficeTemplate: '按 {{变量}} 渲染办公模板生成文档。',
   batchGenerateOfficeDocs: '按变量集批量生成办公文档。',
 
@@ -175,6 +176,7 @@ export const TOOL_LOCALE_ALIASES: Record<string, string> = {
   readPresentation: '读取 PPT',
   writeWord: '写入 Word',
   writePresentation: '写入 PPT',
+  editPresentation: '编辑 PPT',
   renderOfficeTemplate: '渲染办公模板',
   batchGenerateOfficeDocs: '批量生成文档',
 
@@ -307,6 +309,7 @@ export const TOOL_RISK: Record<string, CapabilityRiskLevel> = {
   readPresentation: 'read',
   writeWord: 'write',
   writePresentation: 'write',
+  editPresentation: 'write',
   renderOfficeTemplate: 'write',
   batchGenerateOfficeDocs: 'write',
 

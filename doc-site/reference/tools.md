@@ -16,7 +16,7 @@
 
 | 能力包 | 工具 |
 |--------|------|
-| 办公文档 | `readSpreadsheet` `writeSpreadsheet` `readWord` `writeWord` `readPresentation` `writePresentation` `renderOfficeTemplate` `batchGenerateOfficeDocs` |
+| 办公文档 | `readSpreadsheet` `writeSpreadsheet` `readWord` `writeWord` `readPresentation` `writePresentation` `editPresentation` `renderOfficeTemplate` `batchGenerateOfficeDocs` |
 | 代码改造 | `searchSymbol` `findReferences` `analyzeImpact` `astEdit` `astCapabilities` |
 | PDF 处理 | `readPdf` `mergePdfs` `splitPdf` `createPdf` `createPdfFromHtml` |
 | 图表可视化 | `renderMermaid` `renderChart` |
@@ -26,6 +26,10 @@
 | 网页自动化 | `screenshotPage` `extractPage` `openBrowserPage` `clickElement` `typeText` `selectOption` `browserNavigate` `captureBrowserPage` `closeBrowserPage` |
 
 网页自动化依赖已连接且具备相应能力的 Cottage Service；图片生成依赖已配置的生图厂商。
+
+`writePresentation` 默认兼容历史输入和 V2 语义版式；V3 通过 `version: 3` + `pipeline: "html-layout"` 启用“HTML/CSS 浏览器测量 → `PresentationScene` → 原生 PPTX”的编译流水线。支持动态页面尺寸、6 套主题、基础组件与矩阵/漏斗/路线图/层级/图文拼版等常用模块；只有显式标记的装饰元素允许局部 SVG/PNG 降级，核心内容保持原生可编辑。`draftOnly` 会把 HTML、CSS、binding、测量 Scene 和警告保存到 `.cottage/presentations/<draftId>/`，随后可用 `sourceDraftId` 生成最终文件。
+
+`readPresentation(includeElements=true)` 返回稳定元素 ID、边界、文字以及表格/图表摘要；按需打开 `includeStyleProfile/includeLayouts/includeMasters/includeSourceManifest` 可读取参考 PPT 的页面尺寸、主题、母版/版式和源稿状态。`referenceMode` 支持 `content-only`、`inspiration`、`match-style`、`native-template`。`editPresentation` 原位修改常用对象并保留未涉及的 OOXML 部件，同时返回 `sourceManifestStatus`；复杂 PowerPoint 私有对象保持只读，预览为设计稿/元素结构/导出结构三种近似视图。
 
 ## 计划模式
 

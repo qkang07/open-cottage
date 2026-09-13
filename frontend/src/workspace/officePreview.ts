@@ -24,6 +24,10 @@ export const loadOfficeFilePreview = async (
     const { html } = await readWordDocumentHtml(path);
     return { kind: 'word', html };
   }
-  const { slides } = await readPresentation(path);
-  return { kind: 'presentation', slides };
+  const { slides, warnings, slideWidth, slideHeight, sourceManifest } = await readPresentation(path, {
+    includeElements: true,
+    includeAssets: true,
+    includeSourceManifest: true,
+  });
+  return { kind: 'presentation', slides, warnings, slideWidth, slideHeight, sourceManifest };
 };

@@ -101,7 +101,12 @@ export const resolveWritePresentationOptions = (
   }
 
   const refAnchor = findPresentationRef(path, refs);
-  const mode = input.mode ?? (refAnchor ? 'patch' : 'replace');
+  const isV3 = typeof input.content === 'object'
+    && input.content !== null
+    && 'version' in input.content
+    && input.content.version === 3;
+  // V3 是完整编译流水线；只有显式 mode=patch 才走历史单页 patch。
+  const mode = input.mode ?? (isV3 ? 'replace' : (refAnchor ? 'patch' : 'replace'));
   const target = { ...input.target } as PatchOfficeTarget;
   if (mode === 'patch' && !target.presentationTarget && refAnchor) {
     target.presentationTarget = { slideIndex: refAnchor.slideIndex };

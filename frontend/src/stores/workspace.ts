@@ -11,6 +11,8 @@ import { formatWorkspaceFsError, workspace } from '../workspace/FileSystemWorksp
 import { startCrawler, stopCrawler } from '../workspace/crawlerHost';
 import { clearDirChildrenCache } from '../workspace/dirChildrenCache';
 import type { FilePreview, PresentationSlidePreview, PreviewKind } from '../workspace/previewKind';
+import type { PresentationWarning } from '../domains/office/presentationModel';
+import type { PresentationSourceManifest } from '../domains/office/presentationSourceManifest';
 import { applySnapshotPatch, type SnapshotPatch } from '../workspace/snapshotPatch';
 import type { WorkspaceSnapshot } from '../workspace/types';
 import {
@@ -59,6 +61,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const previewSpreadsheet = ref<SpreadsheetContent | null>(null);
   const previewWordHtml = ref<string | null>(null);
   const previewPresentationSlides = ref<PresentationSlidePreview[] | null>(null);
+  const previewPresentationWarnings = ref<PresentationWarning[]>([]);
+  const previewPresentationSlideWidth = ref(13.333);
+  const previewPresentationSlideHeight = ref(7.5);
+  const previewPresentationSourceManifest = ref<PresentationSourceManifest | null>(null);
   const previewDirty = ref(false);
   const loading = ref(false);
   const restoring = ref(true);
@@ -127,6 +133,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     previewSpreadsheet.value = null;
     previewWordHtml.value = null;
     previewPresentationSlides.value = null;
+    previewPresentationWarnings.value = [];
+    previewPresentationSlideWidth.value = 13.333;
+    previewPresentationSlideHeight.value = 7.5;
+    previewPresentationSourceManifest.value = null;
   }
 
   /** 应用文件预览数据到状态 */
@@ -169,6 +179,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       htmlContentRef.value = null;
       previewObjectUrl.value = null;
       previewPresentationSlides.value = preview.slides;
+      previewPresentationWarnings.value = preview.warnings;
+      previewPresentationSlideWidth.value = preview.slideWidth;
+      previewPresentationSlideHeight.value = preview.slideHeight;
+      previewPresentationSourceManifest.value = preview.sourceManifest ?? null;
       return;
     }
 
@@ -586,6 +600,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     previewSpreadsheet,
     previewWordHtml,
     previewPresentationSlides,
+    previewPresentationWarnings,
+    previewPresentationSlideWidth,
+    previewPresentationSlideHeight,
+    previewPresentationSourceManifest,
     previewDirty,
     loading,
     restoring,

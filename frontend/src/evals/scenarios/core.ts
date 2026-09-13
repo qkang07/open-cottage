@@ -176,20 +176,17 @@ export const CORE_AGENT_EVAL_SCENARIOS: readonly AgentEvalScenario[] = [
   },
   {
     schemaVersion: 1,
-    id: 'duplicate-call-requires-approval',
-    title: '第三次相同调用请求确认并在拒绝后停止执行',
-    tags: ['doom-loop', 'approval', 'safety', 'regression'],
+    id: 'identical-call-runs-without-interception',
+    title: '多次相同调用正常执行，不触发循环确认',
+    tags: ['tool-execution', 'regression'],
     regression: {
       id: 'OC-REG-002',
       source: 'historical',
-      symptom: '第三次相同工具调用被直接阻止',
-      invariant: '重复调用达到阈值后必须询问用户，由用户决定是否继续',
+      symptom: '相同参数的工具调用被重复拦截',
+      invariant: '相同工具和参数的调用本身不应被拦截或要求确认',
     },
-    prompt: '读取 keep.txt，但不要无限重复。',
+    prompt: '连续读取 keep.txt 三次。',
     workspace: { 'keep.txt': 'value' },
-    approvalDecisions: [
-      { toolName: 'doom_loop', allowed: false, reason: '拒绝继续重复' },
-    ],
     model: {
       streams: [
         [
@@ -213,18 +210,16 @@ export const CORE_AGENT_EVAL_SCENARIOS: readonly AgentEvalScenario[] = [
           },
           { type: 'finish', finishReason: 'tool_calls' },
         ],
-        finalStream('已按用户决定停止重复读取。'),
+        finalStream('已连续读取三次。'),
       ],
     },
     expected: {
       workspace: { files: { 'keep.txt': 'value' }, changedPaths: [] },
       trace: [
-        { type: 'tool_call', count: 2, fields: { name: 'readFile', status: 'ok' } },
-        { type: 'tool_call', count: 1, fields: { name: 'readFile', status: 'duplicate' } },
+        { type: 'tool_call', count: 3, fields: { name: 'readFile', status: 'ok' } },
       ],
-      approvals: [{ toolName: 'doom_loop', allowed: false }],
       requests: { count: 4 },
-      finalResponseIncludes: ['停止重复读取'],
+      finalResponseIncludes: ['连续读取三次'],
       limits: { maxToolCalls: 3 },
     },
   },

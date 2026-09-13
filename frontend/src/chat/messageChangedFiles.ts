@@ -51,6 +51,7 @@ const RESULT_WRITE_TOOLS = new Set(
     'applyPatch',
     'writeWord',
     'writePresentation',
+    'editPresentation',
     'writeSpreadsheet',
     'renderOfficeTemplate',
     'batchGenerateOfficeDocs',

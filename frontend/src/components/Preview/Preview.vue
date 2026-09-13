@@ -70,6 +70,10 @@ const {
   previewSpreadsheet,
   previewWordHtml,
   previewPresentationSlides,
+  previewPresentationWarnings,
+  previewPresentationSlideWidth,
+  previewPresentationSlideHeight,
+  previewPresentationSourceManifest,
   previewDirty,
   loading,
 } = storeToRefs(workspaceStore);
@@ -525,6 +529,10 @@ const segmentedOptions = computed(() => [
               <PresentationPreview
                 v-else-if="previewKind === 'presentation' && previewPresentationSlides"
                 :slides="previewPresentationSlides"
+                :warnings="previewPresentationWarnings"
+                :slide-width="previewPresentationSlideWidth"
+                :slide-height="previewPresentationSlideHeight"
+                :source-manifest="previewPresentationSourceManifest"
                 :on-selection-change="handlePresentationSelect"
               />
               <ElEmpty

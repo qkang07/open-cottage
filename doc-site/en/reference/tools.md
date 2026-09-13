@@ -4,6 +4,10 @@ The available tool set depends on the active model, enabled capability packs, an
 
 Runtime tool descriptions and approval prompts are authoritative for parameters and risk. For how to choose and enable a capability, see [Capability packs](/en/concepts/capability-packs); for step-by-step user workflows, start with [Get started](/en/guide/introduction).
 
+The Office pack keeps historical inputs and V2 semantic layouts, and adds V3 through `version: 3` plus `pipeline: "html-layout"`. V3 runs a constrained HTML/CSS browser layout, measures the DOM, converts it to a `PresentationScene`, and emits an editable native PPTX. It supports dynamic page sizes, six themes, reusable modules (including matrices, funnels, roadmaps, hierarchies, image stories, and chart insights), and explicit `draftOnly`/`sourceDraftId` sidecars under `.cottage/presentations/<draftId>/`. Only explicitly decorative elements may be locally rasterized; core content must stay editable.
+
+Use `readPresentation(includeElements=true)` to retrieve stable element IDs, bounds, text, and table/chart summaries. `includeStyleProfile/includeLayouts/includeMasters/includeSourceManifest` opt into page, theme, master/layout, and source-draft analysis. Reference modes are `content-only`, `inspiration`, `match-style`, and `native-template`. `editPresentation` edits common objects and slide order in place, preserves untouched OOXML parts, and reports `sourceManifestStatus`; unsupported PowerPoint objects remain read-only. Preview offers design, element-structure, and export-structure views and remains approximate HTML/SVG rendering.
+
 ## Plan mode
 
 | Tool | Purpose |

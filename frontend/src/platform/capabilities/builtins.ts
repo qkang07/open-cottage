@@ -111,6 +111,7 @@ export const BUILTIN_CAPABILITIES: Capability[] = [
     tools: [
       'writeWord',
       'writePresentation',
+      'editPresentation',
       'renderOfficeTemplate',
       'batchGenerateOfficeDocs',
     ],

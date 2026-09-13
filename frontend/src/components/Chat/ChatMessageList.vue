@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElAlert, ElButton } from 'element-plus';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { CottageAgent } from '../../agent/CottageAgent';
 import type { CottageMessage } from '../../agent/messages';
@@ -16,6 +16,7 @@ import MessageView from './MessageView.vue';
 /** 距底部不超过该像素时才跟随自动滚底 */
 const BOTTOM_THRESHOLD_PX = 80;
 const CHAT_PAGE_SIZE = 40;
+const TURN_NAVIGATION_THRESHOLD = 6;
 
 const { t } = useI18n();
 const props = defineProps<{
@@ -34,6 +35,34 @@ const sectionVersion = computed(() => props.chat?.viewState.sectionVersion ?? 0)
  */
 const messagesView = computed(() => props.chat?.viewState.messages ?? props.messages ?? []);
 const messageCount = computed(() => messagesView.value.length);
+
+type ConversationTurn = {
+  messageId: string;
+  messageIndex: number;
+  number: number;
+  label: string;
+};
+
+const conversationTurns = computed<ConversationTurn[]>(() => {
+  let number = 0;
+  return messagesView.value.flatMap((message, messageIndex) => {
+    if (message.role !== 'user') return [];
+    number += 1;
+    const label = message.userText?.replace(/\s+/g, ' ').trim()
+      || t('chat.turnNavigationUntitled');
+    return [{
+      messageId: message.id,
+      messageIndex,
+      number,
+      label: label.slice(0, 80),
+    }];
+  });
+});
+const showTurnNavigation = computed(
+  () => conversationTurns.value.length >= TURN_NAVIGATION_THRESHOLD,
+);
+const activeTurnMessageId = ref<string | null>(null);
+const messageElementRefs = new Map<string, HTMLElement>();
 
 const {
   visibleItems,
@@ -74,6 +103,25 @@ function updateStickToBottom() {
   stickToBottom.value = isNearBottom(scrollParent);
 }
 
+function updateActiveTurn() {
+  if (!scrollParent || !conversationTurns.value.length) return;
+  const containerTop = scrollParent.getBoundingClientRect().top;
+  const anchorOffset = 72;
+  let closestBefore: ConversationTurn | null = null;
+  let firstAfter: ConversationTurn | null = null;
+  for (const turn of conversationTurns.value) {
+    const element = messageElementRefs.get(turn.messageId);
+    if (!element) continue;
+    const top = element.getBoundingClientRect().top - containerTop;
+    if (top <= anchorOffset) {
+      closestBefore = turn;
+    } else if (!firstAfter) {
+      firstAfter = turn;
+    }
+  }
+  activeTurnMessageId.value = closestBefore?.messageId ?? firstAfter?.messageId ?? null;
+}
+
 async function tryLoadOlder() {
   if (loadingOlder.value || !hasOlder.value) return;
   loadingOlder.value = true;
@@ -86,7 +134,28 @@ async function tryLoadOlder() {
 
 async function onScroll() {
   updateStickToBottom();
+  updateActiveTurn();
   await tryLoadOlder();
+}
+
+function setMessageElement(messageId: string, element: Element | ComponentPublicInstance | null) {
+  if (element instanceof HTMLElement) {
+    messageElementRefs.set(messageId, element);
+    return;
+  }
+  messageElementRefs.delete(messageId);
+}
+
+async function navigateToTurn(turn: ConversationTurn) {
+  while (hiddenOlderCount.value > turn.messageIndex) {
+    if (loadOlder() <= 0) break;
+  }
+  await nextTick();
+  const target = messageElementRefs.get(turn.messageId);
+  if (!target) return;
+  activeTurnMessageId.value = turn.messageId;
+  stickToBottom.value = false;
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function scrollToBottom(behavior: ScrollBehavior, force = false) {
@@ -100,19 +169,25 @@ onMounted(() => {
   stickToBottom.value = true;
   resetToTail();
   scrollToBottom('smooth', true);
+  void nextTick(updateActiveTurn);
 });
 
 onUnmounted(() => {
   scrollParent?.removeEventListener('scroll', onScroll);
   scrollParent = null;
+  messageElementRefs.clear();
 });
 
 watch(
   () => props.chat?.getSessionId?.() ?? props.sessionId ?? null,
   () => {
     stickToBottom.value = true;
+    activeTurnMessageId.value = null;
     resetToTail();
-    void nextTick(() => scrollToBottom('auto', true));
+    void nextTick(() => {
+      scrollToBottom('auto', true);
+      updateActiveTurn();
+    });
   },
 );
 
@@ -153,40 +228,154 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
 }
 </script>
 <template>
-  <ElAlert
-    v-if="taskRunning"
-    type="info"
-    :title="t('chat.taskAutoRunning')"
-    style="margin-bottom: 12px"
+  <div
+    :class="[
+      'chat-message-list',
+      showTurnNavigation ? 'chat-message-list-with-turn-navigation' : '',
+    ]"
   >
-    {{ t('chat.taskAutoRunningHint') }}
-  </ElAlert>
-  <div v-if="hasOlder" class="chat-load-older">
-    <ElButton
-      text
-      size="small"
-      :loading="loadingOlder"
-      @click="tryLoadOlder"
+    <nav
+      v-if="showTurnNavigation"
+      class="chat-turn-navigation"
+      :aria-label="t('chat.turnNavigation')"
     >
-      {{ t('chat.loadOlder', { n: hiddenOlderCount }) }}
-    </ElButton>
+      <div class="chat-turn-navigation-panel">
+        <button
+          v-for="turn in conversationTurns"
+          :key="turn.messageId"
+          type="button"
+          :class="[
+            'chat-turn-navigation-item',
+            turn.messageId === activeTurnMessageId ? 'chat-turn-navigation-item-active' : '',
+          ]"
+          :aria-current="turn.messageId === activeTurnMessageId ? 'step' : undefined"
+          :aria-label="t('chat.turnNavigationItem', { turn: turn.number, title: turn.label })"
+          :title="t('chat.turnNavigationItem', { turn: turn.number, title: turn.label })"
+          @click="navigateToTurn(turn)"
+        >
+          <span class="chat-turn-navigation-dot" aria-hidden="true" />
+          <span>{{ turn.number }}</span>
+        </button>
+      </div>
+    </nav>
+    <ElAlert
+      v-if="taskRunning"
+      type="info"
+      :title="t('chat.taskAutoRunning')"
+      style="margin-bottom: 12px"
+    >
+      {{ t('chat.taskAutoRunningHint') }}
+    </ElAlert>
+    <div v-if="hasOlder" class="chat-load-older">
+      <ElButton
+        text
+        size="small"
+        :loading="loadingOlder"
+        @click="tryLoadOlder"
+      >
+        {{ t('chat.loadOlder', { n: hiddenOlderCount }) }}
+      </ElButton>
+    </div>
+    <div
+      v-for="(message, offset) in visibleItems"
+      :key="message.id"
+      :ref="(element) => setMessageElement(message.id, element)"
+      class="chat-message-anchor"
+    >
+      <MessageView
+        :message="message"
+        :live="isLive(hiddenOlderCount + offset)"
+        :version="
+          needsSectionRefresh(message, hiddenOlderCount + offset)
+            ? sectionVersion
+            : 0
+        "
+        :session-id="chat?.getSessionId() ?? sessionId ?? ''"
+      />
+    </div>
+    <div ref="bottomRef" />
   </div>
-  <MessageView
-    v-for="(message, offset) in visibleItems"
-    :key="message.id"
-    :message="message"
-    :live="isLive(hiddenOlderCount + offset)"
-    :version="
-      needsSectionRefresh(message, hiddenOlderCount + offset)
-        ? sectionVersion
-        : 0
-    "
-    :session-id="chat?.getSessionId() ?? sessionId ?? ''"
-  />
-  <div ref="bottomRef" />
 </template>
 
 <style scoped>
+.chat-message-list {
+  position: relative;
+}
+
+.chat-message-list-with-turn-navigation {
+  padding-right: 42px;
+}
+
+.chat-turn-navigation {
+  position: sticky;
+  top: 8px;
+  z-index: 6;
+  height: 0;
+  margin-left: auto;
+}
+
+.chat-turn-navigation-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 32px;
+  max-height: min(68dvh, 540px);
+  overflow-y: auto;
+  padding: 4px 2px;
+  border: 1px solid var(--cottage-border);
+  border-radius: var(--cottage-radius-md);
+  background: color-mix(in srgb, var(--cottage-surface) 92%, transparent);
+  box-shadow: var(--cottage-shadow-card);
+}
+
+.chat-turn-navigation-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 24px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--cottage-radius-sm);
+  background: transparent;
+  color: var(--cottage-ink-muted);
+  font: inherit;
+  font-size: var(--cottage-font-xs);
+  cursor: pointer;
+}
+
+.chat-turn-navigation-item:hover,
+.chat-turn-navigation-item:focus-visible {
+  outline: none;
+  background: var(--cottage-accent-bg);
+  color: var(--cottage-ink);
+}
+
+.chat-turn-navigation-item-active {
+  background: var(--cottage-accent-bg);
+  color: var(--cottage-accent);
+  font-weight: 700;
+}
+
+.chat-turn-navigation-dot {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--cottage-border-strong);
+}
+
+.chat-turn-navigation-item-active .chat-turn-navigation-dot {
+  background: var(--cottage-accent);
+}
+
+.chat-message-anchor {
+  scroll-margin-top: 8px;
+}
+
 .chat-load-older {
   display: flex;
   justify-content: center;

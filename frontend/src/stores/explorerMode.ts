@@ -41,7 +41,12 @@ export const useExplorerModeStore = defineStore('explorerMode', () => {
         expandedKeys.value = [...expandedKeys.value, key];
       }
     } else {
-      expandedKeys.value = expandedKeys.value.filter((item) => item !== key);
+      // 收起目录时一并清除所有后代的展开记忆。否则树重建或再次展开
+      // 父目录时，深层目录会凭残留状态自动打开，导致无法从外层一次收起。
+      const descendantPrefix = key ? `${key}/` : '';
+      expandedKeys.value = expandedKeys.value.filter(
+        (item) => item !== key && !item.startsWith(descendantPrefix),
+      );
     }
   }
 

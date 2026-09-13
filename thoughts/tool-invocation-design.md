@@ -4,7 +4,7 @@
 >
 > 阶段 1 实现备注：
 > - `scriptToolBridge` 未注入 executor 时保留退化为直接 invoke 的兼容路径（verify 等无治理场景）。
-> - 重复指纹按 `parentCallId`（宿主 runScript 的 callId）隔离作用域；`ToolStreamContext.currentCallId` 由 CottageAgent 在执行段前设置。
+> - 同一工具同一参数的调用不再受限；`parentCallId` 仅用于把脚本子调用归属到宿主 runScript 的 trace。
 > - script/manual 的 trace `resultSnippet` 截断 8KB；manual 结果文本 64KB 截断。
 >
 > 阶段 2 实现备注：
@@ -17,7 +17,7 @@
 
 当前"工具调用"有两条互不一致的路径：
 
-- **agent 路径**：经 `CottageAgent.runAssistantTurn` 工具循环，具备完整治理——重复指纹、doom loop、planGate、policyGate 审批、trace、输出后处理。
+- **agent 路径**：经 `CottageAgent.runAssistantTurn` 工具循环，具备完整治理——连续失败循环、planGate、policyGate 审批、trace、输出后处理。
 - **script 路径**：runScript 脚本内 `cottage.*` 经 `scriptToolBridge` 直接 `tool.invoke()`，绕过全部闸门（审批安全口子、预算计数、trace 缺失、AbortSignal 不透传）。
 
 同时缺少第三种入口：用户手工调用工具用于调试。
@@ -31,7 +31,7 @@
 
 ## 现状关键事实（已调研核实）
 
-- 工具循环：`src/agent/CottageAgent.ts` 约 L1571-2020。顺序：重复指纹（上限 2）→ doomLoop check（软提醒→policyGate）→ planGate（同步）→ policyGate（异步）→ 执行（askUser 特殊路径/流式/invoke）→ strip 输出后处理 → recordPlanToolOutcome + doomLoop record → trace → ToolMessage。
+- 工具循环：`src/agent/CottageAgent.ts`。顺序：连续失败 doomLoop check（软提醒→policyGate）→ planGate（同步）→ policyGate（异步）→ 执行（askUser 特殊路径/流式/invoke）→ strip 输出后处理 → recordPlanToolOutcome + doomLoop record → trace → ToolMessage。
 - `PolicyGate`：`src/platform/policy/types.ts:13-22`，`(input:{toolName,args,callId,signal,onAwaitingApproval}) => Promise<{allowed,reason?}>`；审批经 `chat/callInteractionGate.ts` `waitForCallInteraction`（键 `sessionId::callId`）；风险判定 `policyEngine.ts evaluateToolPolicy` 用 **capabilities registry**（`platform/capabilities/registry.ts findByToolName`），非 `TOOL_RISK` 表；默认 `requireApprovalFor:['destructive']`（config/constants.ts:593）。
 - `PlanGate` 同步、纯计数（`PlanSession.counters`），`recordPlanToolOutcome` 成功后计数；豁免名单在 `planEngine.ts:30-33`。
 - `DoomLoopDetector`：`src/agent/doomLoop.ts:14-22`，check/record/reset，纯内存；软提醒计数在 CottageAgent。
@@ -70,7 +70,6 @@ export interface ToolInvocationOutcome {
 
 export interface SourceGovernancePolicy {
   blockedToolNames?: ReadonlySet<string>;
-  maxIdenticalCalls: number;               // 0=不启用
   planGate: boolean;
   policyApproval: 'gate' | 'auto-allow';   // gate=挂审批等待；auto-allow=confirm 放行、deny 仍拦
   doomLoop: 'off' | 'record-only' | 'full';
@@ -97,7 +96,7 @@ export const createUnifiedToolExecutor: (o: CreateToolExecutorOptions) => Unifie
 | 阶段 | agent | script | manual |
 |---|---|---|---|
 | 黑名单 | 无 | BLOCKED_SCRIPT_TOOL_NAMES | 同 script |
-| 重复指纹 | 上限 2 | 上限 5（per 脚本运行） | 关 |
+| 相同工具和参数 | 允许 | 允许 | 允许 |
 | doomLoop | full | record-only（写入共享 detector） | 关 |
 | planGate+计数 | ✓ | ✓（round 传 0；runScript 自身在 plan 引擎防双计） | 关 |
 | policyGate | gate | **auto-allow**（前提：runScript 已统一审批，见下） | auto-allow（UI 对 destructive 加 ElMessageBox 二次确认） |
@@ -159,7 +158,7 @@ parentCallId：`ToolStreamContext` 加 `currentCallId`，CottageAgent 调 invoke
 
 ## 验证
 
-- 单测（`toolInvocation.test.ts`）：script 黑名单拒绝/deny 拦截/confirm 放行（统一审批语义）/planGate 计数与防双计/重复第 6 次拦/doom record 被调/trace 收到 source:'script'/signal abort；manual confirm 放行+trace。
+- 单测（`toolInvocation.test.ts`）：script 黑名单拒绝/deny 拦截/confirm 放行（统一审批语义）/planGate 计数与防双计/相同调用可重复执行/doom record 被调/trace 收到 source:'script'/signal abort；manual confirm 放行+trace。
 - 现有测试回归：`verify/engine.test.ts`（不传桥路径零改动）等应全绿。
 - 手工回归清单：
   1. agent 调 runScript → 弹一次统一审批；批准后脚本内 cottage.writeFile 等正常执行且 trace 有 script 事件；拒绝则脚本不执行。

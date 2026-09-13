@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode } from 'prosemirror-model';
 import { formatReferenceLabel, type ChatFileReference } from '../../../chat/fileReferences';
 
 export type FileReferenceInsertAttrs = {
@@ -22,7 +22,7 @@ export function findDocumentTextRange(
 
   let text = '';
   const posAt: number[] = [];
-  doc.descendants((node, pos) => {
+  doc.descendants((node: ProseMirrorNode, pos: number) => {
     if (!node.isText || !node.text) return;
     for (let i = 0; i < node.text.length; i++) {
       posAt.push(pos + i);

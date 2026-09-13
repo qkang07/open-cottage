@@ -551,6 +551,9 @@ const enUS: typeof zhCN = {
     taskAutoRunningHint:
       'Pause or cancel on the Task page. Below is the current task chat log.',
     loadOlder: 'Load earlier messages ({n} more)',
+    turnNavigation: 'Conversation navigation',
+    turnNavigationItem: 'Jump to turn {turn}: {title}',
+    turnNavigationUntitled: 'Untitled prompt',
     toolGroup: {
       office: 'Office documents',
       coding: 'Code refactoring',

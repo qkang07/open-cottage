@@ -1,4 +1,6 @@
 import type { SpreadsheetContent } from '../agent/officeDocuments';
+import type { PresentationWarning } from '../domains/office/presentationModel';
+import type { PresentationSourceManifest } from '../domains/office/presentationSourceManifest';
 import { detectOfficeKind } from '../agent/officeDocuments';
 
 export type PreviewKind =
@@ -35,11 +37,50 @@ export const getPreviewKind = (path: string): PreviewKind => {
 export const supportsRenderPreview = (kind: PreviewKind): boolean =>
   kind === 'markdown' || kind === 'html';
 
-export type PresentationSlidePreview = { index: number; texts: string[] };
+export type PresentationElementPreview = {
+  id: string;
+  shapeId: string;
+  name: string;
+  type: 'text' | 'shape' | 'line' | 'image' | 'table' | 'chart' | 'group' | 'unsupported';
+  editable: boolean;
+  decorative?: boolean;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  texts: string[];
+  fill?: string;
+  lineColor?: string;
+  textColor?: string;
+  shapeType?: string;
+  rows?: string[][];
+  chart?: {
+    categories: string[];
+    series: Array<{ name: string; values: number[] }>;
+  };
+  missingAsset?: boolean;
+  imageDataUrl?: string;
+  hyperlinks?: string[];
+};
+
+export type PresentationSlidePreview = {
+  index: number;
+  id: string;
+  texts: string[];
+  background: string;
+  elements: PresentationElementPreview[];
+};
 
 export type FilePreview =
   | { kind: 'markdown' | 'text' | 'html'; content: string }
   | { kind: 'image' | 'video' | 'pdf'; objectUrl: string }
   | { kind: 'spreadsheet'; data: SpreadsheetContent }
   | { kind: 'word'; html: string }
-  | { kind: 'presentation'; slides: PresentationSlidePreview[] };
+  | {
+      kind: 'presentation';
+      slides: PresentationSlidePreview[];
+      warnings: PresentationWarning[];
+      slideWidth: number;
+      slideHeight: number;
+      sourceManifest?: PresentationSourceManifest | null;
+    };

@@ -19,14 +19,14 @@ export interface CreateScriptToolInvokerOptions {
    * 未注入时拒绝调用，不能降级到无治理的直接 invoke。
    */
   getExecutor?: () => UnifiedToolExecutor | undefined;
-  /** 宿主 runScript 的 callId（重复指纹计次作用域 + trace 归属） */
+  /** 宿主 runScript 的 callId（trace 归属） */
   getParentCallId?: () => string | undefined;
 }
 
 /**
  * 构建 cottage.* SDK 的主线程执行桥：
- * 构造 { source: 'script' } 请求走统一执行器管线（黑名单 / 重复指纹 /
- * planGate / auto-allow 审批 / doom record / trace），输出经净化回 Worker。
+   * 构造 { source: 'script' } 请求走统一执行器管线（黑名单 / planGate /
+   * auto-allow 审批 / 连续失败循环记录 / trace），输出经净化回 Worker。
  * 脚本内产图工具的图片留在工作区文件，cottageImages 附件通道由执行器剥离，
  * 不随脚本结果回传。
  */

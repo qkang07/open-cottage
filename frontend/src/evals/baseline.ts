@@ -7,7 +7,7 @@ export const CORE_AGENT_EVAL_BASELINE = {
     'chat-reject-write',
     'stream-fragmented-tool-args',
     'unknown-tool-recovery',
-    'duplicate-call-requires-approval',
+    'identical-call-runs-without-interception',
     'tool-failure-recovery',
     'partial-write-is-visible',
     'plan-out-of-scope-write',

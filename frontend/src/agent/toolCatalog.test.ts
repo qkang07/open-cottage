@@ -24,6 +24,11 @@ describe('toolCatalog', () => {
     ]);
   });
 
+  it('keeps pre-editPresentation office configs enabled', () => {
+    const legacy = OFFICE_TOOL_NAMES.filter((name) => name !== 'editPresentation');
+    expect(optionalToolGroupsFromNames(legacy)).toContain('office');
+  });
+
   it('optionalToolNamesForGroups expands office pack to all tools', () => {
     expect(optionalToolNamesForGroups(['office'])).toEqual([
       ...OFFICE_TOOL_NAMES,
