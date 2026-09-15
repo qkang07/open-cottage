@@ -18,6 +18,7 @@ import { RefreshOutline, AlertCircleOutline, CopyOutline, CheckmarkOutline, GitB
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
+  collapseThinkSectionsForDisplay,
   mergeAdjacentThinkSections,
   type CottageMessage,
   type CottageSection,
@@ -1625,7 +1626,9 @@ function projectMessageSections(
   const withoutWhitespaceContent = out.filter(
     (section) => section.type !== 'content' || section.text.trim(),
   );
-  return mergeAdjacentThinkSections(withoutWhitespaceContent);
+  return collapseThinkSectionsForDisplay(
+    mergeAdjacentThinkSections(withoutWhitespaceContent),
+  );
 }
 
 const sectionsView = computed<CottageSection[]>(() => {

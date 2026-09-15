@@ -164,7 +164,7 @@ const emit = defineEmits<{
   send: [message: ComposedUserMessage];
   stop: [];
   toggleToolGroup: [groupId: OptionalToolGroupId, enabled: boolean];
-  setSearchSource: [source: SearchSource];
+  setSearchSource: [source: SearchSource | null];
   addAttachments: [attachments: ChatAttachment[]];
   removeAttachment: [id: string];
   openSettings: [];
@@ -288,7 +288,7 @@ const enabledCapabilityCount = computed(
   () =>
     visibleToolGroups.value.filter((group) =>
       isToolGroupEffectivelyEnabled(group.id),
-    ).length + (props.availableSearchSources.length > 0 ? 1 : 0),
+    ).length + (props.searchSource ? 1 : 0),
 );
 
 function resolveLayerActivePresetId(
@@ -1530,7 +1530,17 @@ const canSend = computed(
                   </div>
                   <div class="chat-model-cap-section">
                     <NText depth="3" class="chat-model-cap-section-title">{{ t('chat.searchSourceSection') }}</NText>
-                    <div v-if="availableSearchSources.length > 0" class="chat-model-cap-models">
+                    <div class="chat-model-cap-models">
+                      <button
+                        type="button"
+                        class="chat-model-cap-model-item"
+                        :class="{ 'is-active': searchSource === null }"
+                        :disabled="disabled || busy || switchingModel"
+                        @click="emit('setSearchSource', null)"
+                      >
+                        <span class="chat-model-cap-model-name">{{ t('chat.searchSourceDisabled') }}</span>
+                        <NIcon v-if="searchSource === null" :component="CheckmarkOutline" class="chat-model-cap-model-check" />
+                      </button>
                       <button
                         v-for="source in availableSearchSources"
                         :key="source"
@@ -1544,7 +1554,7 @@ const canSend = computed(
                         <NIcon v-if="searchSource === source" :component="CheckmarkOutline" class="chat-model-cap-model-check" />
                       </button>
                     </div>
-                    <NText v-else depth="3" class="chat-optional-tools-hint">{{ t('chat.noSearchSourceHint') }}</NText>
+                    <NText v-if="availableSearchSources.length === 0" depth="3" class="chat-optional-tools-hint">{{ t('chat.noSearchSourceHint') }}</NText>
                   </div>
                 </div>
               </ElPopover>

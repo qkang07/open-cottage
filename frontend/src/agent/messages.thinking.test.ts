@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendAssistantThink,
   appendAssistantText,
+  collapseThinkSectionsForDisplay,
   createAssistantMessage,
   finalizeAssistantStreaming,
   mergeAdjacentThinkSections,
@@ -69,5 +70,34 @@ describe('appendAssistantText cottage_thinking', () => {
     ]);
 
     expect(sections.filter((section) => section.type === 'think')).toHaveLength(2);
+  });
+
+  it('uses one collapsed thinking section in chat even across tool calls', () => {
+    const sections = collapseThinkSectionsForDisplay([
+      { type: 'think', text: 'before tool' },
+      {
+        type: 'call',
+        id: 'call-1',
+        name: 'readFile',
+        arguments: '{}',
+      },
+      { type: 'think', text: 'after tool', streaming: true },
+      { type: 'content', text: 'answer' },
+    ]);
+
+    expect(sections).toEqual([
+      {
+        type: 'think',
+        text: 'before tool\n\nafter tool',
+        streaming: true,
+      },
+      {
+        type: 'call',
+        id: 'call-1',
+        name: 'readFile',
+        arguments: '{}',
+      },
+      { type: 'content', text: 'answer' },
+    ]);
   });
 });

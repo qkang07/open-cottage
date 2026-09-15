@@ -440,6 +440,7 @@ const enUS: typeof zhCN = {
     manageImageModelsInSettings: 'Add an image model with a configured provider in Settings',
     imageModelSwitched: 'Image model switched',
     searchSourceSection: 'Search source',
+    searchSourceDisabled: 'No web search',
     searchSourceNative: 'Model native search',
     searchSourceThirdParty: 'Third-party search',
     searchSourceThirdPartyNamed: 'Third-party search ({name})',

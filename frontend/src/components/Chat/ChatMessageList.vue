@@ -27,6 +27,7 @@ const props = defineProps<{
   taskRunning: boolean;
 }>();
 const bottomRef = ref<HTMLDivElement | null>(null);
+const listRef = ref<HTMLDivElement | null>(null);
 /** section 级刷新计数，驱动 MessageView 重读 section 内字段（streaming text、tool result） */
 const sectionVersion = computed(() => props.chat?.viewState.sectionVersion ?? 0);
 /**
@@ -54,7 +55,8 @@ const conversationTurns = computed<ConversationTurn[]>(() => {
       messageId: message.id,
       messageIndex,
       number,
-      label: label.slice(0, 80),
+      // 导航栏自身用 CSS 截断；这里必须保留原文，供展开态和悬浮提示查看完整标题。
+      label,
     }];
   });
 });
@@ -80,6 +82,8 @@ const {
 const stickToBottom = ref(true);
 const loadingOlder = ref(false);
 let scrollParent: HTMLElement | null = null;
+let contentResizeObserver: ResizeObserver | null = null;
+let scheduledScrollFrame: number | null = null;
 
 function getScrollParent(el: HTMLElement | null): HTMLElement | null {
   let node = el?.parentElement ?? null;
@@ -160,21 +164,52 @@ async function navigateToTurn(turn: ConversationTurn) {
 
 function scrollToBottom(behavior: ScrollBehavior, force = false) {
   if (!force && !stickToBottom.value) return;
+  if (scrollParent) {
+    // 直接滚动实际的消息容器，避免 scrollIntoView 在嵌套滚动区中只滚动到
+    // 旧布局位置，或连带滚动外层页面。
+    scrollParent.scrollTo({ top: scrollParent.scrollHeight, behavior });
+    return;
+  }
   bottomRef.value?.scrollIntoView({ behavior, block: 'end' });
+}
+
+/**
+ * 流式 section 的文字高度在 Vue 提交 DOM 后才可得。合并到下一帧可让一次滚动
+ * 命中最新高度，同时避免每个 token 都创建一条平滑滚动动画。
+ */
+function scheduleScrollToBottom(behavior: ScrollBehavior = 'auto', force = false) {
+  if (!force && !stickToBottom.value) return;
+  if (scheduledScrollFrame !== null) return;
+  scheduledScrollFrame = requestAnimationFrame(() => {
+    scheduledScrollFrame = null;
+    scrollToBottom(behavior, force);
+  });
 }
 
 onMounted(() => {
   scrollParent = getScrollParent(bottomRef.value);
   scrollParent?.addEventListener('scroll', onScroll, { passive: true });
+  if (listRef.value && typeof ResizeObserver !== 'undefined') {
+    contentResizeObserver = new ResizeObserver(() => {
+      scheduleScrollToBottom();
+    });
+    contentResizeObserver.observe(listRef.value);
+  }
   stickToBottom.value = true;
   resetToTail();
-  scrollToBottom('smooth', true);
+  scheduleScrollToBottom('auto', true);
   void nextTick(updateActiveTurn);
 });
 
 onUnmounted(() => {
   scrollParent?.removeEventListener('scroll', onScroll);
   scrollParent = null;
+  contentResizeObserver?.disconnect();
+  contentResizeObserver = null;
+  if (scheduledScrollFrame !== null) {
+    cancelAnimationFrame(scheduledScrollFrame);
+    scheduledScrollFrame = null;
+  }
   messageElementRefs.clear();
 });
 
@@ -185,7 +220,7 @@ watch(
     activeTurnMessageId.value = null;
     resetToTail();
     void nextTick(() => {
-      scrollToBottom('auto', true);
+      scheduleScrollToBottom('auto', true);
       updateActiveTurn();
     });
   },
@@ -193,19 +228,18 @@ watch(
 
 watch(messageCount, () => {
   pinTailIfNeeded(stickToBottom.value);
-  scrollToBottom('smooth');
-});
+  scheduleScrollToBottom();
+}, { flush: 'post' });
 watch(sectionVersion, () => {
   if (!props.chat?.busy) return;
-  // 流式更新时用 instant 滚动，避免 smooth 与高度变化互相拉扯
-  scrollToBottom('auto');
-});
+  scheduleScrollToBottom();
+}, { flush: 'post' });
 watch(pendingAskRevision, () => {
-  scrollToBottom('smooth');
-});
+  scheduleScrollToBottom();
+}, { flush: 'post' });
 watch(pendingPlanApprovalRevision, () => {
-  scrollToBottom('smooth');
-});
+  scheduleScrollToBottom();
+}, { flush: 'post' });
 // props.chat 为非响应式裸对象，须每次渲染时实时读取，故用函数而非 computed
 const liveIndex = () =>
   props.chat?.busy ? messagesView.value.length - 1 : -1;
@@ -229,6 +263,7 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
 </script>
 <template>
   <div
+    ref="listRef"
     :class="[
       'chat-message-list',
       showTurnNavigation ? 'chat-message-list-with-turn-navigation' : '',
@@ -254,46 +289,49 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
           @click="navigateToTurn(turn)"
         >
           <span class="chat-turn-navigation-dot" aria-hidden="true" />
-          <span>{{ turn.number }}</span>
+          <span class="chat-turn-navigation-number">{{ turn.number }}</span>
+          <span class="chat-turn-navigation-title">{{ turn.label }}</span>
         </button>
       </div>
     </nav>
-    <ElAlert
-      v-if="taskRunning"
-      type="info"
-      :title="t('chat.taskAutoRunning')"
-      style="margin-bottom: 12px"
-    >
-      {{ t('chat.taskAutoRunningHint') }}
-    </ElAlert>
-    <div v-if="hasOlder" class="chat-load-older">
-      <ElButton
-        text
-        size="small"
-        :loading="loadingOlder"
-        @click="tryLoadOlder"
+    <div class="chat-message-list-content">
+      <ElAlert
+        v-if="taskRunning"
+        type="info"
+        :title="t('chat.taskAutoRunning')"
+        style="margin-bottom: 12px"
       >
-        {{ t('chat.loadOlder', { n: hiddenOlderCount }) }}
-      </ElButton>
+        {{ t('chat.taskAutoRunningHint') }}
+      </ElAlert>
+      <div v-if="hasOlder" class="chat-load-older">
+        <ElButton
+          text
+          size="small"
+          :loading="loadingOlder"
+          @click="tryLoadOlder"
+        >
+          {{ t('chat.loadOlder', { n: hiddenOlderCount }) }}
+        </ElButton>
+      </div>
+      <div
+        v-for="(message, offset) in visibleItems"
+        :key="message.id"
+        :ref="(element) => setMessageElement(message.id, element)"
+        class="chat-message-anchor"
+      >
+        <MessageView
+          :message="message"
+          :live="isLive(hiddenOlderCount + offset)"
+          :version="
+            needsSectionRefresh(message, hiddenOlderCount + offset)
+              ? sectionVersion
+              : 0
+          "
+          :session-id="chat?.getSessionId() ?? sessionId ?? ''"
+        />
+      </div>
+      <div ref="bottomRef" />
     </div>
-    <div
-      v-for="(message, offset) in visibleItems"
-      :key="message.id"
-      :ref="(element) => setMessageElement(message.id, element)"
-      class="chat-message-anchor"
-    >
-      <MessageView
-        :message="message"
-        :live="isLive(hiddenOlderCount + offset)"
-        :version="
-          needsSectionRefresh(message, hiddenOlderCount + offset)
-            ? sectionVersion
-            : 0
-        "
-        :session-id="chat?.getSessionId() ?? sessionId ?? ''"
-      />
-    </div>
-    <div ref="bottomRef" />
   </div>
 </template>
 
@@ -303,15 +341,21 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
 }
 
 .chat-message-list-with-turn-navigation {
-  padding-right: 42px;
+  /* 右侧轨道是实际 grid 列，而非可能被滚动容器裁掉的绝对定位空白。 */
+  --chat-turn-navigation-width: 32px;
+  --chat-turn-navigation-reserve: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--chat-turn-navigation-reserve);
+  align-items: start;
 }
 
 .chat-turn-navigation {
+  grid-column: 2;
+  grid-row: 1;
   position: sticky;
   top: 8px;
   z-index: 6;
   height: 0;
-  margin-left: auto;
 }
 
 .chat-turn-navigation-panel {
@@ -321,7 +365,8 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
   display: flex;
   flex-direction: column;
   gap: 3px;
-  width: 32px;
+  width: var(--chat-turn-navigation-width);
+  max-width: calc(100vw - 24px);
   max-height: min(68dvh, 540px);
   overflow-y: auto;
   padding: 4px 2px;
@@ -329,13 +374,30 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
   border-radius: var(--cottage-radius-md);
   background: color-mix(in srgb, var(--cottage-surface) 92%, transparent);
   box-shadow: var(--cottage-shadow-card);
+  transition: width 160ms ease-out;
+}
+
+/* 展开仅在用户主动悬浮或键盘聚焦时发生，临时向消息列左侧浮出。 */
+.chat-turn-navigation:hover .chat-turn-navigation-panel,
+.chat-turn-navigation:focus-within .chat-turn-navigation-panel {
+  width: min(240px, calc(100vw - 24px));
+}
+
+.chat-message-list-content {
+  min-width: 0;
+}
+
+.chat-message-list-with-turn-navigation > .chat-message-list-content {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .chat-turn-navigation-item {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 3px;
+  width: 100%;
   min-height: 24px;
   padding: 2px;
   border: 0;
@@ -366,6 +428,28 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--cottage-border-strong);
+}
+
+.chat-turn-navigation-number {
+  flex: 0 0 16px;
+  text-align: center;
+}
+
+.chat-turn-navigation-title {
+  min-width: 0;
+  max-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width 160ms ease-out, opacity 100ms ease-out;
+}
+
+.chat-turn-navigation:hover .chat-turn-navigation-title,
+.chat-turn-navigation:focus-within .chat-turn-navigation-title {
+  max-width: calc(100% - 28px);
+  opacity: 1;
 }
 
 .chat-turn-navigation-item-active .chat-turn-navigation-dot {

@@ -431,6 +431,7 @@ const zhCN = {
     manageImageModelsInSettings: '请先在设置中添加已配置服务商的生图模型',
     imageModelSwitched: '已切换生图模型',
     searchSourceSection: '搜索来源',
+    searchSourceDisabled: '不使用联网搜索',
     searchSourceNative: '模型原生联网',
     searchSourceThirdParty: '第三方搜索',
     searchSourceThirdPartyNamed: '第三方搜索（{name}）',

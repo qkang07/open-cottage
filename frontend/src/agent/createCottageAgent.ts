@@ -240,8 +240,8 @@ export interface CreateCottageAgentOptions {
   onInFlightUpdate?: () => void;
   /** 审批状态变化回调（后台会话也需要同步到历史列表） */
   onStatusUpdate?: (status: AgentStatus) => void;
-  /** 当前会话生效的搜索来源；缺省读取配置或回退 cottageService */
-  searchSource?: SearchSource;
+  /** 当前会话生效的搜索来源；null 表示关闭联网搜索。 */
+  searchSource?: SearchSource | null;
   /** 第二层选中的第三方搜索 provider */
   thirdPartyProvider?: ThirdPartySearchProviderId;
   /** 第三层 Cottage Service 首选搜索引擎 */
@@ -362,9 +362,21 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
     );
   }
 
-  // 搜索三层来源：缺省读配置，再回退 cottageService
-  const searchSource: SearchSource =
-    options.searchSource ?? cottageConfig.webSearch?.source ?? 'cottageService';
+  // 搜索来源可显式关闭。即使旧配置残留 native，也不能让不支持它的模型挂载失败。
+  const requestedSearchSource =
+    options.searchSource === undefined
+      ? cottageConfig.webSearch?.source ?? null
+      : options.searchSource;
+  const searchSource: SearchSource | null =
+    requestedSearchSource === 'native' &&
+    !resolveCottageModelCapabilities(
+      config,
+      getCachedProviderModels(providerId, Boolean(secret.apiKey.trim()), secret.baseUrl)?.find(
+        (model) => model.id === config.model,
+      ),
+    ).nativeSearch
+      ? null
+      : requestedSearchSource;
   const thirdPartyProvider =
     options.thirdPartyProvider ?? cottageConfig.webSearch?.thirdPartyProvider;
   const thirdPartyApiKey = thirdPartyProvider

@@ -166,7 +166,7 @@ export const useAgentStore = defineStore('agent', () => {
   );
 
   // ── 搜索三层来源（每会话选择） ──
-  /** 当前会话选中的搜索来源；缺省按可用层自动回退 */
+  /** 当前会话配置的搜索来源；null 表示显式关闭。 */
   const searchSource = ref<SearchSource | null>(
     getCottageConfig().webSearch?.source ?? null,
   );
@@ -205,13 +205,15 @@ export const useAgentStore = defineStore('agent', () => {
     return sources;
   });
 
-  /** searchSource 落在可用列表内则用之，否则回退到首个可用层；全空则 null */
+  /**
+   * 只使用当前模型和连接实际可用的已选来源。
+   * 不可用时关闭联网而非静默切到另一来源，避免原生搜索的旧配置阻断 Agent 挂载。
+   */
   const resolvedSearchSource = computed<SearchSource | null>(() => {
     const available = availableSearchSources.value;
-    if (available.length === 0) return null;
     const current = searchSource.value;
     if (current && available.includes(current)) return current;
-    return available[0];
+    return null;
   });
 
   const secretsRef = shallowRef<Awaited<ReturnType<typeof loadProviderSecrets>>>({});
@@ -653,7 +655,7 @@ export const useAgentStore = defineStore('agent', () => {
           cottageServiceCapabilities: useCottageServiceStore().isConnected()
             ? [...useCottageServiceStore().routingCapabilities]
             : undefined,
-          searchSource: resolvedSearchSource.value ?? undefined,
+          searchSource: resolvedSearchSource.value,
           thirdPartyProvider: getCottageConfig().webSearch?.thirdPartyProvider,
           cottageServiceEngine: getCottageConfig().webSearch?.engine,
           cottageServiceServerCapabilities: useCottageServiceStore().isConnected()
@@ -2551,7 +2553,7 @@ export const useAgentStore = defineStore('agent', () => {
         cottageServiceCapabilities: useCottageServiceStore().isConnected()
           ? [...useCottageServiceStore().routingCapabilities]
           : undefined,
-        searchSource: resolvedSearchSource.value ?? undefined,
+        searchSource: resolvedSearchSource.value,
         thirdPartyProvider: getCottageConfig().webSearch?.thirdPartyProvider,
         cottageServiceEngine: getCottageConfig().webSearch?.engine,
         cottageServiceServerCapabilities: useCottageServiceStore().isConnected()
@@ -2927,7 +2929,7 @@ export const useAgentStore = defineStore('agent', () => {
   }
 
   /** 设置当前会话的搜索来源（保存配置并热切换后续回合，不重建聊天列表） */
-  async function setSearchSource(source: SearchSource) {
+  async function setSearchSource(source: SearchSource | null) {
     if (chatRef.value?.busy) {
       throw new Error(i18n.global.t('chat.switchModelBusy'));
     }
@@ -2999,7 +3001,7 @@ export const useAgentStore = defineStore('agent', () => {
       cottageServiceCapabilities: cottage.isConnected()
         ? [...cottage.routingCapabilities]
         : undefined,
-      searchSource: resolvedSearchSource.value ?? undefined,
+      searchSource: resolvedSearchSource.value,
       thirdPartyProvider: getCottageConfig().webSearch?.thirdPartyProvider,
       cottageServiceEngine: getCottageConfig().webSearch?.engine,
       cottageServiceServerCapabilities: cottage.isConnected()
@@ -3097,7 +3099,7 @@ export const useAgentStore = defineStore('agent', () => {
     activeTaskId,
     sessionRuntimeStatus,
     enabledToolGroups,
-    searchSource,
+    searchSource: resolvedSearchSource,
     availableSearchSources,
     setSearchSource,
     secrets: secretsRef,

@@ -392,8 +392,8 @@ export interface CottageConfig {
   webSearch?: {
     /** 第二层选中的第三方搜索提供商 */
     thirdPartyProvider?: ThirdPartySearchProviderId;
-    /** 当前选中的搜索来源；缺省按可用层自动回退 */
-    source?: SearchSource;
+    /** 当前选中的搜索来源；null 表示显式关闭联网搜索。 */
+    source?: SearchSource | null;
     /**
      * 第三层（Cottage Service HTTP 检索）首选搜索引擎。
      * 服务端在该引擎失败时会按 baidu → bing → duckduckgo → google 自动降级。

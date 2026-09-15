@@ -1057,7 +1057,7 @@ export const createFileCottageTools = (
 
 export const createWebCottageTools = (options: {
   /** 当前会话生效的搜索来源 */
-  searchSource: SearchSource;
+  searchSource: SearchSource | null;
   /** 第二层选中的第三方 provider */
   thirdPartyProvider?: ThirdPartySearchProviderId;
   /** 第二层 provider 对应的 API Key */

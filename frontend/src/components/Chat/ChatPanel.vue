@@ -618,7 +618,7 @@ function handleToggleToolGroup(groupId: OptionalToolGroupId, enabled: boolean) {
     message.error(error instanceof Error ? error.message : String(error));
   });
 }
-function handleSetSearchSource(source: SearchSource) {
+function handleSetSearchSource(source: SearchSource | null) {
   void agentStore.setSearchSource(source).catch((error) => {
     message.error(error instanceof Error ? error.message : String(error));
   });

@@ -284,6 +284,45 @@ export const mergeAdjacentThinkSections = (
   return merged;
 };
 
+/**
+ * 聊天展示把同一条 Agent 消息里的所有思考汇为一个折叠区。
+ *
+ * 工具调用仍留在原来的 section 序列中，供执行记录与 Debug 还原；这里只移除
+ * 重复的思考展示入口，避免「思考 → 工具 → 思考」的工具循环产生一串折叠标题。
+ */
+export const collapseThinkSectionsForDisplay = (
+  sections: readonly CottageSection[],
+): CottageSection[] => {
+  const thinkIndexes = sections.flatMap((section, index) =>
+    section.type === 'think' && section.text.trim() ? [index] : [],
+  );
+  if (thinkIndexes.length < 2) return [...sections];
+
+  const firstThinkIndex = thinkIndexes[0];
+  const text = thinkIndexes
+    .map((index) => sections[index])
+    .reduce(
+      (joined, section) =>
+        joinAdjacentThinkText(
+          joined,
+          section.type === 'think' ? section.text : '',
+        ),
+      '',
+    );
+  const streaming = thinkIndexes.some((index) => {
+    const section = sections[index];
+    return section.type === 'think' && Boolean(section.streaming);
+  });
+
+  return sections.flatMap((section, index) => {
+    if (index === firstThinkIndex) {
+      return [{ type: 'think', text, streaming } satisfies CottageSection];
+    }
+    if (section.type === 'think' && section.text.trim()) return [];
+    return [section];
+  });
+};
+
 const appendStreamingContent = (msg: CottageMessage, chunk: string) => {
   if (!chunk) return;
   const last = msg.sections[msg.sections.length - 1];
