@@ -47,7 +47,6 @@ export type SessionEvent =
 
 export const DIAGNOSTIC_EVENT_TYPES = new Set<string>([
   'tool_call',
-  'plan',
   'verify',
   'turn_start',
   'turn_end',

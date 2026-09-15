@@ -99,8 +99,11 @@ export async function captureAiChangeBeforeMutation(
     const snapshot = await read();
     if (snapshot.kind === 'missing') captured = { kind: 'missing' };
     else if (snapshot.kind === 'directory') captured = { kind: 'unavailable', reason: 'directory' };
-    else if (snapshot.size > MAX_BASELINE_BYTES) captured = { kind: 'unavailable', reason: 'oversize' };
-    else captured = { kind: 'stored', bytes: snapshot.bytes };
+    else if (snapshot.kind === 'file') {
+      captured = snapshot.size > MAX_BASELINE_BYTES
+        ? { kind: 'unavailable', reason: 'oversize' }
+        : { kind: 'stored', bytes: snapshot.bytes };
+    }
   } catch {
     captured = { kind: 'unavailable', reason: 'read-error' };
   }
@@ -227,16 +230,17 @@ export async function removeAiChangeRecord(path: string): Promise<void> {
   const removed = index[normalized];
   delete index[normalized];
   await writeActiveIndex(index).catch(() => undefined);
+  const removedBaseline = removed.baseline;
   if (
-    removed?.baseline.kind === 'stored' &&
+    removedBaseline.kind === 'stored' &&
     !Object.values(index).some(
       (record) =>
         record.baseline.kind === 'stored' &&
-        record.baseline.storagePath === removed.baseline.storagePath,
+        record.baseline.storagePath === removedBaseline.storagePath,
     )
   ) {
     const { workspace } = await import('../workspace/FileSystemWorkspace');
-    await workspace.deleteCottagePath(removed.baseline.storagePath).catch(() => undefined);
+    await workspace.deleteCottagePath(removedBaseline.storagePath).catch(() => undefined);
   }
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('cottage:ai-changes-updated'));

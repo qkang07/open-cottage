@@ -306,8 +306,6 @@ function timelineLabel(event: SessionEvent): string {
       return `模型请求 · ${event.identity.provider}/${event.identity.model} · ${event.durationMs}ms`;
     case 'tool_call':
       return `工具 · ${event.name}`;
-    case 'plan':
-      return `执行计划 · ${event.goal || '（无目标）'}`;
     case 'verify':
       return `验收 · ${event.verdict}`;
     case 'handoff':
