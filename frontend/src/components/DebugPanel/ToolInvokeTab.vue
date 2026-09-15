@@ -20,7 +20,7 @@ import type {
   ToolCatalogEntry,
   ToolInvocationOutcome,
 } from '../../agent/toolInvocation';
-import { getToolRiskLevel } from '../../platform/plan';
+import { toolRisk } from '../../agent/toolDescriptions';
 import type { TraceToolStatus } from '../../platform/trace';
 import {
   invokeManually,
@@ -145,7 +145,7 @@ watch(selectedName, (name) => {
 const STATUS_META: Record<TraceToolStatus, { label: string; type: 'success' | 'warning' | 'danger' | 'info' }> = {
   ok: { label: '成功', type: 'success' },
   blocked_policy: { label: '策略拦截', type: 'warning' },
-  blocked_plan: { label: '计划闸门拦截', type: 'warning' },
+  blocked_plan: { label: '计划范围拦截', type: 'warning' },
   duplicate: { label: '重复调用拦截', type: 'warning' },
   doom_loop: { label: '循环告警', type: 'danger' },
   unknown_tool: { label: '未知工具', type: 'danger' },
@@ -163,7 +163,7 @@ async function run() {
   if (!agent || !name || running.value) return;
 
   // destructive 工具：执行前二次确认（与 policyGate 的审批相互独立）
-  if (getToolRiskLevel(name) === 'destructive') {
+  if (toolRisk(name) === 'destructive') {
     try {
       await ElMessageBox.confirm(
         `工具「${name}」为破坏性操作，可能直接修改或删除工作区文件。确认执行？`,

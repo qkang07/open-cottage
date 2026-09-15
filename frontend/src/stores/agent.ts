@@ -61,13 +61,8 @@ import type { CheckResult, VerifyReport } from '../platform/verify';
 import type { OrchestrationState } from '../orchestrator/types';
 import type { CottageAgentMode } from '../agent/createCottageAgent';
 import type { AgentStatus } from '../agent/CottageAgent';
-import type { SpecDoc } from '../spec/types';
 import { workspace, formatWorkspaceFsError } from '../workspace/FileSystemWorkspace';
 import { setActiveInteractionSession } from '../platform/interaction/interactionScope';
-import {
-  cancelPendingPlanApproval as cancelPendingExecutionPlanApproval,
-  hasPendingPlanApprovalFor as hasPendingExecutionPlanApprovalFor,
-} from '../platform/plan';
 import type { PlanToolCallbacks } from '../plan/planTools';
 import { buildPlanExecutionContext } from '../plan/executionContext';
 import type {
@@ -460,8 +455,7 @@ export const useAgentStore = defineStore('agent', () => {
       setTimeout(() => {
         void maybeKickoffPendingPlan(sessionId);
         void maybeKickoffPendingPlanRevision(sessionId);
-        // 仅供已在内存中的旧 Spec Agent 收口；新建/恢复会话不会再挂载该模式。
-        void maybeContinuePlanAfterTurn(sessionId);
+        void continueActivePlanAfterTurn(sessionId);
         // 计划完成后才离开 Plan runtime，保留已完成计划的审计记录；后续小修改
         // 走普通对话的暂存/审批流程，避免已结束计划继续拦截新的编辑请求。
         void maybeExitCompletedPlanModeAfterTurn(sessionId);
@@ -490,7 +484,6 @@ export const useAgentStore = defineStore('agent', () => {
     const entry = agents.get(sessionId);
     if (entry && entry.agent.getPendingInteractionCalls().length > 0) return true;
     return (
-      hasPendingExecutionPlanApprovalFor(sessionId) ||
       hasPendingPlanApprovalFor(sessionId) ||
       hasPendingStagedApprovalFor(sessionId) ||
       hasPendingAskFor(sessionId)
@@ -506,7 +499,6 @@ export const useAgentStore = defineStore('agent', () => {
     if (!entry) return;
     if (options?.abort && entry.agent.busy) entry.agent.abort();
     // 销毁会话时清理其残留的交互闸门待处理项，避免 promise 泄漏与状态残留
-    cancelPendingExecutionPlanApproval('会话已关闭', sessionId);
     cancelPendingPlanApproval(new Error('会话已关闭'), sessionId);
     cancelPendingStagedApproval('会话已关闭', sessionId);
     cancelPendingAsk('会话已关闭', sessionId);
@@ -2269,24 +2261,7 @@ export const useAgentStore = defineStore('agent', () => {
     );
   }
 
-  async function copyLegacySpecToPlan(doc: SpecDoc) {
-    const instance = chatRef.value;
-    if (!instance || instance.busy) return;
-    await setChatMode('plan');
-    void instance.next(
-      `用户明确要求把以下旧 Spec 复制为新的 Plan v1。旧数据保持不变。` +
-        `请先只读核对当前工作区，然后补充路径前缀、步骤依赖和基于浏览器 provider 的验收标准，` +
-        `再调用 submitPlan 提交新的计划供批准：\n${JSON.stringify({
-          goal: doc.goal,
-          requirements: doc.requirements,
-          design: doc.design,
-          tasks: doc.tasks.map((task) => ({ title: task.title, detail: task.detail })),
-          acceptance: doc.acceptance,
-        }, null, 2)}`,
-    );
-  }
-
-  async function maybeContinuePlanAfterTurn(sessionId: string) {
+  async function continueActivePlanAfterTurn(sessionId: string) {
     if (sessionId !== activeChatIdRef.value) return;
     const context = getActivePlanContext();
     const instance = chatRef.value;
@@ -2483,7 +2458,7 @@ export const useAgentStore = defineStore('agent', () => {
       activeTaskId.value = null;
     }
 
-    // 新 Plan v1 与旧 Spec/Task 数据隔离；仅恢复当前会话的 Plan v1。
+    // Plan v1 与内部任务数据隔离；仅恢复当前会话的 Plan v1。
     if (!isTask) {
       planMode.value = false;
       activePlanIdRef.value = null;
@@ -3152,6 +3127,5 @@ export const useAgentStore = defineStore('agent', () => {
     openPlan,
     listWorkspacePlans,
     queuePlanInstruction,
-    copyLegacySpecToPlan,
   };
 });

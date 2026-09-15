@@ -179,7 +179,7 @@ type MentionEntry = {
   path: string;
   entryType: 'file' | 'directory';
 };
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const message = ElMessage;
 const sending = ref(false);
 const switchingModel = ref(false);
@@ -276,6 +276,12 @@ function searchSourceLabel(source: SearchSource): string {
     ? t('chat.searchSourceThirdPartyNamed', { name: provider })
     : t('chat.searchSourceThirdParty');
 }
+const searchSourceDisabledLabel = computed(() => {
+  const label = t('chat.searchSourceDisabled');
+  // i18n 语言包热更新尚未完成时，不把内部 key 暴露给用户。
+  if (label !== 'chat.searchSourceDisabled') return label;
+  return locale.value === 'en-US' ? 'No web search' : '不使用联网搜索';
+});
 const presetOptions = ref<Array<{ value: string; label: string }>>([]);
 const activePresetValue = ref<string | null>(null);
 const imagePresetOptions = ref<Array<{ value: string; label: string }>>([]);
@@ -1538,7 +1544,7 @@ const canSend = computed(
                         :disabled="disabled || busy || switchingModel"
                         @click="emit('setSearchSource', null)"
                       >
-                        <span class="chat-model-cap-model-name">{{ t('chat.searchSourceDisabled') }}</span>
+                        <span class="chat-model-cap-model-name">{{ searchSourceDisabledLabel }}</span>
                         <NIcon v-if="searchSource === null" :component="CheckmarkOutline" class="chat-model-cap-model-check" />
                       </button>
                       <button

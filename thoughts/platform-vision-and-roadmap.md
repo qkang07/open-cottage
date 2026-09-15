@@ -138,7 +138,7 @@ Cottage 不应是「加强版 Cursor」，而是 **Platform Core + 可插拔 Dom
 ┌─────────────────────────────────────────────────────────┐
 │  Platform Core（与任务类型无关）                          │
 │  Capability Registry · Policy Engine · Context Builder  │
-│  Plan Gate · DoD Verifier · Trace/Replay                │
+│  Plan Mode · DoD Verifier · Trace/Replay                │
 │  Connector Hub · Artifact / Deliverable Pipeline        │
 └─────────────────────────────────────────────────────────┘
          ↑ 注册                              ↑ 注册
@@ -155,7 +155,7 @@ Cottage 不应是「加强版 Cursor」，而是 **Platform Core + 可插拔 Dom
 | 能力           | 平台通用            | Coding 专用    |
 | ------------ | --------------- | ------------ |
 | 代码语义索引       | —               | ✅            |
-| 变更规划器        | ✅ Plan Gate     | 文件打分与影响分析    |
+| 变更规划器        | ✅ Plan Mode     | 文件打分与影响分析    |
 | AST 级编辑器     | —               | ✅            |
 | 架构规则引擎       | ✅ Policy Engine | 规则集          |
 | 结果判定（DoD）    | ✅               | 各 Pack 的检查模板 |
@@ -204,7 +204,7 @@ Cottage 不应是「加强版 Cursor」，而是 **Platform Core + 可插拔 Dom
 
 **平台层（仍待建）**
 
-1. **Plan Gate** — Orchestrator 偏通用拆解，缺「先计划后修改」与预算约束
+1. **Plan Mode** — 统一计划、批准、执行、验收链路已落地在 `src/plan`，后续补充跨领域编排
 2. **Generic DoD** — verify 偏弱（文件存在 + 交付清单 + 可选 JS 脚本），缺需求覆盖矩阵与结构化断言 → ✅ 已抽离到 `platform/verify`，支持五类结构化断言与逐条结果
 3. **Context Builder** — 缺按 token 预算的智能上下文调度
 4. **Trace / Replay** — 缺全链路记录与失败回放 → ✅ 已落地 `platform/trace`：`.cottage/trace/{sessionId}/trace.jsonl` 记录工具调用（参数/结果/前后 diff/耗时/状态）、计划、验收、轮次起止；聊天面板有 trace 查看器
@@ -313,28 +313,14 @@ interface PolicyRule {
 }
 ```
 
-### 5.4 Plan Gate（已实现 MVP）
+### 5.4 Plan Mode（统一流程）
 
-在首批 write / external / destructive 工具前，强制 Agent 调用 `submitExecutionPlan` 提交可校验计划，并按预算约束执行：
+聊天模式通过 `suggestPlanMode` 进入计划模式；计划模式由 `submitPlan` 提交版本化计划，随后按依赖执行 `completePlanStep`，必要时 `requestPlanRevision`，最终由 `completePlanRun` 汇总验收。
 
-```typescript
-interface ExecutionPlan {
-  goal: string;
-  domain?: string;
-  items: Array<{
-    requirement: string;
-    actions?: string[];
-    confidence?: number;
-  }>;
-  budget?: { maxFiles?: number; maxApiCalls?: number; maxTurns?: number };
-}
-```
-
-- **聊天模式**默认启用（任务模式仍用 `taskSetPlan`）
-- 只读工具（read/search 等）无需先提交计划
-- 超预算时阻止工具执行，将原因回传给模型
-- 配置：`platform.planGate`（enabled、requirePlanFor、defaultBudget）
-- 实现：`platform/plan/` + `CottageAgent` 工具循环拦截
+- 计划真相由 `PlanRepository`、`PlanRunner` 和 Mutation Journal 维护
+- `PlanToolGuard` 将写入、外部调用与破坏性操作限制在已批准的路径和步骤范围内
+- 只读探索发生在批准前；写入只能发生在批准后的允许范围
+- 任务模式继续使用内部 `taskSetPlan`，与公开 Plan Mode 分开
 
 ### 5.5 DoD Verifier（通用）
 
@@ -374,7 +360,7 @@ frontend/src/
 │   ├── policy/                  # ✅ 策略引擎 + 审批闸门
 │   ├── packs/                   # ✅ 能力包（内置 builtins/ + 外部安装）
 │   ├── context/                 # ⬜ Context Builder
-│   ├── plan/                    # ✅ Plan Gate、submitExecutionPlan、预算
+│   ├── plan/                    # ✅ Plan Mode、PlanRepository、PlanRunner、预算
 │   ├── verify/                  # ⬜ 通用 DoD（从 task/verify 抽离）
 │   └── trace/                   # ✅ Trace + Replay
 │
@@ -396,7 +382,7 @@ frontend/src/
 │
 ├── rag/                         # ✅ 向量索引 + 检索 + Office 抽取
 ├── agent/                       # 🚧 已接入 platform（base + 能力包装配 + policyGate）
-├── orchestrator/                # 现有：domain-aware planner（Plan Gate 待补）
+├── orchestrator/                # 现有：domain-aware planner（编排能力仍隐藏）
 └── task/                        # 现有：委托 platform/verify（待抽离）
 ```
 
@@ -408,9 +394,9 @@ frontend/src/
 | `agent/createCottageAgent.ts` | base 工具 + 能力包装配 + policyGate                  | ✅    |
 | `agent/constants.ts`          | base prompt + 能力包 overlay，去 coding 硬编码        | ✅    |
 | `agent/toolCatalog.ts`        | 演进为包级 capability 分组（office/coding/python）      | ✅    |
-| `agent/CottageAgent.ts`       | 工具执行前挂 policyGate + planGate hook              | ✅    |
+| `agent/CottageAgent.ts`       | 工具执行前挂 policyGate + PlanToolGuard              | ✅    |
 | `orchestrator/planner.ts`     | 输入 `detectedDomains` + capability 列表          | ⬜    |
-| `orchestrator/executor.ts`    | Plan Gate hook                                | ⬜    |
+| `orchestrator/executor.ts`    | Plan Mode 编排接入                             | ⬜    |
 | `task/types.ts`               | `domain`、`deliverables`、`acceptance.checks[]` | ⬜    |
 | `task/verify.ts`              | 委托 `platform/verify`                          | ⬜    |
 | `mcp/toolAdapter.ts`          | oneOf/allOf/anyOf/ref、结构化结果、重试分级              | ⬜    |
@@ -441,12 +427,12 @@ frontend/src/
 | Capability Pack     | 内置包 + 外部包安装/校验/加载，基础/领域能力分层               | ✅    |
 | 分层 prompt           | `constants.ts` → base + 能力包 overlay     | ✅    |
 | Policy MVP          | 工具 riskLevel + 破坏性操作 requireApproval + 审批 UI | ✅    |
-| Plan Gate MVP       | 修改前输出 plan JSON，超预算 abort；`submitExecutionPlan` 工具 + 预算闸门 | ✅    |
+| Plan Mode MVP       | 版本化计划、批准、步骤依赖、预算与验收闭环                   | ✅    |
 | Trace 基础            | `.cottage/trace/{sessionId}/` 事件流       | ✅    |
 
 
 **验收**：同一套 Orchestrator 可跑「整理 Excel」与「改前端组件」两类任务，且均有 plan + trace。
-**当前进度**：能力分层、能力包装配、Policy 审批、Plan Gate 已具备；剩 Trace 一项即可达成 Phase 1 验收。
+**当前进度**：能力分层、能力包装配、Policy 审批、Plan Mode 与 Trace 已具备；后续聚焦跨领域编排与交付 UI。
 
 ### Phase 2 — 办公闭环（部分完成）
 
@@ -562,7 +548,7 @@ Cottage 的目的不是「再做一个什么都能聊的 Agent」，而是：
 
 迭代顺序：**平台轨道（Plan / Policy / Verify / Trace）→ 办公闭环 → 外部集成 → 编程深度 → 多媒体与自动化**。每一阶段都应有可演示的端到端场景和可度量指标，避免能力堆叠却没有「入轨时刻」。
 
-**当前状态（2026-06）**：平台轨道已铺好 Capability Registry / Capability Pack / Policy 三段；办公闭环已具备内容层与写入/模板能力。下一步聚焦 **Plan Gate + Trace**（补全平台轨道）与 **Deliverable UI + Generic DoD**（打通办公闭环）。
+**当前状态（2026-06）**：平台轨道已铺好 Capability Registry / Capability Pack / Policy / Plan Mode / Trace；办公闭环已具备内容层与写入/模板能力。下一步聚焦 **跨领域编排** 与 **Deliverable UI + Generic DoD**（打通办公闭环）。
 
 ---
 

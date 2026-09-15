@@ -122,14 +122,12 @@ import {
 } from './agentViewState';
 import { getCottageConfig } from '../config/store';
 import type { EventBus, CottageEvent } from '../platform/events';
-import type { ConversationSnapshot, PlanStateSnapshot } from './conversationCheckpoint';
+import type { ConversationSnapshot } from './conversationCheckpoint';
 import { createConversationCheckpoint } from './conversationCheckpoint';
 import { createManualCheckpoint } from '../history/historyService';
 import { flushCheckpoint } from '../history/autoCheckpoint';
+import { recordAiChangeFromBytes } from '../chat/aiChangeBaseline';
 import type { PolicyGate } from '../platform/policy';
-import type { PlanGate } from '../platform/plan';
-import { cancelPendingPlanApproval, recordPlanToolOutcome } from '../platform/plan';
-import type { PlanSession } from '../platform/plan';
 import type { UnifiedToolExecutor } from './toolInvocation';
 import type {
   StagingStatePersistence,
@@ -172,9 +170,6 @@ export interface CreateCottageAgentOptions {
   resolveExpectedModelConfig?: () => LlmModelConfig | null;
   /** 工具执行前的策略闸门（放行 / 阻止 / 弹确认） */
   policyGate?: PolicyGate;
-  /** 工具执行前的计划闸门 */
-  planGate?: PlanGate;
-  planSession?: PlanSession;
   /** 统一 Plan Mode 的路径范围、预算与步骤检查点闸门。 */
   planToolGuard?: PlanToolGuard;
   /** 统一工具执行器（script / manual 来源的治理管线），由 createCottageAgent 注入 */
@@ -192,7 +187,7 @@ export interface CreateCottageAgentOptions {
   /** 会话级 trace 记录器；为 null 时不记录 */
   traceRecorder?: TraceRecorder | null;
   /** chat / task / plan 模式，用于 trace 事件 */
-  mode?: 'chat' | 'task' | 'plan' | 'spec';
+  mode?: 'chat' | 'task' | 'plan';
   /** 流式工具执行上下文（Cottage Service 路由等） */
   toolStreamContext?: ToolStreamContext;
   /** UI 响应式状态层，由 createCottageAgent 注入 */
@@ -227,8 +222,6 @@ export class CottageAgent {
   private modelConfig: LlmModelConfig | undefined;
   private resolveExpectedModelConfig: (() => LlmModelConfig | null) | undefined;
   private policyGate: PolicyGate | undefined;
-  private readonly planGate: PlanGate | undefined;
-  private readonly planSession: PlanSession | undefined;
   private planToolGuard: PlanToolGuard | undefined;
   private readonly toolExecutor: UnifiedToolExecutor | undefined;
   private readonly stagingStore: StagingStore | undefined;
@@ -239,7 +232,7 @@ export class CottageAgent {
     'maxRetries' | 'baseDelayMs' | 'maxDelayMs'
   >;
   private readonly traceRecorder: TraceRecorder | null;
-  private agentMode: 'chat' | 'task' | 'plan' | 'spec';
+  private agentMode: 'chat' | 'task' | 'plan';
   private readonly toolStreamContext: ToolStreamContext | undefined;
   /**
    * 完整展示 transcript：只追加，compaction 不删除。
@@ -294,8 +287,6 @@ export class CottageAgent {
       ensureModelsDevCatalog();
     }
     this.policyGate = options.policyGate;
-    this.planGate = options.planGate;
-    this.planSession = options.planSession;
     this.planToolGuard = options.planToolGuard;
     this.toolExecutor = options.toolExecutor;
     this.stagingStore = options.stagingStore;
@@ -568,7 +559,6 @@ export class CottageAgent {
         label,
         history: [...this.storedHistory],
         contextUsage: this.contextUsage,
-        planState: this.getPlanStateSnapshot(),
         workspaceVersionId,
       });
       this.emitEvent({
@@ -681,16 +671,8 @@ export class CottageAgent {
     await this.traceRecorder.flush();
   }
 
-  getPlanSession(): PlanSession | undefined {
-    return this.planSession;
-  }
-
   getPolicyGate(): PolicyGate | undefined {
     return this.policyGate;
-  }
-
-  getPlanGate(): PlanGate | undefined {
-    return this.planGate;
   }
 
   getPlanToolGuard(): PlanToolGuard | undefined {
@@ -829,7 +811,7 @@ export class CottageAgent {
     return activated;
   }
 
-  getAgentMode(): 'chat' | 'task' | 'plan' | 'spec' {
+  getAgentMode(): 'chat' | 'task' | 'plan' {
     return this.agentMode;
   }
 
@@ -838,7 +820,7 @@ export class CottageAgent {
    * 不触碰历史 transcript / UI 消息。task 模式不可切换。
    */
   applyMode(options: {
-    mode: 'chat' | 'plan' | 'spec';
+    mode: 'chat' | 'plan';
     systemPrompt: string;
     modeTools: readonly CottageTool[];
     planToolGuard?: PlanToolGuard;
@@ -873,7 +855,7 @@ export class CottageAgent {
    * 不触碰历史 transcript / UI 消息；运行时快照由调用方写入事件时间线。
    */
   applyRuntime(options: {
-    mode?: 'chat' | 'task' | 'plan' | 'spec';
+    mode?: 'chat' | 'task' | 'plan';
     systemPrompt: string;
     model: CottageModelDriver;
     modelConfig?: LlmModelConfig;
@@ -915,22 +897,11 @@ export class CottageAgent {
     }
   }
 
-  /** 获取当前 PlanSession 状态快照 */
-  getPlanStateSnapshot(): PlanStateSnapshot | null {
-    if (!this.planSession) return null;
-    return {
-      plan: this.planSession.plan,
-      lastBlockedReason: this.planSession.lastBlockedReason,
-      counters: { ...this.planSession.counters },
-    };
-  }
-
   /** 获取当前完整运行时状态快照，用于 ConversationCheckpoint 持久化 */
   snapshot(): ConversationSnapshot {
     return {
       history: [...this.storedHistory],
       contextUsage: this.contextUsage,
-      planState: this.getPlanStateSnapshot(),
     };
   }
 
@@ -941,15 +912,6 @@ export class CottageAgent {
     );
     this.llmHistory = [...this.storedHistory];
     this.contextUsage = snapshot.contextUsage ?? null;
-    if (this.planSession && snapshot.planState) {
-      this.planSession.plan = snapshot.planState.plan;
-      this.planSession.lastBlockedReason = snapshot.planState.lastBlockedReason;
-      this.planSession.counters.files = snapshot.planState.counters.files;
-      this.planSession.counters.apiCalls = snapshot.planState.counters.apiCalls;
-      this.planSession.counters.turns = snapshot.planState.counters.turns;
-    } else if (this.planSession) {
-      this.planSession.reset();
-    }
     this.doomLoopDetector.reset();
     this.doomLoopHitCount = 0;
     this.rebuildUiMessages();
@@ -1056,6 +1018,11 @@ export class CottageAgent {
       const committed = await this.stagingWorkspace.commit();
       await this.persistStagingState();
       for (const entry of committed) {
+        await recordAiChangeFromBytes(
+          entry.path,
+          entry.created ? null : new TextEncoder().encode(entry.before),
+          entry.deleted ? 'deleted' : entry.created ? 'created' : 'modified',
+        );
         this.emitEvent({
           type: 'patch_applied',
           at: Date.now(),
@@ -1421,6 +1388,7 @@ export class CottageAgent {
             callSection.after = stored.writePreview.after;
             callSection.created = stored.writePreview.created;
           }
+          callSection.changeBaselines = stored.changeBaselines;
 
           // 已完成的问询独立成消息节点。这样恢复会话或后续继续执行时，
           // 选中的询问不会被合并到先前的长回复中而丢失渲染位置。
@@ -1529,7 +1497,6 @@ export class CottageAgent {
     if (!llmContent && !storedUser.attachments?.length) return;
 
     cancelPendingAsk('已从此消息重试', this.sessionId);
-    cancelPendingPlanApproval('已从此消息重试', this.sessionId);
     cancelPendingStagedApproval('已从此消息重试', this.sessionId);
 
     this.storedHistory = this.storedHistory.slice(0, storedIndex + 1);
@@ -1617,7 +1584,6 @@ export class CottageAgent {
     this.turnInFlight = true;
     this.turnStartedAt = Date.now();
     this.abortController = new AbortController();
-    this.planSession?.reset();
     this.doomLoopDetector.reset();
     this.doomLoopHitCount = 0;
     // 未审批的暂存改动可跨回合保留，便于用户继续提要求；
@@ -1673,9 +1639,6 @@ export class CottageAgent {
         // 进入工具轮前收起正文光标（部分厂商不走 tool_call_chunks 流）
         sealAssistantTextStreaming(assistantMsg);
         toolRound += 1;
-        if (this.planSession?.plan) {
-          this.planSession.counters.turns += 1;
-        }
 
         // 部分厂商/流式返回的 tool_call 可能没有 id；同一轮 assistant message 与后续 tool message
         // 的 tool_call_id 必须完全一致，否则 LLM API 会报 "tool_call_ids did not have response messages"。
@@ -1846,22 +1809,6 @@ export class CottageAgent {
           if (
             !planBlockedReason &&
             !doomLoopBlockedReason &&
-            this.planGate &&
-            !this.toolExecutor
-          ) {
-            const planVerdict = this.planGate({
-              toolName,
-              toolRound: toolRound,
-              args: (call.args as Record<string, unknown> | undefined) ?? {},
-            });
-            if (!planVerdict.allowed) {
-              planBlockedReason =
-                planVerdict.reason ?? '该操作被计划闸门阻止';
-            }
-          }
-          if (
-            !planBlockedReason &&
-            !doomLoopBlockedReason &&
             this.policyGate &&
             !this.toolExecutor
           ) {
@@ -1951,10 +1898,7 @@ export class CottageAgent {
             });
           } else if (planBlockedReason) {
             traceStatus = 'blocked_plan';
-            resultText = `📋 计划闸门：${planBlockedReason}`;
-            if (this.planSession) {
-              this.planSession.lastBlockedReason = planBlockedReason;
-            }
+            resultText = `📋 计划范围：${planBlockedReason}`;
           } else if (policyBlockedReason) {
             traceStatus = 'blocked_policy';
             resultText = `⛔ 操作被安全策略阻止：${policyBlockedReason}。如需继续请向用户说明，或改用低风险方式。`;
@@ -2008,9 +1952,6 @@ export class CottageAgent {
                   decision: { chosen },
                 });
                 resultText = JSON.stringify({ question, chosen });
-                if (!executedByUnifiedExecutor && this.planSession) {
-                  recordPlanToolOutcome(this.planSession, toolName);
-                }
                 if (!executedByUnifiedExecutor) {
                   this.doomLoopDetector.record({
                     name: toolName,
@@ -2070,6 +2011,7 @@ export class CottageAgent {
                     callSection.after = outcome.snapshot.after;
                     callSection.created = outcome.snapshot.created;
                   }
+                  callSection.changeBaselines = outcome.changeBaselines;
                 } else if (supportsToolStream(toolName)) {
                   throw new Error('统一工具执行器不可用，已拒绝直接执行流式工具');
                 } else {
@@ -2112,9 +2054,6 @@ export class CottageAgent {
                       created: snapshot.created,
                     });
                   }
-                }
-                if (!executedByUnifiedExecutor && this.planSession) {
-                  recordPlanToolOutcome(this.planSession, toolName);
                 }
                 if (!executedByUnifiedExecutor) {
                   this.doomLoopDetector.record({
@@ -2185,23 +2124,6 @@ export class CottageAgent {
               : {}),
           });
 
-          // 计划提交单独记录一条 plan 事件
-          if (toolName === 'submitExecutionPlan' && traceStatus === 'ok') {
-            const planArgs = (call.args ?? {}) as {
-              goal?: string;
-              items?: unknown[];
-              budget?: { maxFiles?: number; maxApiCalls?: number; maxTurns?: number };
-            };
-            this.traceRecorder?.append({
-              type: 'plan',
-              at: Date.now(),
-              goal: planArgs.goal ?? '',
-              itemCount: planArgs.items?.length ?? 0,
-              budget: planArgs.budget,
-              approved: true,
-            });
-          }
-
           runtimeMessages.push(
             toolResultMessage({
               content: resultText,
@@ -2229,6 +2151,9 @@ export class CottageAgent {
                     created: callSection.created,
                   },
                 }
+              : {}),
+            ...(callSection.changeBaselines
+              ? { changeBaselines: callSection.changeBaselines }
               : {}),
           });
           // 工具图片紧随 tool 消息即时注入本轮上下文，使模型当轮可见

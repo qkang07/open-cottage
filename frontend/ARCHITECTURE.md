@@ -68,27 +68,26 @@ Open Cottage 是一个 **基于本地文件夹的 Agent 工作平台**：
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Vue UI (三栏 + Header)                            │
-│  FileBrowser │ Preview │ ChatPanel (对话 / 任务 Segmented)               │
+│  FileBrowser │ Preview │ ChatPanel (对话 / Plan Mode)                   │
 └─────────────────────────────────────────────────────────────────────────┘
          │                    │                         │
          ▼                    ▼                         ▼
 ┌─────────────────┐  ┌──────────────────────┐  ┌──────────────────────────┐
-│ WorkspaceStore  │  │  AgentStore          │  │  TaskStore               │
-│ FileSystemWS    │  │  createCottageAgent  │  │  TaskRunner + persistence│
-└─────────────────┘  └────────┬─────────────┘  └─────────────┬────────────┘
-         │                     │                              │
-         │                     ▼                              │
-         │         ┌──────────────────────────────┐           │
-         │         │ CottageAgent (AI SDK Core)     │           │
-         │         │  system prompt + pack overlay│           │
-         │         │  tool loop + PolicyGate      │           │
-         │         │             + PlanGate       │           │
-         │         └──────────────┬───────────────┘           │
-         │                        │                           │
-         ▼                        ▼                           ▼
+│ WorkspaceStore  │  │  AgentStore                              │
+│ FileSystemWS    │  │  createCottageAgent + PlanRunner/Repo    │
+└─────────────────┘  └──────────────┬───────────────────────────┘
+         │                          │
+         │                          ▼
+         │         ┌────────────────────────────────────────────┐
+         │         │ CottageAgent (AI SDK Core)                 │
+         │         │ system prompt + pack overlay               │
+         │         │ tool loop + PolicyGate + PlanToolGuard     │
+         │         └──────────────────┬─────────────────────────┘
+         │                            │
+         ▼                            ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Platform Core                                                          │
-│  Capability Registry · Policy Engine · Capability Pack · Plan Gate      │
+│  Capability Registry · Policy Engine · Capability Pack                  │
 └─────────────────────────────────────────────────────────────────────────┘
          │ 注册                          │ 注册                    │ 注册
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐
@@ -131,15 +130,15 @@ frontend/src/
 │   ├── policy/                   # Policy Engine：风险分级 + 审批闸门
 │   ├── packs/                    # Capability Pack：内置 builtins/ + 外部包安装/校验/加载
 │   │   └── builtins/             #   office / coding / dataAnalysis / base
-│   └── plan/                     # Plan Gate：submitExecutionPlan + 预算闸门
+├── plan/                         # Plan v1：版本、执行、范围、预算、检查点与恢复
 ├── content/                      # 统一内容层：ContentRef + 结构化存储 + Office 抽取
 ├── domains/                      # 领域包实现
 │   ├── coding/                   #   符号索引、引用查询、影响分析、AST 编辑
 │   │   └── ast/                  #   AST 操作 + tsAdapter / jsxAdapter + diff
 │   └── office/                   #   docx/pptx 模板、批量生成
 ├── agent/                        # Agent 组装与工具
-│   ├── createCottageAgent.ts     #   base 工具 + 能力包装配 + policyGate + planGate
-│   ├── CottageAgent.ts           #   工具循环，执行前挂 policy/plan hook
+│   ├── createCottageAgent.ts     #   base 工具 + 能力包装配 + PolicyGate + PlanToolGuard
+│   ├── CottageAgent.ts           #   工具循环与 chat / plan 运行时切换
 │   ├── constants.ts              #   base prompt + 能力包 overlay
 │   ├── cottageTools.ts         #   文件/Web/任务基础工具
 │   ├── officeReadCottageTools.ts / officeWriteCottageTools.ts
@@ -277,23 +276,17 @@ type PolicyDecision =
 
 实现：`platform/policy/`。
 
-### 7.4 Plan Gate
+### 7.4 Plan Mode
 
-在首批 write / external / destructive 工具前，强制 Agent 调用 `submitExecutionPlan` 提交可校验计划，并按预算约束执行：
+复杂改动使用唯一的公开 Plan v1 链路：`suggestPlanMode → submitPlan → completePlanStep / requestPlanRevision → completePlanRun`。
 
-```typescript
-interface ExecutionPlan {
-  goal: string;
-  domain?: string;
-  items: Array<{ requirement: string; actions?: string[]; confidence?: number }>;
-  budget?: { maxFiles?: number; maxApiCalls?: number; maxTurns?: number };
-}
-```
+- `PlanRepository` 的不可变 commit/head 是计划恢复权威。
+- `PlanRunner` 是步骤与运行状态的唯一迁移入口。
+- `PlanToolGuard` 在执行前检查批准 revision、当前步骤、路径白名单和预算。
+- 普通范围内写入复用一次计划批准；外部调用、破坏性操作、移动/删除、越界路径和预算变化仍单独确认。
+- Mutation Journal 与步骤检查点记录实际改动并支持恢复；模型上报的 changedFiles 只作提示。
 
-- 聊天模式默认启用（任务模式仍用 `taskSetPlan`）。
-- 只读工具无需先提交计划。
-- 超预算时阻止工具执行，原因回传模型。
-- 配置：`platform.planGate`；实现：`platform/plan/`。
+实现：`src/plan/`。
 
 ---
 
@@ -310,23 +303,23 @@ interface ExecutionPlan {
 1. base 工具（文件 / Web / 任务 / `askUser` / `runScript` / history / rag / mcp / orchestrator）
 2. 已启用能力包的工具与 prompt overlay
 3. `policyGate`（工具执行前风险闸门）
-4. `planGate`（首批写操作前计划闸门）
+4. Plan Mode 下的 `PlanToolGuard`（批准版本、步骤、范围、预算与检查点）
 5. system prompt = base + 能力目录 + 包 overlay + workspace skills
 
 **模式差异：**
 
-| | chat | task |
+| | chat | plan |
 |---|------|------|
-| system prompt | `buildCottageSystemPrompt` | `buildCottageTaskSystemPrompt` |
-| 额外工具 | file + web | file + web + task |
-| Plan Gate | 默认启用 | 用 `taskSetPlan` |
+| system prompt | `buildCottageSystemPrompt` | `buildCottagePlanSystemPrompt` |
+| 计划工具 | `suggestPlanMode` | `submitPlan`、步骤状态、修订与完成工具 |
+| 写入治理 | 暂存审阅 + PolicyGate | PlanToolGuard + PolicyGate + Mutation Journal |
 
 ### 8.3 工具循环
 
 `CottageAgent` 每轮：
 
 1. 调用模型获取 `tool_calls`。
-2. 对每个工具：`policyGate.evaluate` → `planGate.check` → `tool.invoke`。
+2. 对每个工具：Plan Mode 下先过 `PlanToolGuard`，再过 `PolicyGate`，最后 `tool.invoke`。
 3. `confirm` 时挂起等待用户审批；`deny` 时把拒绝原因回传模型。
 4. 结果回灌模型，直到无 `tool_calls`。
 
@@ -337,7 +330,7 @@ interface ExecutionPlan {
 | 文件 | `listFiles` / `readFile` / `writeFile` / `createFile` / `patchFile` / `deleteFile` / `deleteEntry` / `deletePaths` / `mkdir` / `rename` / `compress` / `extract` |
 | 脚本 | `runScript`（Web Worker） |
 | Web | `webSearch` / `fetchWebPage` |
-| 任务 | `taskSetPlan` / `taskComplete` / `taskFail` / `submitExecutionPlan` |
+| 计划 | `suggestPlanMode` / `submitPlan` / `completePlanStep` / `requestPlanRevision` / `completePlanRun` |
 | Office 读 | Word / PPT / 表格抽取 |
 | Office 写 | `writeWord` / `writePresentation` / 表格写入 / 模板渲染 / 批量生成 |
 | Coding | 符号定义/引用查询 / `analyzeImpact` / AST 编辑（import / props / 类型 / 调用点） |
@@ -421,7 +414,7 @@ draft ──start──► running ◄──resume── paused
 | 文件访问 | 仅限用户授权目录；无法读工作区外路径 |
 | API Key | 仅存浏览器 IndexedDB（`open-cottage-secrets`），不上传 |
 | Policy | 破坏性操作默认需用户审批；可配置 `requireApprovalFor` |
-| Plan Gate | 首批写/外部调用前必须提交计划，超预算阻止 |
+| Plan Mode | 批准版本、步骤范围与预算；越界或超预算时阻止 |
 | HTTPS | File System Access API 要求安全上下文 |
 | CORS | 浏览器直连抓网页常失败，可经 Cottage Service 聚合 |
 | 并发任务 | 全局仅允许一个 `runningTaskId` |
@@ -441,7 +434,7 @@ draft ──start──► running ◄──resume── paused
 - [ ] 多会话索引与历史。
 - [ ] TaskRunner 多轮编排、验收、deliverable zip。
 - [ ] runScript 沙箱（语言可换，需暴露相同文件 API）。
-- [ ] Platform Core：Capability Registry / Policy / Pack / Plan Gate。
+- [ ] Platform Core：Capability Registry / Policy / Pack，并与 Plan Mode 治理边界保持一致。
 
 ### 13.2 可替换方案
 
@@ -477,7 +470,7 @@ DEFAULT_GOVERNANCE_REQUIRE_APPROVAL_FOR = ['destructive']
 | Capability Registry | `src/platform/capabilities/` |
 | Policy Engine | `src/platform/policy/` |
 | Capability Pack | `src/platform/packs/` |
-| Plan Gate | `src/platform/plan/` |
+| Plan Mode | `src/plan/` |
 | Coding Pack | `src/domains/coding/`、`src/domains/coding/codingCottageTools.ts` |
 | Office Pack | `src/domains/office/`、`src/agent/officeWriteCottageTools.ts` |
 | 任务循环 | `src/task/TaskRunner.ts` |

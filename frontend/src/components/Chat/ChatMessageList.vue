@@ -6,7 +6,6 @@ import type { CottageAgent } from '../../agent/CottageAgent';
 import type { CottageMessage } from '../../agent/messages';
 import { pendingAskRevision } from '../../agent/askUserTool';
 import { isAskUserTool } from '../../agent/toolNames';
-import { pendingPlanApprovalRevision } from '../../platform/plan';
 import {
   loadOlderPreservingScroll,
   useTailWindow,
@@ -237,9 +236,6 @@ watch(sectionVersion, () => {
 watch(pendingAskRevision, () => {
   scheduleScrollToBottom();
 }, { flush: 'post' });
-watch(pendingPlanApprovalRevision, () => {
-  scheduleScrollToBottom();
-}, { flush: 'post' });
 // props.chat 为非响应式裸对象，须每次渲染时实时读取，故用函数而非 computed
 const liveIndex = () =>
   props.chat?.busy ? messagesView.value.length - 1 : -1;
@@ -289,7 +285,6 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
           @click="navigateToTurn(turn)"
         >
           <span class="chat-turn-navigation-dot" aria-hidden="true" />
-          <span class="chat-turn-navigation-number">{{ turn.number }}</span>
           <span class="chat-turn-navigation-title">{{ turn.label }}</span>
         </button>
       </div>
@@ -342,8 +337,8 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
 
 .chat-message-list-with-turn-navigation {
   /* 右侧轨道是实际 grid 列，而非可能被滚动容器裁掉的绝对定位空白。 */
-  --chat-turn-navigation-width: 32px;
-  --chat-turn-navigation-reserve: 42px;
+  --chat-turn-navigation-width: 20px;
+  --chat-turn-navigation-reserve: 28px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--chat-turn-navigation-reserve);
   align-items: start;
@@ -364,23 +359,28 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
   right: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   width: var(--chat-turn-navigation-width);
   max-width: calc(100vw - 24px);
   max-height: min(68dvh, 540px);
   overflow-y: auto;
-  padding: 4px 2px;
-  border: 1px solid var(--cottage-border);
+  padding: 3px 2px;
+  border: 1px solid color-mix(in srgb, var(--cottage-border) 62%, transparent);
   border-radius: var(--cottage-radius-md);
-  background: color-mix(in srgb, var(--cottage-surface) 92%, transparent);
-  box-shadow: var(--cottage-shadow-card);
-  transition: width 160ms ease-out;
+  background: color-mix(in srgb, var(--cottage-surface) 70%, transparent);
+  box-shadow: none;
+  opacity: 0.64;
+  transition: width 160ms ease-out, opacity 120ms ease-out, background 120ms ease-out,
+    box-shadow 120ms ease-out;
 }
 
 /* 展开仅在用户主动悬浮或键盘聚焦时发生，临时向消息列左侧浮出。 */
 .chat-turn-navigation:hover .chat-turn-navigation-panel,
 .chat-turn-navigation:focus-within .chat-turn-navigation-panel {
   width: min(240px, calc(100vw - 24px));
+  background: color-mix(in srgb, var(--cottage-surface) 92%, transparent);
+  box-shadow: var(--cottage-shadow-card);
+  opacity: 1;
 }
 
 .chat-message-list-content {
@@ -395,11 +395,11 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
 .chat-turn-navigation-item {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 3px;
+  justify-content: center;
+  gap: 4px;
   width: 100%;
-  min-height: 24px;
-  padding: 2px;
+  min-height: 14px;
+  padding: 1px;
   border: 0;
   border-radius: var(--cottage-radius-sm);
   background: transparent;
@@ -416,10 +416,15 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
   color: var(--cottage-ink);
 }
 
+.chat-turn-navigation:hover .chat-turn-navigation-item,
+.chat-turn-navigation:focus-within .chat-turn-navigation-item {
+  justify-content: flex-start;
+  padding-inline: 4px;
+}
+
 .chat-turn-navigation-item-active {
-  background: var(--cottage-accent-bg);
+  background: transparent;
   color: var(--cottage-accent);
-  font-weight: 700;
 }
 
 .chat-turn-navigation-dot {
@@ -428,11 +433,6 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--cottage-border-strong);
-}
-
-.chat-turn-navigation-number {
-  flex: 0 0 16px;
-  text-align: center;
 }
 
 .chat-turn-navigation-title {
@@ -448,8 +448,13 @@ function needsSectionRefresh(message: CottageMessage, absoluteIndex: number): bo
 
 .chat-turn-navigation:hover .chat-turn-navigation-title,
 .chat-turn-navigation:focus-within .chat-turn-navigation-title {
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - 12px);
   opacity: 1;
+}
+
+.chat-turn-navigation:hover .chat-turn-navigation-item-active,
+.chat-turn-navigation:focus-within .chat-turn-navigation-item-active {
+  background: var(--cottage-accent-bg);
 }
 
 .chat-turn-navigation-item-active .chat-turn-navigation-dot {

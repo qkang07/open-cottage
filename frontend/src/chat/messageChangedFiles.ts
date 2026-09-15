@@ -8,19 +8,22 @@
 
 import type { CottageMessage, CottageSection } from '../agent/messages';
 import { extractPartialJsonString } from '../agent/parseStreamingToolArgs';
+import type { AiChangeBaselineRef } from './aiChangeBaseline';
+import { normalizePath } from '../workspace/pathUtils';
 
 export type ChangedFileKind = 'created' | 'modified' | 'generated' | 'deleted';
 
 export type ChangedFileReset =
   | { kind: 'delete' }
-  | { kind: 'restoreText'; content: string };
+  | { kind: 'restoreText'; content: string }
+  | { kind: 'restoreBytes'; baseline: AiChangeBaselineRef };
 
 export interface MessageChangedFile {
   path: string;
   kind: ChangedFileKind;
   /** 最近一次影响此路径的工具调用，用于区分重置后的新改动。 */
   changeId?: string;
-  /** 会话内首次改动前的可恢复基线。 */
+  /** 工作区本地改动记录中的可恢复基线（旧消息仅作兼容）。 */
   reset?: ChangedFileReset;
 }
 
@@ -60,8 +63,12 @@ const RESULT_WRITE_TOOLS = new Set(
     'mergePdfs',
     'splitPdf',
     'renderMermaid',
+    'renderChart',
     'generateImage',
     'editImage',
+    'screenshotPage',
+    'captureBrowserPage',
+    'saveResearchReport',
     'saveChatAttachment',
     'compress',
   ].map(normalizeName),
@@ -202,19 +209,25 @@ export const collectMessageChangedFiles = (
     section: CallSection,
   ) => {
     if (!looksLikePath(path)) return;
+    const normalizedPath = normalizePath(path);
+    const byteBaseline = section.changeBaselines?.[normalizedPath];
     const reset: ChangedFileReset | undefined =
-      section.created === true || kind === 'created'
+      byteBaseline?.kind === 'missing'
         ? { kind: 'delete' }
         : section.before !== undefined
           ? { kind: 'restoreText', content: section.before }
-          : undefined;
-    const existing = seen.get(path);
+          : byteBaseline?.kind === 'stored'
+            ? { kind: 'restoreBytes', baseline: byteBaseline }
+            : section.created === true || kind === 'created'
+              ? { kind: 'delete' }
+              : undefined;
+    const existing = seen.get(normalizedPath);
     if (!existing) {
       seen.set(
-        path,
+        normalizedPath,
         options?.includeResetState
-          ? { path, kind, changeId: section.id, reset }
-          : { path, kind },
+          ? { path: normalizedPath, kind, changeId: section.id, reset }
+          : { path: normalizedPath, kind },
       );
       return;
     }
@@ -243,9 +256,10 @@ export const collectMessageChangedFiles = (
 
     if (ARG_MOVE_TOOLS.has(name)) {
       if (hasFailedResult(section)) continue;
+      const from = parseArgsField(section, 'from');
       const to = parseArgsField(section, 'to');
       if (!to) continue;
-      // copy 产生新副本；rename/move 视为原文件位置变化
+      if (name !== normalizeName('copy') && from) push(from, 'deleted', section);
       push(to, name === normalizeName('copy') ? 'created' : 'modified', section);
       continue;
     }
@@ -308,6 +322,25 @@ export const collectMessageChangedFiles = (
             : 'modified'
           : 'generated';
       push(entry.path, kind, section);
+    }
+  }
+
+  // runScript、扩展包或新工具可能没有注册专用结果解析器，但只要统一执行器
+  // 实际在写入前捕获到了路径，就仍应进入“当前所有改动”。已识别的删除/移动
+  // 等类别优先保留，这里只补齐遗漏路径。
+  for (const section of message.sections) {
+    if (
+      section.type !== 'call' ||
+      !section.changeBaselines ||
+      section.result === undefined ||
+      hasFailedResult(section)
+    ) {
+      continue;
+    }
+    for (const [path, baseline] of Object.entries(section.changeBaselines)) {
+      const normalized = normalizePath(path);
+      if (seen.has(normalized)) continue;
+      push(path, baseline.kind === 'missing' ? 'created' : 'modified', section);
     }
   }
 

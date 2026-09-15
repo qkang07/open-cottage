@@ -1,5 +1,4 @@
 import type { TaskPlan, TaskSpec, TaskState, TaskHandoff, VerifyReport } from './types';
-import type { PlanSession } from '../platform/plan';
 
 const formatPlan = (plan: TaskPlan | null): string => {
   if (!plan?.steps.length) return '（尚未提交计划）';
@@ -32,47 +31,9 @@ const formatVerifyReport = (report: VerifyReport): string => {
   return lines.join('\n');
 };
 
-export interface PlanReminderContext {
-  planSession?: PlanSession | null;
-}
-
 /** 合成 system-reminder 段，注入每轮 user 消息开头（不进 UI 展示）。 */
-export const buildPlanReminder = (
-  plan: TaskPlan | null,
-  ctx?: PlanReminderContext,
-): string | null => {
-  const session = ctx?.planSession;
+export const buildPlanReminder = (plan: TaskPlan | null): string | null => {
   const lines = ['<system-reminder>', '## 计划遵循', formatPlan(plan)];
-
-  if (session?.plan) {
-    const budget = session.effectiveBudget();
-    lines.push(
-      '',
-      '## 执行计划预算',
-      `- 工具轮次：${session.counters.turns}${
-        budget.maxTurns !== undefined ? ` / ${budget.maxTurns}` : ''
-      }`,
-      `- 文件写入：${session.counters.files}${
-        budget.maxFiles !== undefined ? ` / ${budget.maxFiles}` : ''
-      }`,
-      `- 外部访问：${session.counters.apiCalls}${
-        budget.maxApiCalls !== undefined ? ` / ${budget.maxApiCalls}` : ''
-      }`,
-    );
-  }
-
-  if (session?.lastBlockedReason) {
-    lines.push(
-      '',
-      `⚠️ 上次被计划闸门阻止：${session.lastBlockedReason}`,
-      '禁止再执行写操作，请重新 submitExecutionPlan 或 taskHandoff。',
-    );
-  }
-
-  if (session?.isOverBudget()) {
-    lines.push('', '⚠️ 已超计划预算，禁止再执行写操作。');
-  }
-
   lines.push('</system-reminder>');
   return lines.join('\n');
 };

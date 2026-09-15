@@ -11,6 +11,7 @@ import {
   CloseOutline,
   CopyOutline,
   CreateOutline,
+  EyeOutline,
   FolderOpenOutline,
   GridOutline,
   InformationCircleOutline,
@@ -28,6 +29,7 @@ import {
   ElEmpty,
   ElInput,
   ElDialog,
+  ElDrawer,
   ElMessage,
   ElPopover,
   ElTooltip,
@@ -60,6 +62,7 @@ import {
 } from '../../workspace/runWorkspaceSearch';
 import FileSearchResults from '../FileBrowser/FileSearchResults.vue';
 import FileSearchToolbar from '../FileBrowser/FileSearchToolbar.vue';
+import ChangedFilesPanel from '../FileBrowser/ChangedFilesPanel.vue';
 import { useChatReferenceStore } from '../../stores/chatReference';
 import { useAiChangedFilesStore } from '../../stores/aiChangedFiles';
 import { useExplorerModeStore } from '../../stores/explorerMode';
@@ -122,6 +125,7 @@ const sortOrder = ref<ExplorerSortOrder>('asc');
 const showDetailsPane = ref(true);
 const aiResetTargetPath = ref<string | null | undefined>(undefined);
 const resettingAiChanges = ref(false);
+const showChangesDrawer = ref(false);
 const lastClickedPath = ref<string | null>(null);
 const contextMenu = ref<{
   x: number;
@@ -1494,6 +1498,16 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
           v-if="aiChangedStore.changed.length"
           size="small"
           text
+          type="primary"
+          @click="showChangesDrawer = true"
+        >
+          <template #icon><NIcon :component="EyeOutline" /></template>
+          {{ t('files.viewAllChanges') }}
+        </ElButton>
+        <ElButton
+          v-if="aiChangedStore.changed.length"
+          size="small"
+          text
           @click="acknowledgeAllAiChanges"
         >
           {{ t('files.markAllAsNormal') }}
@@ -1599,6 +1613,15 @@ const viewModes = computed((): { value: ExplorerViewMode; icon: typeof AppsOutli
         </ElButton>
       </template>
     </ElDialog>
+    <ElDrawer
+      v-model="showChangesDrawer"
+      size="min(620px, 94vw)"
+      direction="ltr"
+      :title="t('files.allChangesTitle')"
+      :body-style="{ padding: 0 }"
+    >
+      <ChangedFilesPanel @selected="showChangesDrawer = false" />
+    </ElDrawer>
     <ElTooltip
       :virtual-ref="deferredHoverAnchor ?? undefined"
       virtual-triggering

@@ -70,11 +70,6 @@ import {
   createBuiltinPackTools,
 } from '../platform/packs/builtins';
 import { createPolicyGate } from '../platform/policy';
-import {
-  createPlanGate,
-  createSubmitPlanTool,
-  PlanSession,
-} from '../platform/plan';
 import { StagingStore, StagingWorkspace } from '../platform/staging';
 import { TraceRecorder } from '../platform/trace';
 import { EventBus } from '../platform/events';
@@ -84,7 +79,7 @@ import type { TaskToolSignals, DispatchSubtaskFn } from './taskToolSignals';
 import type { WorkspaceSkillIndexEntry } from './workspaceSkills';
 import { toolRisk } from './toolDescriptions';
 
-/** 对外可选模式；旧 task/spec 仅保留在内部兼容路径。 */
+/** 对外可选模式；任务模式仍由内部入口使用。 */
 export type AgentMode = 'chat' | 'plan';
 export type CottageAgentMode = AgentMode | 'task';
 
@@ -126,15 +121,6 @@ export function buildChatPlanModeBundle(
   ctx: ChatPlanModeBundleContext,
 ): ChatPlanModeBundle {
   const cottageConfig = getCottageConfig();
-  const planGateConfig = cottageConfig.platform?.planGate;
-  const stagingReviewConfig = cottageConfig.platform?.stagingReview;
-  const stagingReviewEnabled =
-    ctx.mode === 'chat' && stagingReviewConfig?.enabled !== false;
-  const planGateEnabled =
-    __COTTAGE_INCLUDE_HIDDEN_FEATURES__ &&
-    ctx.mode === 'chat' &&
-    planGateConfig?.enabled === true &&
-    !stagingReviewEnabled;
 
   const enabledTools = ctx.enabledTools ?? cottageConfig.enabledTools ?? [];
   const workspaceSkills = ctx.workspaceSkills ?? [];
@@ -167,7 +153,6 @@ export function buildChatPlanModeBundle(
           workspaceSkills,
           capabilities,
           packPromptOverlays,
-          planGateEnabled,
           projectInstructionsBlock,
           deferredToolsBlock,
         );
@@ -292,23 +277,15 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
   };
 
   const reusedMode = reuseAgent?.getAgentMode();
-  const requestedMode: CottageAgentMode =
-    options.mode ?? (reusedMode === 'spec' ? 'chat' : reusedMode) ?? 'chat';
+  const requestedMode: CottageAgentMode = options.mode ?? reusedMode ?? 'chat';
   const mode: CottageAgentMode =
     !__COTTAGE_INCLUDE_HIDDEN_FEATURES__ && requestedMode === 'task'
       ? 'chat'
       : requestedMode;
   const cottageConfig = getCottageConfig();
-  const planGateConfig = cottageConfig.platform?.planGate;
   const stagingReviewConfig = cottageConfig.platform?.stagingReview;
   const stagingReviewEnabled =
     mode === 'chat' && stagingReviewConfig?.enabled !== false;
-  // 暂存审阅启用时，写工具先落暂存区、回合末审阅合并，不再走 submitExecutionPlan 文本计划闸门
-  const planGateEnabled =
-    __COTTAGE_INCLUDE_HIDDEN_FEATURES__ &&
-    mode === 'chat' &&
-    planGateConfig?.enabled === true &&
-    !stagingReviewEnabled;
   const enabledTools = options.enabledTools ?? cottageConfig.enabledTools ?? [];
   const workspaceSkills = options.workspaceSkills ?? [];
   const projectInstructionsBlock = options.projectInstructionsBlock ?? '';
@@ -418,22 +395,6 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
         : undefined,
     },
   );
-  // 热切换时复用已有 plan/staging，避免丢失在途计划与暂存改动
-  const planSession =
-    reuseAgent?.getPlanSession() ??
-    (planGateEnabled ? new PlanSession() : undefined);
-  const planGate = reuseAgent
-    ? undefined
-    : planGateEnabled && planSession
-      ? createPlanGate(planSession, {
-          enabled: true,
-          requirePlanFor: planGateConfig?.requirePlanFor,
-          defaultBudget: planGateConfig?.defaultBudget,
-          microEditExempt: planGateConfig?.microEditExempt,
-          microEditMaxTokens: planGateConfig?.microEditMaxTokens,
-        })
-      : null;
-
   const stagingStore = mode === 'plan'
     ? undefined
     : reuseAgent
@@ -494,8 +455,6 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
       getTool: (name) =>
         agentRef?.getToolByName(name) ?? deferredByName.get(name),
       getPolicyGate: () => agentRef?.getPolicyGate(),
-      getPlanGate: () => agentRef?.getPlanGate(),
-      getPlanSession: () => agentRef?.getPlanSession(),
       getPlanToolGuard: () => agentRef?.getPlanToolGuard(),
       getDoomLoopDetector: () => agentRef?.getDoomLoopDetector(),
       getTraceRecorder: () => agentRef?.getTraceRecorder() ?? null,
@@ -542,15 +501,6 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
       getActiveNames: () => agentRef?.getActiveToolNames() ?? new Set(),
     }),
   ];
-
-  if (planGateEnabled && planSession) {
-    tools.push(
-      createSubmitPlanTool(planSession, {
-        requireApproval: planGateConfig?.requireApproval !== false,
-        sessionId: options.sessionId,
-      }),
-    );
-  }
 
   // 附件工具：vision 功能开启即注册保存工具；看图工具还要求当前模型支持图片输入（热切换时随 applyRuntime 重算）
   if (cottageConfig.vision?.enabled !== false) {
@@ -707,8 +657,6 @@ export const createCottageAgent = (options: CreateCottageAgentOptions = {}) => {
     modelConfig: config,
     resolveExpectedModelConfig,
     policyGate,
-    planGate: planGate ?? undefined,
-    planSession: planGateEnabled ? planSession : undefined,
     planToolGuard: chatPlanBundle?.planToolGuard,
     toolExecutor,
     stagingStore: stagingStore ?? undefined,

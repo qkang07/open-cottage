@@ -22,8 +22,6 @@ Open Cottage 在浏览器里运行 Agent，会读写你授权的本地目录、�
 - **Policy Engine**：工具调用前按风险级别（`read` / `write` / `external` / `destructive`）判定；默认 `destructive` 操作（删除等）需用户在对话中点击「允许 / 拒绝」审批，拒绝则把「被策略阻止」结果回传模型而非真正执行。
 - 可在设置页调整 `governance.requireApprovalFor` 提升或降低审批级别。
 
-更严格的 Plan Gate 属于当前保留的隐藏治理能力，不应作为公开版本的默认安全边界；其状态见 `docs/hidden-features.md`。
-
 ### 脚本执行
 
 - `runScript` 在 **Web Worker** 内通过 `new Function` 执行 Agent 生成或用户编写的 JS。

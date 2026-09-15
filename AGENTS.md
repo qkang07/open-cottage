@@ -15,7 +15,7 @@
 
 ## 隐藏功能（Hidden Features）
 
-部分能力已在代码中实现但**暂时对用户隐藏/未接入 UI**（如 Python 数据分析、计划闸门、**任务模式 / TaskPanel**、子任务派生、**编排模式 / Orchestration** 等）。版本历史已重新实现为公开 Beta，但默认按工作区关闭。
+部分能力已在代码中实现但**暂时对用户隐藏/未接入 UI**（如 Python 数据分析、**任务模式 / TaskPanel**、子任务派生、**编排模式 / Orchestration** 等）。版本历史已重新实现为公开 Beta，但默认按工作区关闭。
 完整清单见 [`docs/hidden-features.md`](docs/hidden-features.md)。
 
 工作时的约束：

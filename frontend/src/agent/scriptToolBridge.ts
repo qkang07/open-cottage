@@ -25,7 +25,7 @@ export interface CreateScriptToolInvokerOptions {
 
 /**
  * 构建 cottage.* SDK 的主线程执行桥：
-   * 构造 { source: 'script' } 请求走统一执行器管线（黑名单 / planGate /
+   * 构造 { source: 'script' } 请求走统一执行器管线（黑名单 /
    * auto-allow 审批 / 连续失败循环记录 / trace），输出经净化回 Worker。
  * 脚本内产图工具的图片留在工作区文件，cottageImages 附件通道由执行器剥离，
  * 不随脚本结果回传。

@@ -232,6 +232,7 @@ function projectHistoryForReadonlyView(history: readonly StoredMessage[]): Cotta
       call.before = stored.writePreview?.before;
       call.after = stored.writePreview?.after;
       call.created = stored.writePreview?.created;
+      call.changeBaselines = stored.changeBaselines;
 
       // 与运行时投影保持一致：已回答的 askUser 独立成可见卡片，
       // 不依赖后续用户/助手消息的分组边界。
@@ -317,7 +318,7 @@ const aiChangedScopeId = computed(
 watch(
   [modifiedFileEntries, aiChangedScopeId],
   ([entries, sessionId]) => {
-    aiChangedFilesStore.sync(entries, sessionId ?? null);
+    void aiChangedFilesStore.sync(entries, sessionId ?? null);
   },
   { immediate: true },
 );

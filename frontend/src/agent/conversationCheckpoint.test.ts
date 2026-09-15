@@ -46,7 +46,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'first',
       history,
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
 
@@ -59,7 +58,6 @@ describe('conversationCheckpoint v2', () => {
     expect(file.kind).toBe('full');
     expect(file.history).toHaveLength(1);
     expect(entry.contextUsage).toBeUndefined();
-    expect(entry.planState).toBeUndefined();
     expect(entry.lastMessageId).toBe('m1');
   });
 
@@ -70,7 +68,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'a',
       history: [msg('m1', 'one')],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
 
@@ -80,7 +77,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'b',
       history: [msg('m1', 'one'), msg('m2', 'two')],
       contextUsage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
-      planState: null,
       workspaceCheckpointOid: null,
     });
 
@@ -110,7 +106,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'a',
       history,
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
     const beforeKeys = [...store.keys()];
@@ -121,7 +116,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'b',
       history: [...history],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
 
@@ -140,7 +134,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'a',
       history: [msg('m1', 'one'), msg('m2', 'two')],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
 
@@ -150,7 +143,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'rewound',
       history: [msg('m1', 'one')],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
 
@@ -164,7 +156,6 @@ describe('conversationCheckpoint v2', () => {
     store.set(historyRef, {
       history: [msg('old', 'legacy')],
       contextUsage: null,
-      planState: null,
     });
     store.set(`sessions/${sessionId}/checkpoints.json`, [
       {
@@ -177,7 +168,6 @@ describe('conversationCheckpoint v2', () => {
         workspaceCheckpointOid: null,
         messageCount: 1,
         contextUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 9 },
-        planState: null,
       },
     ]);
 
@@ -194,7 +184,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'a',
       history: [msg('m1', '1')],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
     await createConversationCheckpoint({
@@ -203,7 +192,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'b',
       history: [msg('m1', '1'), msg('m2', '2')],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
     const c = await createConversationCheckpoint({
@@ -212,7 +200,6 @@ describe('conversationCheckpoint v2', () => {
       label: 'c',
       history: [msg('m1', '1'), msg('m2', '2'), msg('m3', '3')],
       contextUsage: null,
-      planState: null,
       workspaceCheckpointOid: null,
     });
 

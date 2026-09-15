@@ -18,5 +18,3 @@ Use `readPresentation(includeElements=true)` to retrieve stable element IDs, bou
 | `requestPlanRevision` | Request a new revision and require approval again |
 | `completePlanRun` / `failPlanRun` | Summarize verification and request completion, or record a terminal failure without discarding changes |
 | `dispatchPlanResearch` | Run up to three temporary read-only researchers for a research or verification step |
-
-Legacy Spec messages remain readable and can be copied into a new Plan. The old `suggestSpec` and `submitSpec` tools are not part of the current public plan flow.

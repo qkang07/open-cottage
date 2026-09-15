@@ -12,7 +12,6 @@ import {
   touchTaskMeta,
 } from './persistence';
 import { buildTaskPrompt, buildPlanReminder, buildSubtaskWakeReminder } from './buildPrompt';
-import type { PlanSession } from '../platform/plan';
 import type { TaskSignalState } from './taskSignals';
 import type { TaskRunControl, WakeReason } from './taskControl';
 import { DEFAULT_MAX_TURNS, type TaskSpec, type TaskState } from './types';
@@ -122,7 +121,6 @@ const buildPromptForTurn = (
   plan: Awaited<ReturnType<typeof loadTaskPlan>>,
   state: TaskState,
   ctx: PromptBuildContext,
-  planSession?: PlanSession | null,
 ): string => {
   const body = buildTaskPrompt(spec, plan, state, {
     verifyReport:
@@ -132,7 +130,7 @@ const buildPromptForTurn = (
     stalledRecovery: ctx.stalledRecovery,
     handoffTurn: ctx.handoffTurn,
   });
-  const reminder = buildPlanReminder(plan, { planSession });
+  const reminder = buildPlanReminder(plan);
   const subtaskWake =
     ctx.wakeReason === 'subtask-done' ? buildSubtaskWakeReminder() : null;
   return [subtaskWake, reminder, body].filter(Boolean).join('\n\n');
@@ -251,7 +249,6 @@ export class TaskRunner {
           current.turnCount === maxTurns - 1;
 
         const plan = await loadTaskPlan(taskId);
-        const chatForPlan = deps.getChat();
         const prompt = buildPromptForTurn(
           spec,
           plan,
@@ -261,7 +258,6 @@ export class TaskRunner {
             stalledRecovery: stalledRecoveryPending,
             handoffTurn,
           },
-          chatForPlan?.getPlanSession(),
         );
         stalledRecoveryPending = false;
 

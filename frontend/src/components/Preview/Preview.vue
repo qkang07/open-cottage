@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   loader,
+  VueMonacoDiffEditor,
   VueMonacoEditor } from '@guolao/vue-monaco-editor';
 import {
   ChatbubbleOutline,
@@ -38,9 +39,15 @@ import type {
 } from '../../chat/fileReferences';
 import { getTextAnchorFromWindowSelection } from '../../chat/previewSelection';
 import { usePreviewSelectionStore } from '../../stores/previewSelection';
+import { useAiChangedFilesStore } from '../../stores/aiChangedFiles';
 import { useThemeStore } from '../../stores/theme';
 import { isEditablePreview, useWorkspaceStore, workspace } from '../../stores/workspace';
-import { supportsRenderPreview } from '../../workspace/previewKind';
+import { supportsRenderPreview, type FilePreview } from '../../workspace/previewKind';
+import { isLikelyTextPath } from '../../workspace/search';
+import {
+  loadAiChangeBaselinePreview,
+  readAiChangeBaselineBytes,
+} from '../../chat/aiChangeBaseline';
 import CodeHighlight from './CodeHighlight.vue';
 import { useAddPreviewToChat } from './composables/useAddPreviewToChat';
 import { languageFromPath } from './languageFromPath';
@@ -60,6 +67,7 @@ const HTML_PREVIEW_SANDBOX = 'allow-scripts allow-forms allow-popups allow-modal
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+const aiChangedStore = useAiChangedFilesStore();
 const previewSelectionStore = usePreviewSelectionStore();
 const themeStore = useThemeStore();
 const {
@@ -86,6 +94,12 @@ const contextMenuShow = ref(false);
 const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const fileStat = ref<{ size: number; modified: number } | null>(null);
+const changeViewMode = ref<'current' | 'changes' | 'before'>('current');
+const beforePreview = shallowRef<FilePreview | null>(null);
+const beforeText = ref<string | null>(null);
+const beforeLoading = ref(false);
+const beforeError = ref('');
+let beforeLoadVersion = 0;
 const editorContent = computed({
   get: () => previewContent.value ?? '',
   set: (v: string) => workspaceStore.updatePreviewDraft(v),
@@ -97,6 +111,8 @@ const hasRenderPreview = computed(() =>
 watch([selectedPath, previewKind], () => {
   previewSelectionStore.clearSelection();
   editableMode.value = hasRenderPreview.value ? 'preview' : 'edit';
+  changeViewMode.value = 'current';
+  clearBeforePreview();
 });
 watch(
   selectedPath,
@@ -185,6 +201,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown, true);
   window.removeEventListener('cottage:goto-line', onGotoLine);
+  clearBeforePreview();
 });
 const handleSpreadsheetSelect = (anchor: SpreadsheetAnchor | null) => {
   previewSelectionStore.setSelection(anchor);
@@ -252,6 +269,16 @@ const editorOptions = computed<editor.IStandaloneEditorConstructionOptions>(() =
   automaticLayout: true,
   theme: isDark.value ? 'vs-dark' : 'vs',
 }));
+const diffEditorOptions = computed<editor.IDiffEditorConstructionOptions>(() => ({
+  readOnly: true,
+  originalEditable: false,
+  renderSideBySide: true,
+  minimap: { enabled: false },
+  fontSize: 13,
+  wordWrap: 'on',
+  scrollBeyondLastLine: false,
+  automaticLayout: true,
+}));
 const handleEditorMount = (ed: editor.IStandaloneCodeEditor) => {
   editorRef.value = ed;
   void loader.init().then((monaco) => {
@@ -282,6 +309,95 @@ const segmentedOptions = computed(() => [
   { label: t('preview.modePreview'), value: 'preview' },
   { label: t('preview.modeSplit'), value: 'split' },
 ]);
+
+const changedFile = computed(() =>
+  selectedPath.value ? aiChangedStore.fileOf(selectedPath.value) : null,
+);
+const selectedIsText = computed(() =>
+  selectedPath.value ? isLikelyTextPath(selectedPath.value) : false,
+);
+const canViewBefore = computed(() => {
+  const reset = changedFile.value?.reset;
+  if (selectedIsText.value && reset?.kind === 'delete') return true;
+  return reset?.kind === 'restoreText' || reset?.kind === 'restoreBytes';
+});
+
+function clearBeforePreview() {
+  beforeLoadVersion += 1;
+  const preview = beforePreview.value;
+  if (preview && 'objectUrl' in preview && preview.objectUrl) {
+    URL.revokeObjectURL(preview.objectUrl);
+  }
+  beforePreview.value = null;
+  beforeText.value = null;
+  beforeError.value = '';
+  beforeLoading.value = false;
+}
+
+async function loadBeforeVersion(): Promise<boolean> {
+  const path = selectedPath.value;
+  const reset = changedFile.value?.reset;
+  clearBeforePreview();
+  if (!path || !reset) {
+    beforeError.value = t('preview.beforeUnavailable');
+    return false;
+  }
+  const version = ++beforeLoadVersion;
+  beforeLoading.value = true;
+  try {
+    if (reset.kind === 'delete' && selectedIsText.value) {
+      beforeText.value = '';
+      return true;
+    }
+    if (reset.kind === 'delete') throw new Error(t('preview.beforeUnavailable'));
+    if (reset.kind === 'restoreText') {
+      beforeText.value = reset.content;
+      return true;
+    }
+    if (selectedIsText.value) {
+      const bytes = await readAiChangeBaselineBytes(reset.baseline);
+      if (!bytes) throw new Error(t('preview.beforeUnavailable'));
+      if (version !== beforeLoadVersion) return false;
+      beforeText.value = new TextDecoder().decode(bytes);
+      return true;
+    }
+    const loaded = await loadAiChangeBaselinePreview(path, reset.baseline);
+    if (!loaded) throw new Error(t('preview.beforeUnavailable'));
+    if (version !== beforeLoadVersion) {
+      if ('objectUrl' in loaded && loaded.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
+      return false;
+    }
+    beforePreview.value = loaded;
+    return true;
+  } catch (error) {
+    if (version === beforeLoadVersion) {
+      beforeError.value = error instanceof Error ? error.message : String(error);
+    }
+    return false;
+  } finally {
+    if (version === beforeLoadVersion) beforeLoading.value = false;
+  }
+}
+
+async function switchChangeViewMode(mode: 'current' | 'changes' | 'before') {
+  if (mode === 'current') {
+    changeViewMode.value = mode;
+    clearBeforePreview();
+    return;
+  }
+  if (!canViewBefore.value) return;
+  changeViewMode.value = mode;
+  await loadBeforeVersion();
+}
+
+watch(
+  () => aiChangedStore.reviewRequest?.nonce,
+  () => {
+    const request = aiChangedStore.reviewRequest;
+    if (!request || request.path !== selectedPath.value) return;
+    void switchChangeViewMode(request.mode);
+  },
+);
 </script>
 <template>
   <div class="panel preview-panel">
@@ -297,7 +413,31 @@ const segmentedOptions = computed(() => [
         >
           {{ t('preview.citeShortcut', { keys: citeShortcutHint }) }}
         </NText>
-        <ElButtonGroup v-if="editable && hasRenderPreview">
+        <ElButtonGroup v-if="changedFile">
+          <ElButton
+            :type="changeViewMode === 'current' ? 'primary' : 'default'"
+            @click="switchChangeViewMode('current')"
+          >
+            {{ t('preview.changeModeCurrent') }}
+          </ElButton>
+          <ElButton
+            v-if="selectedIsText"
+            :type="changeViewMode === 'changes' ? 'primary' : 'default'"
+            :disabled="!canViewBefore"
+            @click="switchChangeViewMode('changes')"
+          >
+            {{ t('preview.changeModeDiff') }}
+          </ElButton>
+          <ElButton
+            v-else
+            :type="changeViewMode === 'before' ? 'primary' : 'default'"
+            :disabled="!canViewBefore"
+            @click="switchChangeViewMode('before')"
+          >
+            {{ t('preview.changeModeBefore') }}
+          </ElButton>
+        </ElButtonGroup>
+        <ElButtonGroup v-if="changeViewMode === 'current' && editable && hasRenderPreview">
           <ElButton
             v-for="opt in segmentedOptions"
             :key="opt.value"
@@ -308,7 +448,7 @@ const segmentedOptions = computed(() => [
           </ElButton>
         </ElButtonGroup>
         <ElButton
-          v-if="editable"
+          v-if="changeViewMode === 'current' && editable"
           type="primary"
           :disabled="!previewDirty"
           :loading="saving"
@@ -386,7 +526,58 @@ const segmentedOptions = computed(() => [
         />
         <div class="preview-context-inner">
           <template v-if="selectedPath && previewKind">
-            <template v-if="editable">
+            <div v-if="changeViewMode === 'changes'" class="change-review-view">
+              <div v-if="beforeLoading" class="centered"><NSpin size="small" /></div>
+              <ElEmpty v-else-if="beforeError || beforeText === null" :description="beforeError || t('preview.beforeUnavailable')" />
+              <VueMonacoDiffEditor
+                v-else
+                :original="beforeText"
+                :modified="previewContent ?? ''"
+                :language="editorLanguage"
+                :original-model-path="`cottage-before://${selectedPath}`"
+                :modified-model-path="`cottage-current://${selectedPath}`"
+                height="100%"
+                :theme="isDark ? 'vs-dark' : 'vs'"
+                :options="diffEditorOptions"
+              />
+            </div>
+            <div v-else-if="changeViewMode === 'before'" class="change-review-view">
+              <div v-if="beforeLoading" class="centered"><NSpin size="small" /></div>
+              <ElEmpty v-else-if="beforeError || !beforePreview" :description="beforeError || t('preview.beforeUnavailable')" />
+              <SpreadsheetPreview
+                v-else-if="beforePreview.kind === 'spreadsheet'"
+                :data="beforePreview.data"
+              />
+              <WordPreview
+                v-else-if="beforePreview.kind === 'word'"
+                :html="beforePreview.html"
+              />
+              <PresentationPreview
+                v-else-if="beforePreview.kind === 'presentation'"
+                :slides="beforePreview.slides"
+                :warnings="beforePreview.warnings"
+                :slide-width="beforePreview.slideWidth"
+                :slide-height="beforePreview.slideHeight"
+                :source-manifest="beforePreview.sourceManifest"
+              />
+              <div v-else-if="beforePreview.kind === 'image'" class="media-preview-wrap">
+                <ElImage :src="beforePreview.objectUrl" :alt="selectedPath" class="media-preview" object-fit="contain" />
+              </div>
+              <video
+                v-else-if="beforePreview.kind === 'video'"
+                :src="beforePreview.objectUrl"
+                controls
+                class="media-preview video-preview"
+              />
+              <iframe
+                v-else-if="beforePreview.kind === 'pdf'"
+                :src="beforePreview.objectUrl"
+                :title="selectedPath"
+                class="pdf-preview"
+              />
+              <ElEmpty v-else :description="t('preview.beforeUnavailable')" />
+            </div>
+            <template v-else-if="editable">
               <template v-if="editableMode === 'preview'">
                 <div
                   v-if="previewContent === null"

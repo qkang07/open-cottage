@@ -24,7 +24,7 @@ const DEEP_RESEARCH_PROMPT = `【深度研究能力包已启用】
 ## 使用纪律
 - 区分「事实」与「推断」：推断要标注，并说明依据。
 - 来源不足或相互矛盾时，如实说明不确定性，不要编造来源或数据。
-- 大改/多步外部检索前可先 submitExecutionPlan 列出子问题与预算。
+- 大改或多步外部检索前可先调用 suggestPlanMode；进入计划模式后用 submitPlan 列出子问题、范围与预算。
 - 报告必须落盘（saveResearchReport），不能只在对话里口述结论。`;
 
 export const DEEP_RESEARCH_PACK: BuiltinCapabilityPack = {

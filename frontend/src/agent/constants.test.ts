@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCottagePlanSystemPrompt,
-  buildCottageSpecSystemPrompt,
   buildCottageSystemPrompt,
   buildCottageTaskSystemPrompt,
 } from './constants';
@@ -10,7 +9,6 @@ describe('Cottage system prompts', () => {
   it('keeps the browser-agent runtime boundary in every public mode', () => {
     const prompts = [
       buildCottageSystemPrompt(undefined),
-      buildCottageSpecSystemPrompt(undefined),
       buildCottagePlanSystemPrompt(undefined),
       buildCottageTaskSystemPrompt(undefined),
     ];

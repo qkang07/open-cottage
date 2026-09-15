@@ -25,7 +25,7 @@ describe('isAskUserTool', () => {
 });
 
 describe('toolNameIn', () => {
-  const names = new Set(['runScript', 'askUser', 'submitExecutionPlan']);
+  const names = new Set(['runScript', 'askUser', 'loadTools']);
 
   it('精确名与变体名均命中', () => {
     expect(toolNameIn(names, 'askUser')).toBe(true);

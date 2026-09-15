@@ -2,8 +2,6 @@ import type { CottageTool } from '@/agent/runtime/tool';
 import type { ZodTypeAny } from 'zod';
 import type { PolicyGate } from '../platform/policy';
 import { evaluateToolPolicy } from '../platform/policy/policyEngine';
-import type { PlanGate, PlanSession } from '../platform/plan';
-import { recordPlanToolOutcome } from '../platform/plan';
 import { DOOM_LOOP_TOOL_NAME, type DoomLoopDetector } from './doomLoop';
 import type { TraceRecorder, TraceToolStatus } from '../platform/trace';
 import { stripCottageImages, stripWriteSnapshot } from './cottageTools';
@@ -21,10 +19,15 @@ import {
 import { toolRisk } from './toolDescriptions';
 import { toolNameIn } from './toolNames';
 import { workspace } from '../workspace/FileSystemWorkspace';
+import {
+  beginAiChangeCapture,
+  finishAiChangeCapture,
+  type AiChangeBaselineRef,
+} from '../chat/aiChangeBaseline';
 
 /**
  * 统一工具调用执行器：agent / script / manual 三类来源共用同一管线，
- * 按来源配置治理强度（黑名单、连续失败循环、计划闸门、审批、trace）。
+ * 按来源配置治理强度（黑名单、连续失败循环、审批、trace）。
  * 执行器只做「闸门判定 + 执行 + 结构化 outcome + trace」；
  * UI section、runtime tool result、附件注入、diff 卡片留在调用方。
  * 设计文档：docs/tool-invocation-design.md
@@ -47,12 +50,6 @@ export const BLOCKED_SCRIPT_TOOL_NAMES = new Set<string>([
   'runScript',
   'askUser',
   'loadTools',
-  'submitExecutionPlan',
-  'suggestSpec',
-  'submitSpec',
-  'specUpdateTask',
-  'specComplete',
-  'specFail',
   'suggestPlanMode',
   'submitPlan',
   'completePlanStep',
@@ -100,12 +97,13 @@ export interface ToolInvocationOutcome {
   imagePaths: string[];
   snapshot?: { before: string; after: string; created?: boolean };
   mutations?: ToolMutationReport;
+  /** 工作区写入前的会话级文件基线，供改动审阅与二进制恢复使用。 */
+  changeBaselines?: Record<string, AiChangeBaselineRef>;
   durationMs: number;
 }
 
 export interface SourceGovernancePolicy {
   blockedToolNames?: ReadonlySet<string>;
-  planGate: boolean;
   /** gate = 挂审批等待；auto-allow = confirm 放行、deny 仍拦 */
   policyApproval: 'gate' | 'auto-allow';
   doomLoop: 'off' | 'record-only' | 'full';
@@ -117,14 +115,12 @@ export const DEFAULT_SOURCE_POLICIES: Record<
   SourceGovernancePolicy
 > = {
   agent: {
-    planGate: true,
     policyApproval: 'gate',
     doomLoop: 'full',
     trace: true,
   },
   script: {
     blockedToolNames: BLOCKED_SCRIPT_TOOL_NAMES,
-    planGate: true,
     // 前提：宿主 runScript 已经统一审批（含脚本内高危子调用一并授权）
     policyApproval: 'auto-allow',
     doomLoop: 'record-only',
@@ -132,7 +128,6 @@ export const DEFAULT_SOURCE_POLICIES: Record<
   },
   manual: {
     blockedToolNames: BLOCKED_SCRIPT_TOOL_NAMES,
-    planGate: false,
     // destructive 的二次确认由 UI（DebugPanel）负责
     policyApproval: 'auto-allow',
     doomLoop: 'off',
@@ -154,8 +149,6 @@ export interface ToolCatalogEntry {
 export interface CreateToolExecutorOptions {
   getTool: (name: string) => CottageTool | undefined;
   getPolicyGate?: () => PolicyGate | undefined;
-  getPlanGate?: () => PlanGate | undefined;
-  getPlanSession?: () => PlanSession | undefined;
   /** 统一 Plan Mode 路径范围、预算与步骤检查点闸门。 */
   getPlanToolGuard?: () => PlanToolGuard | undefined;
   getDoomLoopDetector?: () => DoomLoopDetector | undefined;
@@ -260,6 +253,7 @@ export const createUnifiedToolExecutor = (
       imagePaths?: string[];
       snapshot?: { before: string; after: string; created?: boolean };
       mutations?: ToolMutationReport;
+      changeBaselines?: Record<string, AiChangeBaselineRef>;
     }): ToolInvocationOutcome => {
       const outcome: ToolInvocationOutcome = {
         callId,
@@ -269,6 +263,7 @@ export const createUnifiedToolExecutor = (
         imagePaths: partial.imagePaths ?? [],
         snapshot: partial.snapshot,
         mutations: partial.mutations,
+        changeBaselines: partial.changeBaselines,
         durationMs: Date.now() - startedAt,
       };
       if (policy.trace) {
@@ -403,27 +398,6 @@ export const createUnifiedToolExecutor = (
       }
     }
 
-    // 计划闸门：纯计数判定；成功后由 recordPlanToolOutcome 记账
-    if (policy.planGate) {
-      const planGate = options.getPlanGate?.();
-      if (planGate) {
-        const verdict = planGate({
-          toolName: req.toolName,
-          toolRound: req.round ?? 0,
-          args,
-        });
-        if (!verdict.allowed) {
-          const reason = verdict.reason ?? '该操作被计划闸门阻止';
-          const planSession = options.getPlanSession?.();
-          if (planSession) planSession.lastBlockedReason = reason;
-          return finish({
-            status: 'blocked_plan',
-            resultText: `📋 计划闸门：${reason}`,
-          });
-        }
-      }
-    }
-
     // 策略审批：gate 挂审批等待；auto-allow 下 confirm 放行、deny 仍拦
     const restoredAgentApproval =
       req.source === 'agent' && req.approvalAlreadyGranted === true;
@@ -480,9 +454,16 @@ export const createUnifiedToolExecutor = (
 
     let executorLease: WorkspaceWriteLease | null = null;
     const invocationRisk = toolRisk(req.toolName);
+    const changesWorkspace =
+      invocationRisk === 'write' ||
+      invocationRisk === 'destructive' ||
+      req.toolName === 'generateImage' ||
+      req.toolName === 'editImage' ||
+      req.toolName === 'screenshotPage' ||
+      req.toolName === 'captureBrowserPage';
     if (
       !planToolGuard &&
-      (invocationRisk === 'write' || invocationRisk === 'destructive')
+      changesWorkspace
     ) {
       executorLease = await workspaceWriteCoordinator.acquire(
         workspace.rootName ?? 'workspace',
@@ -537,6 +518,13 @@ export const createUnifiedToolExecutor = (
       }
     }
 
+    const shouldCaptureAiChanges = Boolean(
+      options.sessionId && changesWorkspace,
+    );
+    const aiChangeCaptureToken = shouldCaptureAiChanges
+      ? beginAiChangeCapture(options.sessionId!)
+      : null;
+
     try {
       const output = await tool.invoke(
         args,
@@ -556,10 +544,6 @@ export const createUnifiedToolExecutor = (
           mutationReport ?? { created: [], modified: [], deleted: [], moved: [] },
         );
       }
-      if (policy.planGate) {
-        const planSession = options.getPlanSession?.();
-        if (planSession) recordPlanToolOutcome(planSession, req.toolName);
-      }
       if (detector && policy.doomLoop !== 'off') {
         detector.record({ name: req.toolName, args, status: 'ok' });
       }
@@ -571,6 +555,7 @@ export const createUnifiedToolExecutor = (
         req.source === 'manual' && resultText.length > MANUAL_RESULT_MAX_CHARS
           ? `${resultText.slice(0, MANUAL_RESULT_MAX_CHARS)}\n…（结果过长已截断）`
           : resultText;
+      const changeBaselines = await finishAiChangeCapture(aiChangeCaptureToken);
       executorLease?.release();
       return finish({
         status: 'ok',
@@ -579,8 +564,10 @@ export const createUnifiedToolExecutor = (
         imagePaths,
         snapshot: snapshot ?? undefined,
         mutations: mutationReport,
+        changeBaselines,
       });
     } catch (error) {
+      const changeBaselines = await finishAiChangeCapture(aiChangeCaptureToken);
       let journalFinalizeFailed = false;
       if (journalStarted) {
         try {
@@ -611,11 +598,12 @@ export const createUnifiedToolExecutor = (
         detector.record({ name: req.toolName, args, status: 'error' });
       }
       if (aborted) {
-        return finish({ status: 'aborted', resultText: '⛔ 已停止' });
+        return finish({ status: 'aborted', resultText: '⛔ 已停止', changeBaselines });
       }
       return finish({
         status: 'error',
         resultText: error instanceof Error ? error.message : String(error),
+        changeBaselines,
       });
     }
   };

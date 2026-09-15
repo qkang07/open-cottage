@@ -167,7 +167,7 @@ describe('collectMessageChangedFiles', () => {
     expect(files).toEqual([{ path: 'src/a.ts', kind: 'modified' }]);
   });
 
-  it('rename/move/copy 提取目标新路径', () => {
+  it('rename/move 同时提取原路径与目标路径，copy 只提取目标路径', () => {
     const files = collectMessageChangedFiles(
       assistantMessage([
         call({
@@ -189,9 +189,38 @@ describe('collectMessageChangedFiles', () => {
       ]),
     );
     expect(files).toEqual([
+      { path: 'docs/old.md', kind: 'deleted' },
       { path: 'archive/old.md', kind: 'modified' },
+      { path: 'a.txt', kind: 'deleted' },
       { path: 'notes/a.txt', kind: 'modified' },
       { path: 'backup/a.txt', kind: 'created' },
+    ]);
+  });
+
+  it('使用工具调用保存的字节基线恢复被覆盖的非文本文件', () => {
+    const baseline = {
+      kind: 'stored' as const,
+      storagePath: `sessions/s1/change-baselines/${'a'.repeat(64)}.bin`,
+      size: 128,
+    };
+    const files = collectMessageChangedFiles(
+      assistantMessage([
+        call({
+          name: 'writePresentation',
+          arguments: '{"path":"deck.pptx"}',
+          result: '{"path":"deck.pptx","written":true}',
+          changeBaselines: { 'deck.pptx': baseline },
+        }),
+      ]),
+      { includeResetState: true },
+    );
+    expect(files).toEqual([
+      {
+        path: 'deck.pptx',
+        kind: 'generated',
+        changeId: 'c1',
+        reset: { kind: 'restoreBytes', baseline },
+      },
     ]);
   });
 

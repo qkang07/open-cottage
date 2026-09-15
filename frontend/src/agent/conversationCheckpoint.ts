@@ -1,8 +1,6 @@
 import { workspace } from '../workspace/FileSystemWorkspace';
 import type { StoredMessage } from './messages';
 import type { ContextUsage } from './tokenCounter';
-import type { ExecutionPlan } from '../platform/plan/types';
-import type { PlanSessionCounters } from '../platform/plan/types';
 import { restoreTree } from '../history/historyService';
 import type { CottageAgent } from './CottageAgent';
 import type { EventBus } from '../platform/events';
@@ -35,23 +33,12 @@ export interface ConversationCheckpoint {
    * @deprecated 新写入不再落盘；请从 history 快照读取。旧索引可能仍有值。
    */
   contextUsage?: ContextUsage | null;
-  /**
-   * @deprecated 新写入不再落盘；请从 history 快照读取。旧索引可能仍有值。
-   */
-  planState?: PlanStateSnapshot | null;
-}
-
-export interface PlanStateSnapshot {
-  plan: ExecutionPlan | null;
-  lastBlockedReason?: string;
-  counters: PlanSessionCounters;
 }
 
 /** 对外展开后的完整快照（读 API 始终返回此形状） */
 export interface ConversationSnapshot {
   history: StoredMessage[];
   contextUsage: ContextUsage | null;
-  planState: PlanStateSnapshot | null;
 }
 
 /** 磁盘上的 v2 full 快照 */
@@ -60,7 +47,6 @@ interface SnapshotFileFull {
   kind: 'full';
   history: StoredMessage[];
   contextUsage: ContextUsage | null;
-  planState: PlanStateSnapshot | null;
 }
 
 /** 磁盘上的 v2 delta：相对 base 检查点仅追加后缀 */
@@ -71,14 +57,12 @@ interface SnapshotFileDelta {
   prefixLen: number;
   append: StoredMessage[];
   contextUsage: ContextUsage | null;
-  planState: PlanStateSnapshot | null;
 }
 
 /** v1 旧全量（无 v/kind） */
 interface SnapshotFileV1 {
   history: StoredMessage[];
   contextUsage?: ContextUsage | null;
-  planState?: PlanStateSnapshot | null;
 }
 
 type SnapshotFile = SnapshotFileFull | SnapshotFileDelta | SnapshotFileV1;
@@ -88,8 +72,6 @@ const checkpointsPath = (sessionId: string) =>
 
 const historyRefPath = (sessionId: string, checkpointId: string) =>
   `sessions/${sessionId}/history/${checkpointId}.json`;
-
-const planPath = (sessionId: string) => `sessions/${sessionId}/plan.json`;
 
 const messageIds = (history: readonly StoredMessage[]): Array<string | undefined> =>
   history.map((m) => m.id);
@@ -119,11 +101,9 @@ const isFullV2File = (data: SnapshotFile): data is SnapshotFileFull =>
 const toResolvedSnapshot = (
   history: StoredMessage[],
   contextUsage: ContextUsage | null | undefined,
-  planState: PlanStateSnapshot | null | undefined,
 ): ConversationSnapshot => ({
   history,
   contextUsage: contextUsage ?? null,
-  planState: planState ?? null,
 });
 
 export async function listCheckpoints(
@@ -161,13 +141,13 @@ async function resolveSnapshotFromRef(
 ): Promise<ConversationSnapshot> {
   if (visiting.has(historyRef)) {
     console.error('[ConversationCheckpoint] delta 链循环:', historyRef);
-    return { history: [], contextUsage: null, planState: null };
+    return { history: [], contextUsage: null };
   }
   visiting.add(historyRef);
 
   const data = await workspace.readCottagePath<SnapshotFile>(historyRef);
   if (!data) {
-    return { history: [], contextUsage: null, planState: null };
+    return { history: [], contextUsage: null };
   }
 
   if (isDeltaFile(data)) {
@@ -180,7 +160,6 @@ async function resolveSnapshotFromRef(
       return toResolvedSnapshot(
         data.append,
         data.contextUsage,
-        data.planState,
       );
     }
     const baseSnap = await resolveSnapshotFromRef(
@@ -192,19 +171,17 @@ async function resolveSnapshotFromRef(
     return toResolvedSnapshot(
       [...prefix, ...data.append],
       data.contextUsage,
-      data.planState,
     );
   }
 
   if (isFullV2File(data)) {
-    return toResolvedSnapshot(data.history, data.contextUsage, data.planState);
+    return toResolvedSnapshot(data.history, data.contextUsage);
   }
 
   // v1
   return toResolvedSnapshot(
     Array.isArray(data.history) ? data.history : [],
     data.contextUsage,
-    data.planState,
   );
 }
 
@@ -230,7 +207,6 @@ export interface CreateCheckpointOptions {
   label: string;
   history: StoredMessage[];
   contextUsage: ContextUsage | null;
-  planState: PlanStateSnapshot | null;
   workspaceVersionId?: string | null;
   /** @deprecated 仅允许旧调用方编译兼容，不会写入新记录。 */
   workspaceCheckpointOid?: string | null;
@@ -263,7 +239,6 @@ export async function createConversationCheckpoint(
         prefixLen: lastSnap.history.length,
         append: opts.history.slice(lastSnap.history.length),
         contextUsage: opts.contextUsage,
-        planState: opts.planState,
       };
       await workspace.writeCottagePath(historyRef, delta);
     } else {
@@ -273,7 +248,6 @@ export async function createConversationCheckpoint(
         kind: 'full',
         history: opts.history,
         contextUsage: opts.contextUsage,
-        planState: opts.planState,
       };
       await workspace.writeCottagePath(historyRef, full);
     }
@@ -283,12 +257,11 @@ export async function createConversationCheckpoint(
       kind: 'full',
       history: opts.history,
       contextUsage: opts.contextUsage,
-      planState: opts.planState,
     };
     await workspace.writeCottagePath(historyRef, full);
   }
 
-  // 索引瘦身：不再写入 contextUsage / planState
+  // 索引瘦身：不在索引重复写入快照正文。
   const entry: ConversationCheckpoint = {
     id,
     sessionId: opts.sessionId,
@@ -302,19 +275,6 @@ export async function createConversationCheckpoint(
   };
   await appendCheckpoint(entry);
   return entry;
-}
-
-export async function savePlanState(
-  sessionId: string,
-  planState: PlanStateSnapshot,
-): Promise<void> {
-  await workspace.writeCottagePath(planPath(sessionId), planState);
-}
-
-export async function loadPlanState(
-  sessionId: string,
-): Promise<PlanStateSnapshot | null> {
-  return await workspace.readCottagePath<PlanStateSnapshot>(planPath(sessionId));
 }
 
 export async function removeCheckpoints(
@@ -335,7 +295,7 @@ export interface RewindOptions {
  * 1. 先建 pre_rewind 安全检查点，rewind 失败可回滚
  * 2. 读目标 checkpoint 的 history 快照
  * 3. 若有 workspaceVersionId，调 restoreTree 恢复 v2 工作区版本
- * 4. agent.restore(snapshot) 还原 storedHistory / contextUsage / planSession
+ * 4. agent.restore(snapshot) 还原 storedHistory / contextUsage
  * 5. emit CheckpointRewound 事件
  */
 export async function rewindToCheckpoint(
@@ -363,7 +323,6 @@ export async function rewindToCheckpoint(
     label: '回滚前自动快照',
     history: preRewindSnapshot.history,
     contextUsage: preRewindSnapshot.contextUsage,
-    planState: preRewindSnapshot.planState,
     workspaceVersionId: null,
   });
 

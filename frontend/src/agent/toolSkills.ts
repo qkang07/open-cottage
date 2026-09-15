@@ -1,7 +1,7 @@
 import type { CottageTool } from '@/agent/runtime/tool';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { TOOL_DESCRIPTIONS } from './toolDescriptions';
+import { zodToToolJsonSchema } from './toolJsonSchema';
 
 /** 始终绑定给模型的基础文件工具（高频） */
 export const CORE_FILE_TOOL_NAMES = [
@@ -102,10 +102,7 @@ export const formatDeferredToolsPromptBlock = (
 const zodSchemaToJson = (schema: unknown): unknown => {
   if (!schema || typeof schema !== 'object') return {};
   try {
-    return zodToJsonSchema(schema as z.ZodTypeAny, {
-      $refStrategy: 'none',
-      target: 'openApi3',
-    });
+    return zodToToolJsonSchema(schema as z.ZodTypeAny, { $refStrategy: 'none' });
   } catch {
     return { note: 'schema 无法序列化，请参考 description' };
   }

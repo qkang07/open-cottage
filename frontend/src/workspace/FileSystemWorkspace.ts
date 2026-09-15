@@ -31,6 +31,7 @@ import {
 import type { DirectorySizeResult, ExplorerEntry } from './explorerTypes';
 import type { WorkspaceFileNode, WorkspaceSnapshot } from './types';
 import { journalBeforeMutation } from '../plan/mutationJournal';
+import { captureAiChangeBeforeMutation } from '../chat/aiChangeBaseline';
 import {
   getVirtualWorkspaceUsage,
   isVirtualDirectoryHandle,
@@ -146,6 +147,9 @@ export class FileSystemWorkspace {
     this.#root = handle;
     this.#kind = isVirtualDirectoryHandle(handle) ? 'virtual' : 'folder';
     await this.ensureCottageDir();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cottage:workspace-attached'));
+    }
     return handle.name;
   }
 
@@ -230,6 +234,17 @@ export class FileSystemWorkspace {
     }
   }
 
+  async readCottageBytes(relativePath: string): Promise<Uint8Array | null> {
+    try {
+      const fileHandle = await this.#resolveCottageFile(relativePath, false);
+      if (!fileHandle) return null;
+      const file = await fileHandle.getFile();
+      return new Uint8Array(await file.arrayBuffer());
+    } catch {
+      return null;
+    }
+  }
+
   async writeCottagePath(relativePath: string, data: unknown) {
     const text =
       typeof data === 'string' ? data : JSON.stringify(data, null, 2);
@@ -256,6 +271,61 @@ export class FileSystemWorkspace {
     const writable = await fileHandle.createWritable();
     await writable.write(text);
     await writable.close();
+  }
+
+  async writeCottageBytes(relativePath: string, bytes: Uint8Array) {
+    const normalized = normalizePath(relativePath);
+    const parts = splitPath(normalized);
+    const fileName = parts.pop();
+    if (!fileName) throw new Error('无效的 .cottage 路径');
+    const dir = parts.length === 0
+      ? await this.ensureCottageDir()
+      : await this.#resolveDirectoryUnder(
+          await this.ensureCottageDir(),
+          parts.join('/'),
+          true,
+        );
+    if (!dir) throw new Error('无法写入 .cottage 路径');
+    const fileHandle = await dir.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(bytes);
+    await writable.close();
+  }
+
+  async deleteCottagePath(relativePath: string, options?: { recursive?: boolean }) {
+    const normalized = normalizePath(relativePath);
+    const parts = splitPath(normalized);
+    const fileName = parts.pop();
+    if (!fileName) return false;
+    const dir = parts.length === 0
+      ? await this.ensureCottageDir()
+      : await this.#resolveDirectoryUnder(
+          await this.ensureCottageDir(),
+          parts.join('/'),
+          false,
+        );
+    if (!dir) return false;
+    try {
+      await dir.removeEntry(fileName, { recursive: options?.recursive ?? false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async #beforeMutation(path: string) {
+    await captureAiChangeBeforeMutation(path, async () => {
+      const kind = await this.getEntryKind(path);
+      if (kind === null) return { kind: 'missing' as const };
+      if (kind === 'directory') return { kind: 'directory' as const };
+      const stat = await this.statFile(path);
+      return {
+        kind: 'file' as const,
+        size: stat?.size ?? 0,
+        bytes: await this.readFileBytes(path),
+      };
+    });
+    await journalBeforeMutation(path);
   }
 
   /** 以追加方式写入 .cottage 下的文本文件（保留已有内容，写到末尾）。 */
@@ -692,7 +762,7 @@ export class FileSystemWorkspace {
 
   async writeFile(path: string, content: string) {
     const normalized = normalizePath(path);
-    await journalBeforeMutation(normalized);
+    await this.#beforeMutation(normalized);
     const parts = splitPath(normalized);
     const fileName = parts.pop();
     if (!fileName) throw new Error('无效的文件路径');
@@ -713,7 +783,7 @@ export class FileSystemWorkspace {
 
   async writeFileBytes(path: string, data: Uint8Array | ArrayBuffer) {
     const normalized = normalizePath(path);
-    await journalBeforeMutation(normalized);
+    await this.#beforeMutation(normalized);
     const parts = splitPath(normalized);
     const fileName = parts.pop();
     if (!fileName) throw new Error('无效的文件路径');
@@ -736,8 +806,8 @@ export class FileSystemWorkspace {
   async rename(from: string, to: string) {
     const fromPath = normalizePath(from);
     const toPath = normalizePath(to);
-    await journalBeforeMutation(fromPath);
-    await journalBeforeMutation(toPath);
+    await this.#beforeMutation(fromPath);
+    await this.#beforeMutation(toPath);
     if (!fromPath || !toPath) throw new Error('路径不能为空');
     if (fromPath === toPath) return { from: fromPath, to: toPath, renamed: true };
 
@@ -856,7 +926,7 @@ export class FileSystemWorkspace {
 
   async deleteFile(path: string) {
     const normalized = normalizePath(path);
-    await journalBeforeMutation(normalized);
+    await this.#beforeMutation(normalized);
     const parts = splitPath(normalized);
     const fileName = parts.pop();
     if (!fileName) throw new Error('无效的文件路径');
@@ -876,7 +946,7 @@ export class FileSystemWorkspace {
 
   async deleteEntry(path: string) {
     const normalized = normalizePath(path);
-    await journalBeforeMutation(normalized);
+    await this.#beforeMutation(normalized);
     if (!normalized) throw new Error('无效的路径');
 
     const kind = await this.getEntryKind(normalized);
@@ -947,7 +1017,7 @@ export class FileSystemWorkspace {
 
   async mkdir(path: string) {
     const normalized = normalizePath(path);
-    await journalBeforeMutation(normalized);
+    await this.#beforeMutation(normalized);
     await this.#resolveDirectory(normalized, true);
     this.#emitChange({ type: 'addDirectory', path: normalized });
     return { path: normalized, created: true };

@@ -43,12 +43,6 @@ export const CHAT_PLAN_MODE_TOOL_NAMES = [
   'completePlanRun',
   'failPlanRun',
   'dispatchPlanResearch',
-  // 旧 Spec 工具一并卸载，防止热切换后残留两套计划协议。
-  'suggestSpec',
-  'submitSpec',
-  'specUpdateTask',
-  'specComplete',
-  'specFail',
 ] as const;
 
 const criterionSchema = z.object({

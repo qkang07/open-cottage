@@ -1,22 +1,20 @@
 import { workspace } from '../workspace/FileSystemWorkspace';
-import { loadLastCheckpoint, loadCheckpointSnapshot, loadPlanState } from '../agent/conversationCheckpoint';
+import { loadLastCheckpoint, loadCheckpointSnapshot } from '../agent/conversationCheckpoint';
 import { getSession, clearInterrupted } from './sessionRegistry';
 import type { SessionMeta } from './sessionRegistry';
 import type { StoredMessage } from '../agent/messages';
 import type { ContextUsage } from '../agent/tokenCounter';
-import type { PlanStateSnapshot } from '../agent/conversationCheckpoint';
 import type { EventBus } from '../platform/events';
 
 export interface ResumedSession {
   session: SessionMeta;
   history: StoredMessage[];
   contextUsage: ContextUsage | null;
-  planState: PlanStateSnapshot | null;
   interrupted: boolean;
 }
 
 /**
- * 加载会话最近一次 checkpoint，还原对话历史和 plan 状态。
+ * 加载会话最近一次 checkpoint，还原对话历史和上下文状态。
  *
  * 若会话标记为 interrupted（上次 busy 时崩溃），返回 interrupted: true，
  * 由调用方决定提示"上次未完成，可继续或回滚"。
@@ -30,25 +28,17 @@ export async function resumeSession(
   const checkpoint = await loadLastCheckpoint(sessionId);
   let history: StoredMessage[] = [];
   let contextUsage: ContextUsage | null = null;
-  let planState: PlanStateSnapshot | null = null;
 
   if (checkpoint) {
     const snapshot = await loadCheckpointSnapshot(checkpoint);
     history = snapshot.history;
     contextUsage = snapshot.contextUsage;
-    planState = snapshot.planState;
-  }
-
-  // 若 checkpoint 没有 planState，尝试从 plan.json 加载
-  if (!planState) {
-    planState = await loadPlanState(sessionId);
   }
 
   return {
     session,
     history,
     contextUsage,
-    planState,
     interrupted: session.interrupted ?? false,
   };
 }

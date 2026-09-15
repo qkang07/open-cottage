@@ -12,7 +12,6 @@ import {
   type ModelMessage,
   type ToolSet,
 } from 'ai';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { LlmModelConfig } from '../../config/constants';
 import {
   resolveAnthropicProxy,
@@ -55,6 +54,7 @@ import type {
   CottageToolCall,
 } from './model';
 import type { CottageTool } from './tool';
+import { zodToToolJsonSchema } from '../toolJsonSchema';
 import {
   withCottageModelMiddleware,
   type CottageModelMiddleware,
@@ -328,10 +328,9 @@ const splitMessages = (
 
 const schemaOf = (tool: CottageTool): Record<string, unknown> => {
   if ('safeParse' in tool.schema && typeof tool.schema.safeParse === 'function') {
-    return zodToJsonSchema(
-      tool.schema as Parameters<typeof zodToJsonSchema>[0],
-      { target: 'openApi3' },
-    ) as Record<string, unknown>;
+    return zodToToolJsonSchema(
+      tool.schema as Parameters<typeof zodToToolJsonSchema>[0],
+    );
   }
   return tool.schema as Record<string, unknown>;
 };

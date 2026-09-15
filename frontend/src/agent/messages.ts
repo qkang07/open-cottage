@@ -2,8 +2,8 @@ import type { StoredFileReference } from '../chat/userMessageFormat';
 import type { ChatAttachment } from '../chat/attachments';
 import type { ToolCallInteraction } from '../chat/toolCallInteraction';
 import type { OrchestrationState } from '../orchestrator/types';
-import type { SpecDoc } from '../spec/types';
 import type { PlanDefinition, PlanRun } from '../plan/types';
+import type { AiChangeBaselineRef } from '../chat/aiChangeBaseline';
 import {
   createCottageThinkStreamState,
   feedCottageThinkingChunk,
@@ -70,6 +70,8 @@ export interface StoredMessage {
     after?: string;
     created?: boolean;
   };
+  /** UI-only：旧消息兼容用的本地改动基线引用；新流程以工作区记录为准。 */
+  changeBaselines?: Record<string, AiChangeBaselineRef>;
 }
 
 /**
@@ -188,16 +190,13 @@ export type CottageSection =
       diffText?: string;
       /** UI-only：是否为新建文件 */
       created?: boolean;
+      /** UI-only：旧消息兼容用的二进制/删除基线引用。 */
+      changeBaselines?: Record<string, AiChangeBaselineRef>;
     }
   | {
       type: 'orchestration';
       orchestrationId: string;
       state: OrchestrationState;
-    }
-  | {
-      type: 'spec';
-      specId: string;
-      doc: SpecDoc;
     }
   | {
       type: 'plan';

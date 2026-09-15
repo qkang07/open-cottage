@@ -42,6 +42,4 @@
 | `completePlanRun` / `failPlanRun` | 汇总验证并请求完成，或保留现场并记录失败 |
 | `dispatchPlanResearch` | 在研究或验证步骤中派生最多 3 个临时只读研究执行器 |
 
-旧 `Spec` 消息只作为历史记录显示，并可复制为新的 Plan；`suggestSpec`、`submitSpec` 等旧工具不属于当前公开计划流程。
-
 工具风险和参数以产品运行时提示为准。想了解怎么开启能力，请看 [能力总览](/packs/)；想按任务跟做，请看 [使用指南](/guide/introduction)。

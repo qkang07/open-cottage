@@ -15,7 +15,6 @@ import {
 import {
   CheckmarkCircle,
   CloseCircle,
-  DocumentOutline,
   TimeOutline,
   AlertCircle,
   CreateOutline,
@@ -122,9 +121,7 @@ function eventKey(event: TraceEvent, index: number): string {
                     ? event.verdict === 'pass'
                       ? CheckmarkCircle
                       : CloseCircle
-                    : event.type === 'plan'
-                      ? DocumentOutline
-                      : TimeOutline
+                    : TimeOutline
               "
               class="trace-item-icon"
             />
@@ -135,9 +132,6 @@ function eventKey(event: TraceEvent, index: number): string {
               </template>
               <template v-else-if="event.type === 'model_call'">
                 {{ t('trace.modelCall', { provider: event.identity.provider, model: event.identity.model }) }}
-              </template>
-              <template v-else-if="event.type === 'plan'">
-                {{ t('trace.executionPlan', { goal: event.goal }) }}
               </template>
               <template v-else-if="event.type === 'verify'">
                 {{ t('trace.verify', { result: event.verdict === 'pass' ? t('trace.pass') : t('trace.fail') }) }}
@@ -192,14 +186,7 @@ function eventKey(event: TraceEvent, index: number): string {
         </template>
 
         <div class="trace-item-body">
-          <template v-if="event.type === 'plan'">
-            <NText depth="3">{{ t('trace.planItemCount', { n: event.itemCount }) }}</NText>
-            <pre v-if="event.budget" class="trace-pre">{{
-              JSON.stringify(event.budget, null, 2)
-            }}</pre>
-          </template>
-
-          <template v-else-if="event.type === 'verify'">
+          <template v-if="event.type === 'verify'">
             <NText :type="event.verdict === 'pass' ? 'success' : 'danger'">
               {{
                 t('trace.verifySummary', {

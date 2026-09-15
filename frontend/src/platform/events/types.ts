@@ -9,7 +9,7 @@ import type { TraceEvent } from '../trace/types';
 export interface TaskStartedEvent {
   type: 'task_started';
   at: number;
-  mode: 'chat' | 'task' | 'plan' | 'spec';
+  mode: 'chat' | 'task' | 'plan';
 }
 
 export interface TaskFinishedEvent {

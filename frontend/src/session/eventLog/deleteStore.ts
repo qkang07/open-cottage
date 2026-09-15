@@ -23,4 +23,12 @@ export const deleteSessionStoreFiles = async (sessionId: string): Promise<void> 
       // ignore
     }
   }
+  try {
+    await workspace.deleteCottagePath(
+      `sessions/${sessionId}/change-baselines`,
+      { recursive: true },
+    );
+  } catch {
+    // 旧会话或从未产生文件改动时目录不存在。
+  }
 };

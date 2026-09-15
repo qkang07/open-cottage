@@ -848,14 +848,6 @@ function toolStatusTag(
                           </template>
                         </template>
 
-                        <template v-else-if="event.type === 'plan'">
-                          <pre class="chat-debug-tab__pre">条目数：{{ event.itemCount }}</pre>
-                          <pre
-                            v-if="event.budget"
-                            class="chat-debug-tab__pre"
-                          >{{ JSON.stringify(event.budget, null, 2) }}</pre>
-                        </template>
-
                         <template v-else-if="event.type === 'verify'">
                           <pre class="chat-debug-tab__pre">{{
                             `${event.verdict} · ${event.checkCount} 项检查 · 清单 ${event.manifestPathCount} 路径${

@@ -75,7 +75,7 @@
 ### 2.3 SECURITY.md — ✅
 
 - [x] 漏洞上报流程（不要在 public issue 里贴；邮箱待补）
-- [x] 安全模型简述：API Key 仅存浏览器 IndexedDB、`.cottage/` 本地优先、Policy/Plan Gate 权限闸门
+- [x] 安全模型简述：API Key 仅存浏览器 IndexedDB、`.cottage/` 本地优先、Policy 审批与 Plan Mode 范围治理
 
 ### 2.4 CI / GitHub Actions — ⬜
 

@@ -5,7 +5,6 @@ export const COMPACTION_THRESHOLD = 0.8;
 export const COMPACTION_KEEP_RECENT_TURNS = 4;
 
 const PRESERVE_TOOL_NAMES = new Set([
-  'submitExecutionPlan',
   'submitPlan',
   'completePlanStep',
   'blockPlanStep',

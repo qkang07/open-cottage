@@ -21,7 +21,6 @@ const publicStub = (name: string) =>
 const publicBuildFeatureStubs = (): Plugin => {
   const suffixStubs: Array<[RegExp, string]> = [
     [/\/platform\/packs\/builtins\/dataAnalysis$/, publicStub('dataAnalysisPack.ts')],
-    [/\/platform\/plan$/, publicStub('plan.ts')],
     [/\/stores\/task$/, publicStub('taskStore.ts')],
     [/\/task\/taskSignals$/, publicStub('taskSignals.ts')],
     [/\/task\/subtask$/, publicStub('subtask.ts')],
@@ -60,12 +59,6 @@ const publicBuildFeatureStubs = (): Plugin => {
       !normalized.endsWith('/src/orchestrator/types.ts')
     ) {
       return '编排模式实现';
-    }
-    if (
-      normalized.includes('/src/platform/plan/') &&
-      !normalized.endsWith('/src/platform/plan/types.ts')
-    ) {
-      return 'Plan Gate 实现';
     }
     if (
       normalized.endsWith('/src/platform/packs/builtins/dataAnalysis.ts') ||

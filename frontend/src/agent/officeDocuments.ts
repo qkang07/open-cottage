@@ -40,6 +40,7 @@ import { renderPresentation } from '../domains/office/presentationRenderer';
 import {
   editPresentationOoxml,
   inspectPresentation,
+  inspectPresentationBytes,
   type PresentationEditOperation,
 } from '../domains/office/presentationOoxml';
 
@@ -258,11 +259,11 @@ const readWorkbookFromBytes = (
   return XLSX.read(bytes, opts);
 };
 
-export const readSpreadsheet = async (
+export const readSpreadsheetBytes = async (
+  bytes: Uint8Array,
   path: string,
   options?: { sheet?: string; maxRows?: number; range?: SpreadsheetRange },
 ): Promise<SpreadsheetContent & { range?: SpreadsheetRange; rangeLabel?: string }> => {
-  const bytes = await workspace.readFileBytes(path);
   if (!bytes.byteLength) {
     return { sheets: {}, sheetNames: [] };
   }
@@ -297,6 +298,11 @@ export const readSpreadsheet = async (
 
   return { sheets, sheetNames };
 };
+
+export const readSpreadsheet = async (
+  path: string,
+  options?: { sheet?: string; maxRows?: number; range?: SpreadsheetRange },
+) => readSpreadsheetBytes(await workspace.readFileBytes(path), path, options);
 
 const docxArrayBuffer = async (path: string): Promise<ArrayBuffer> => {
   const ext = extOf(path);
@@ -338,7 +344,20 @@ export const readWordDocument = async (
 };
 
 export const readWordDocumentHtml = async (path: string): Promise<{ html: string }> => {
-  const buffer = await docxArrayBuffer(path);
+  return readWordDocumentHtmlBytes(await workspace.readFileBytes(path), path);
+};
+
+export const readWordDocumentHtmlBytes = async (
+  bytes: Uint8Array,
+  path: string,
+): Promise<{ html: string }> => {
+  if (extOf(path) !== 'docx') {
+    throw new Error('仅支持 .docx；旧版 .doc 请先转换为 docx');
+  }
+  const buffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
   const mammoth = await getMammoth();
   const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
   return { html: result.value };
@@ -366,6 +385,17 @@ export const readPresentation = async (
     ? await findPresentationSourceManifest(path)
     : undefined;
   return { ...inspected, sourceManifest };
+};
+
+export const readPresentationBytes = async (
+  bytes: Uint8Array,
+  path: string,
+  options?: Parameters<typeof inspectPresentationBytes>[1],
+) => {
+  if (extOf(path) !== 'pptx') {
+    throw new Error('仅支持 .pptx；旧版 .ppt 请先转换为 pptx');
+  }
+  return inspectPresentationBytes(bytes, options);
 };
 
 export const readOfficeDocument = async (

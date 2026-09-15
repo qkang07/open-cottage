@@ -57,7 +57,7 @@ api（均返回 Promise）：
 cottage（agent 工具 SDK，均返回 Promise）：
 - cottage.<工具名>(参数对象) 可调用当前会话可用的 agent 工具，参数与该工具的 schema 一致
 - 示例：await cottage.searchFiles({ query: 'TODO' })、await cottage.webSearch({ query: '...' })、await cottage.readSpreadsheet({ path: 'a.xlsx' })
-- 交互 / 流程控制类工具（askUser、loadTools、plan*、task*、spec* 等）与 runScript 自身不可调用
+- 交互 / 流程控制类工具（askUser、loadTools、plan*、task* 等）与 runScript 自身不可调用
 
 示例：
 const { content } = await api.readFile('out.txt');

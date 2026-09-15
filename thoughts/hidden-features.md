@@ -12,9 +12,9 @@
 | `pnpm build:full` | 保留隐藏功能实现，用于内部验证或未来恢复 |
 | `pnpm dev` | 开发服务器保留完整实现，但产品入口仍按本文所述保持隐藏 |
 
-裁剪入口维护在 `frontend/vite.config.ts` 的 `publicBuildFeatureStubs`。当前 public 构建裁剪 Python 数据分析、旧 Plan Gate、旧任务模式/子任务、编排模式和本地 RAG；公开的统一 Plan Mode、版本历史 Beta 与 Vision 不参与裁剪。构建插件还会检查最终模块图，如果隐藏实现或其专用依赖重新泄漏进 public 构建，会直接终止构建并报告来源。
+裁剪入口维护在 `frontend/vite.config.ts` 的 `publicBuildFeatureStubs`。当前 public 构建裁剪 Python 数据分析、旧任务模式/子任务、编排模式和本地 RAG；公开的统一 Plan Mode、版本历史 Beta 与 Vision 不参与裁剪。构建插件还会检查最终模块图，如果隐藏实现或其专用依赖重新泄漏进 public 构建，会直接终止构建并报告来源。
 
-`__COTTAGE_INCLUDE_HIDDEN_FEATURES__` 是编译期常量。任务模式与 Plan Gate 的核心分支会在 public 构建中被死代码消除；其余仍被公共 UI 或 store 引用的边界由无副作用 stub 接管。因此，仅修改 `.cottage/config.json` 不能在 public 构建中重新启用这些能力；恢复时除完成下文对应步骤外，还需使用 `pnpm build:full`，或调整构建档位后再发布。
+`__COTTAGE_INCLUDE_HIDDEN_FEATURES__` 是编译期常量。任务模式的核心分支会在 public 构建中被死代码消除；其余仍被公共 UI 或 store 引用的边界由无副作用 stub 接管。因此，仅修改 `.cottage/config.json` 不能在 public 构建中重新启用这些能力；恢复时除完成下文对应步骤外，还需使用 `pnpm build:full`，或调整构建档位后再发布。
 
 ---
 
@@ -62,31 +62,7 @@
 
 ---
 
-## 3. 计划闸门（Plan Gate）
-
-**状态**：旧的文本型 Plan Gate 保留为 full 构建兼容模块，不再属于公开统一 Plan Mode 的运行链路。公开 Plan Mode 使用 `frontend/src/plan/` 下的版本化计划、路径范围闸门、步骤预算和检查点；它不依赖 `platform.planGate.enabled`。
-
-**涉及代码位置**：
-
-| 位置 | 隐藏方式 |
-|---|---|
-| `frontend/src/config/constants.ts` | 默认配置 `platform.planGate.enabled = false` |
-| `frontend/src/components/Settings/CapabilityConfigTab.vue` | 治理策略面板中无 Plan Gate 开关（仅有暂存审阅） |
-| `frontend/src/agent/createCottageAgent.ts` | 仅旧 chat 治理分支可能创建 PlanSession；`mode === 'plan'` 使用新的 PlanToolGuard |
-
-**相关模块（代码保留，未删除）**：
-
-- `frontend/src/platform/plan/` — 完整实现：planEngine、createPlanGate、submitPlanTool、planApprovalGate
-- `frontend/src/components/Chat/MessageView.vue` — 计划审批卡片 UI（`submitExecutionPlan` 工具渲染）
-- `frontend/src/agent/constants.ts` — 计划闸门系统提示词注入
-
-**恢复旧 Plan Gate 的方法**：
-1. `CapabilityConfigTab.vue` 治理策略区块增加 Plan Gate 开关
-2. `constants.ts` 将 `platform.planGate.enabled` 默认值改为 `true`（或由用户手动开启）
-
----
-
-## 4. 任务模式内部工具（taskHandoff / dispatchSubtask）
+## 3. 任务模式内部工具（taskHandoff / dispatchSubtask）
 
 **隐藏原因**：属于任务系统内部基础设施，非用户可选能力，仅在任务模式下由 Agent 自动使用。
 
@@ -103,11 +79,11 @@
 
 ---
 
-## 5. 任务模式与任务面板（Task Mode / TaskPanel）
+## 4. 任务模式与任务面板（Task Mode / TaskPanel）
 
 **隐藏原因**：旧任务系统（自主多回合执行 + 验收 + 子任务派生）为半成品，已由统一 Plan Mode 取代，暂不向用户开放；聊天引擎对外只提供 `chat | plan`。
 
-**现状**：旧 `task` 模式仍未接入 UI。公开产品使用同聊天的 `chat | plan`，由 `frontend/src/plan/` 的 Plan v1 repository/runner 提供不可变 commit/head、DAG 步骤、Web Locks、实际 MutationReport、浏览器验证和恢复。旧 `.cottage/tasks/` 不自动迁移；TaskPanel 仍未挂载。旧 Spec 只保留只读消息渲染和“复制为新 Plan”，其审批、自动启动和执行入口不再从 store 公开。
+**现状**：旧 `task` 模式仍未接入 UI。公开产品使用同聊天的 `chat | plan`，由 `frontend/src/plan/` 的 Plan v1 repository/runner 提供不可变 commit/head、DAG 步骤、Web Locks、实际 MutationReport、浏览器验证和恢复。旧 `.cottage/tasks/` 不自动迁移；TaskPanel 仍未挂载。旧 Spec 实现与消息兼容入口已经删除。
 
 **涉及代码位置**：
 
@@ -121,7 +97,7 @@
 
 - `frontend/src/task/` — 完整任务系统：TaskRunner（自主回合循环）、persistence（spec/state/plan/events 等分文件持久化）、subtask、taskControl、verify、buildPrompt
 - `frontend/src/stores/task.ts` — 任务生命周期与 `recoverInterruptedTasks`（工作区打开时恢复被中断任务）
-- 任务模式内部工具 `taskHandoff` / `dispatchSubtask` — 见上文第 4 节
+- 任务模式内部工具 `taskHandoff` / `dispatchSubtask` — 见上文第 3 节
 
 **恢复旧 TaskPanel 的方法**：
 1. 在主布局（如聊天/侧栏容器）中挂载 `TaskPanel.vue`，提供任务入口
@@ -130,7 +106,7 @@
 
 ---
 
-## 6. 图片设置 Tab（Vision Settings）——已恢复
+## 5. 图片设置 Tab（Vision Settings）——已恢复
 
 **状态**：已恢复上线。多模态图片能力打通后，设置页「图片」tab 已取消隐藏，表单控件去除 `disabled` 并通过 `patchVision` 写回分层配置（`vision.*`）。
 
@@ -144,7 +120,7 @@
 
 ---
 
-## 7. 编排模式（Orchestration）
+## 6. 编排模式（Orchestration）
 
 **隐藏原因**：编排每步冷启动全新子 Agent、串行调度、上下文按字符截断，执行慢且大型任务常常跑不完；其定位已由公开的统一 **Plan Mode**（单会话内版本化计划、范围批准、DAG 步骤和验证）取代。
 
@@ -167,7 +143,7 @@
 - `frontend/src/components/Chat/ChatPanel.vue` — `answerOrchestrationHuman` 人工问答回传
 
 **恢复方法**：
-1. `createCottageAgent.ts` 取消 import 与 chat 模式 `else if` 分支的注释，恢复注入 `createStartOrchestrationTool`（可与 `suggestSpec` 调整优先级或二选一）
+1. `createCottageAgent.ts` 取消 import 与 chat 模式分支的注释，恢复注入 `createStartOrchestrationTool`
 2. 如需悬浮进度面板，在主布局挂载 `OrchestrationFloating.vue`
 3. `recoverOrchestration` 已保留在 `mountChatInner` 会话恢复流程中，无需额外改动
 
@@ -175,7 +151,7 @@
 
 ## 标记约定
 
-## 8. 本地 Embedding / 向量索引（Local RAG）
+## 7. 本地 Embedding / 向量索引（Local RAG）
 
 **隐藏原因**：本地小型 embedding 模型在工作区代码检索中的收益有限，而启动时加载模型和全量建索引会带来明显的时间与资源成本。当前产品默认采用文本搜索与文件名/路径搜索。
 

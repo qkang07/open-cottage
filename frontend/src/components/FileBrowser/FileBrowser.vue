@@ -5,6 +5,7 @@ import {
   ChatbubbleOutline,
   CheckmarkOutline,
   CreateOutline,
+  EyeOutline,
   FolderOpenOutline,
   LocateOutline,
   RefreshOutline,
@@ -73,6 +74,7 @@ import HistoryPanel from '../History/HistoryPanel.vue';
 import WorkspaceSwitcher from '../WorkspaceSwitcher/WorkspaceSwitcher.vue';
 import ContextMenuPanel from '@/ui/ContextMenuPanel.vue';
 import SearchPanel from './SearchPanel.vue';
+import ChangedFilesPanel from './ChangedFilesPanel.vue';
 import SidebarIconMenu from './SidebarIconMenu.vue';
 import type { SidebarView } from './sidebarView';
 
@@ -137,6 +139,7 @@ const emit = defineEmits<{
 }>();
 const workspaceStore = useWorkspaceStore();
 const aiChangedStore = useAiChangedFilesStore();
+const showChangesDrawer = ref(false);
 const chatStore = useChatReferenceStore();
 const explorerModeStore = useExplorerModeStore();
 const newEntryStore = useNewEntryDialogStore();
@@ -1142,6 +1145,19 @@ const bodyClass = 'panel-body file-browser-body';
         <WorkspaceSwitcher />
       </div>
       <div class="cottage-button-row">
+        <CottageTooltip :content="t('files.viewAllChanges')" placement="top">
+          <span v-if="aiChangedStore.changed.length">
+            <ElButton
+              class="cottage-icon-btn"
+              :aria-label="t('files.viewAllChanges')"
+              @click="showChangesDrawer = true"
+            >
+              <template #icon>
+                <NIcon :component="EyeOutline" />
+              </template>
+            </ElButton>
+          </span>
+        </CottageTooltip>
         <CottageTooltip :content="t('files.markAllAsNormal')" placement="top">
           <span v-if="aiChangedStore.changed.length">
             <ElButton
@@ -1415,6 +1431,15 @@ const bodyClass = 'panel-body file-browser-body';
         </ElButton>
       </template>
     </ElDialog>
+    <ElDrawer
+      v-model="showChangesDrawer"
+      size="min(620px, 94vw)"
+      direction="ltr"
+      :title="t('files.allChangesTitle')"
+      :body-style="{ padding: 0 }"
+    >
+      <ChangedFilesPanel @selected="showChangesDrawer = false" />
+    </ElDrawer>
     <ElDrawer
       v-model="showHistoryDrawer"
       size="min(980px, 94vw)"

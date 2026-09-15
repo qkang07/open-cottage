@@ -36,12 +36,6 @@ import {
 import {
   parseAskUserArgs,
 } from '../../agent/askUserTool';
-import {
-  cancelPendingPlanApproval,
-  getPendingPlanApproval,
-  pendingPlanApprovalRevision,
-  resolvePendingPlanApproval,
-} from '../../platform/plan';
 import { parseMcpToolName } from '../../mcp/toolAdapter';
 import { toolLocaleAlias, toolRisk } from '../../agent/toolDescriptions';
 import { isAskUserTool } from '../../agent/toolNames';
@@ -50,7 +44,6 @@ import { bindMarkdownInteractions } from './markdownRender';
 import StreamingMarkdown from './StreamingMarkdown.vue';
 import UserMessageContent from './UserMessageContent.vue';
 import OrchestrationCard from '../Orchestrator/OrchestrationCard.vue';
-import SpecCard from '../Spec/SpecCard.vue';
 import PlanCard from '../Plan/PlanCard.vue';
 import FileWriteDiff from './FileWriteDiff.vue';
 import DeliverableCard from './DeliverableCard.vue';
@@ -78,30 +71,6 @@ const props = defineProps<{
   sessionId?: string | null;
 }>();
 type CallSection = Extract<CottageSection, { type: 'call' }>;
-type SubmitExecutionPlanItem = {
-  requirement: string;
-  actions?: string[];
-  confidence?: number;
-};
-type SubmitExecutionPlanBudget = {
-  maxFiles?: number;
-  maxApiCalls?: number;
-  maxTurns?: number;
-};
-type SubmitExecutionPlanArgs = {
-  goal: string;
-  domain?: string;
-  items: SubmitExecutionPlanItem[];
-  budget?: SubmitExecutionPlanBudget;
-};
-type SubmitExecutionPlanResult = {
-  ok?: boolean;
-  goal?: string;
-  itemCount?: number;
-  budget?: SubmitExecutionPlanBudget | null;
-  reason?: string;
-};
-type PlanStepStatus = 'pending' | 'running' | 'done';
 type JsonRecord = Record<string, unknown>;
 type ToolDisplayFormatter = {
   params?: (args: JsonRecord | null) => string[];
@@ -112,13 +81,6 @@ type ToolDisplayView = {
   resultLines: string[];
   rawParams: string | null;
   rawResult: string | null;
-};
-type SubmitPlanView = {
-  args: SubmitExecutionPlanArgs | null;
-  result: SubmitExecutionPlanResult | null;
-  itemStatuses: PlanStepStatus[];
-  completedCount: number;
-  hasRunning: boolean;
 };
 type DeliverablePathEntry = { path: string; description?: string };
 type TaskCompleteArgs = {
@@ -388,9 +350,6 @@ function sectionKey(section: CottageSection, index: number): string {
   if (section.type === 'orchestration') {
     return `orch-${section.orchestrationId}`;
   }
-  if (section.type === 'spec') {
-    return `spec-${section.specId}`;
-  }
   if (section.type === 'plan') {
     return `plan-${section.planId}`;
   }
@@ -424,21 +383,6 @@ function handleCancelAskUser(callId: string) {
   });
 }
 
-function planApprovalPending(section: CallSection): boolean {
-  void pendingPlanApprovalRevision.value;
-  if (section.name !== 'submitExecutionPlan') return false;
-  if (!section.running) return false;
-  return getPendingPlanApproval(props.sessionId) !== null;
-}
-function approvePlan() {
-  resolvePendingPlanApproval('approved', props.sessionId);
-}
-function adjustPlan() {
-  resolvePendingPlanApproval('adjust', props.sessionId);
-}
-function cancelPlan() {
-  cancelPendingPlanApproval(undefined, props.sessionId);
-}
 function askResult(section: CallSection) {
   const rawInteractionAnswer =
     section.interaction?.kind === 'ask_user'
@@ -478,113 +422,6 @@ function askUserView(section: CallSection) {
     } else if (!question) statusText = t('chat.waitingTool');
   }
   return { question, options, interactive, statusText };
-}
-function parseSubmitExecutionPlanArgs(
-  section: CallSection,
-): SubmitExecutionPlanArgs | null {
-  if (!section.arguments?.trim()) return null;
-  try {
-    const parsed = JSON.parse(section.arguments) as SubmitExecutionPlanArgs;
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      typeof parsed.goal !== 'string' ||
-      !Array.isArray(parsed.items)
-    ) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-function parseSubmitExecutionPlanResult(
-  section: CallSection,
-): SubmitExecutionPlanResult | null {
-  if (!section.result?.trim()) return null;
-  try {
-    const parsed = JSON.parse(section.result) as SubmitExecutionPlanResult;
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-function formatPlanConfidence(confidence?: number): string | null {
-  if (typeof confidence !== 'number' || Number.isNaN(confidence)) return null;
-  return `${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}%`;
-}
-function hasPlanBudget(budget?: SubmitExecutionPlanBudget | null): boolean {
-  if (!budget) return false;
-  return (
-    typeof budget.maxFiles === 'number' ||
-    typeof budget.maxApiCalls === 'number' ||
-    typeof budget.maxTurns === 'number'
-  );
-}
-function buildPlanView(section: CallSection, sectionIndex: number): SubmitPlanView {
-  const args = parseSubmitExecutionPlanArgs(section);
-  const result = parseSubmitExecutionPlanResult(section);
-  if (!args) {
-    return {
-      args: null,
-      result,
-      itemStatuses: [],
-      completedCount: 0,
-      hasRunning: section.running ?? false,
-    };
-  }
-  const followingCalls: CallSection[] = [];
-  for (let i = sectionIndex + 1; i < props.message.sections.length; i += 1) {
-    const next = props.message.sections[i];
-    if (next.type !== 'call') continue;
-    if (next.name === 'submitExecutionPlan') break;
-    followingCalls.push(next);
-  }
-  const completedCalls = followingCalls.filter((call) => !call.running).length;
-  const completedCount = Math.min(args.items.length, completedCalls);
-  const hasRunning =
-    (section.running ?? false) ||
-    followingCalls.some((call) => Boolean(call.running));
-  const itemStatuses = args.items.map((_, index): PlanStepStatus => {
-    if (index < completedCount) return 'done';
-    if (index === completedCount && hasRunning) return 'running';
-    return 'pending';
-  });
-  return {
-    args,
-    result,
-    itemStatuses,
-    completedCount,
-    hasRunning,
-  };
-}
-const submitPlanViews = computed<Record<string, SubmitPlanView>>(() => {
-  void props.version;
-  const views: Record<string, SubmitPlanView> = {};
-  for (const [index, section] of props.message.sections.entries()) {
-    if (section.type !== 'call' || section.name !== 'submitExecutionPlan') continue;
-    views[section.id] = buildPlanView(section, index);
-  }
-  return views;
-});
-function getSubmitPlanView(section: CallSection): SubmitPlanView | null {
-  return submitPlanViews.value[section.id] ?? null;
-}
-function planStepSymbol(status: PlanStepStatus): string {
-  if (status === 'done') return '✓';
-  if (status === 'running') return '◉';
-  return '○';
-}
-function planOverallStatusText(view: SubmitPlanView): string {
-  if (view.args && view.completedCount >= view.args.items.length) return t('chat.completed');
-  if (view.hasRunning) return t('chat.running');
-  return t('chat.pending');
-}
-function planOverallStatusTagType(view: SubmitPlanView): 'success' | 'warning' | 'info' {
-  if (view.args && view.completedCount >= view.args.items.length) return 'success';
-  if (view.hasRunning) return 'warning';
-  return 'info';
 }
 const displayToolName = (name: string) => toolLocaleAlias(name);
 
@@ -1197,7 +1034,7 @@ const toolDisplayViews = computed<Record<string, ToolDisplayView>>(() => {
   const map: Record<string, ToolDisplayView> = {};
   for (const section of props.message.sections) {
     if (section.type !== 'call') continue;
-    if (isAskUserTool(section.name) || section.name === 'submitExecutionPlan') continue;
+    if (isAskUserTool(section.name)) continue;
     if (section.name === 'runScript') continue;
     if (isFileWriteToolName(section.name) || fileWriteToolNames.has(section.name)) continue;
     map[section.id] = buildToolDisplayView(section);
@@ -1237,8 +1074,6 @@ const toolResultPreview = (section: CallSection): string => {
 };
 const callActiveKeys = ref<Record<number, string[]>>({});
 const thinkActiveKeys = ref<Record<number, string[]>>({});
-const planItemActiveKeys = ref<Record<string, string[]>>({});
-const planItemKey = (index: number) => `item-${index}`;
 watch(
   () => [props.message.sections, props.version] as const,
   ([sections]) => {
@@ -1253,16 +1088,6 @@ watch(
         thinkActiveKeys.value = {
           ...thinkActiveKeys.value,
           [index]: [],
-        };
-      }
-      if (
-        section.type === 'call' &&
-        section.name === 'submitExecutionPlan' &&
-        !(section.id in planItemActiveKeys.value)
-      ) {
-        planItemActiveKeys.value = {
-          ...planItemActiveKeys.value,
-          [section.id]: [],
         };
       }
     }
@@ -1805,10 +1630,6 @@ onUnmounted(() => {
             v-else-if="section.type === 'orchestration'"
             :state="section.state"
           />
-          <SpecCard
-            v-else-if="section.type === 'spec'"
-            :doc="section.doc"
-          />
           <PlanCard
             v-else-if="section.type === 'plan'"
             :definition="section.definition"
@@ -1906,165 +1727,6 @@ onUnmounted(() => {
               :expected-count="getImageGenView(section).expectedCount"
               :paths="getImageGenView(section).paths"
             />
-          </div>
-          <div
-            v-else-if="section.type === 'call' && section.name === 'submitExecutionPlan'"
-            class="plan-tool-card"
-          >
-            <template v-if="getSubmitPlanView(section)?.args">
-              <div class="plan-tool-header">
-                <NText strong class="plan-tool-title">
-                  {{ t('chat.executionPlan', { goal: getSubmitPlanView(section)!.args!.goal }) }}
-                </NText>
-                <span class="plan-tool-header-tags">
-                  <ElTag
-                    v-if="getSubmitPlanView(section)!.args!.domain"
-                    size="small"
-                    type="info"
-                  >
-                    {{ getSubmitPlanView(section)!.args!.domain }}
-                  </ElTag>
-                  <ElTag
-                    :type="planOverallStatusTagType(getSubmitPlanView(section)!)"
-                    size="small"
-                  >
-                    {{ planOverallStatusText(getSubmitPlanView(section)!) }}
-                  </ElTag>
-                </span>
-              </div>
-              <ElCollapse
-                v-model="planItemActiveKeys[section.id]"
-                class="plan-tool-item-collapse"
-              >
-                <ElCollapseItem
-                  v-for="(item, itemIndex) in getSubmitPlanView(section)!.args!.items"
-                  :key="`${section.id}-plan-item-${itemIndex}`"
-                  :name="planItemKey(itemIndex)"
-                  class="plan-tool-item-panel"
-                >
-                  <template #title>
-                    <div class="plan-tool-item-title">
-                      <span
-                        class="plan-tool-todo-dot"
-                        :class="`plan-tool-todo-dot-${getSubmitPlanView(section)!.itemStatuses[itemIndex]}`"
-                      >
-                        {{ planStepSymbol(getSubmitPlanView(section)!.itemStatuses[itemIndex]) }}
-                      </span>
-                      <span class="plan-tool-item-text">{{ item.requirement }}</span>
-                    </div>
-                  </template>
-                  <div class="plan-tool-item-detail">
-                    <ElTag
-                      v-if="formatPlanConfidence(item.confidence)"
-                      size="small"
-                      type="success"
-                    >
-                      {{ t('chat.confidence', { value: formatPlanConfidence(item.confidence) }) }}
-                    </ElTag>
-                    <ul
-                      v-if="item.actions?.length"
-                      class="plan-tool-actions"
-                    >
-                      <li
-                        v-for="(action, actionIndex) in item.actions"
-                        :key="`${section.id}-plan-item-${itemIndex}-action-${actionIndex}`"
-                      >
-                        {{ action }}
-                      </li>
-                    </ul>
-                  </div>
-                </ElCollapseItem>
-              </ElCollapse>
-              <div
-                v-if="hasPlanBudget(getSubmitPlanView(section)!.args!.budget)"
-                class="plan-tool-budget"
-              >
-                <NText depth="3" class="plan-tool-budget-label">{{ t('chat.budget') }}</NText>
-                <div class="plan-tool-budget-tags">
-                  <ElTag
-                    v-if="getSubmitPlanView(section)!.args!.budget?.maxFiles !== undefined"
-                    size="small"
-                  >
-                    {{ t('chat.budgetFiles', { n: getSubmitPlanView(section)!.args!.budget!.maxFiles }) }}
-                  </ElTag>
-                  <ElTag
-                    v-if="getSubmitPlanView(section)!.args!.budget?.maxApiCalls !== undefined"
-                    size="small"
-                  >
-                    {{ t('chat.budgetApiCalls', { n: getSubmitPlanView(section)!.args!.budget!.maxApiCalls }) }}
-                  </ElTag>
-                  <ElTag
-                    v-if="getSubmitPlanView(section)!.args!.budget?.maxTurns !== undefined"
-                    size="small"
-                  >
-                    {{ t('chat.budgetTurns', { n: getSubmitPlanView(section)!.args!.budget!.maxTurns }) }}
-                  </ElTag>
-                </div>
-              </div>
-            </template>
-            <pre
-              v-else-if="section.arguments"
-              class="tool-args"
-            >{{ section.arguments }}</pre>
-            <NText v-if="section.running && !planApprovalPending(section)" depth="3">
-              {{ t('chat.submittingPlan') }}
-            </NText>
-            <div
-              v-if="planApprovalPending(section)"
-              class="plan-tool-approval"
-            >
-              <NText depth="2" class="plan-tool-approval-hint">
-                {{ t('chat.planReady') }}
-              </NText>
-              <div class="plan-tool-approval-actions">
-                <ElButton
-                  type="primary"
-                  size="small"
-                  @click="approvePlan"
-                >
-                  {{ t('chat.approveAndRun') }}
-                </ElButton>
-                <ElButton
-                  size="small"
-                  @click="adjustPlan"
-                >
-                  {{ t('chat.requestChanges') }}
-                </ElButton>
-                <ElButton
-                  size="small"
-                  @click="cancelPlan"
-                >
-                  {{ t('common.cancel') }}
-                </ElButton>
-              </div>
-            </div>
-            <template v-if="getSubmitPlanView(section)?.result">
-              <div class="plan-tool-result">
-                <ElTag
-                  :type="getSubmitPlanView(section)!.result!.ok ? 'success' : 'warning'"
-                  size="small"
-                >
-                  {{ getSubmitPlanView(section)!.result!.ok ? t('chat.planSubmitted') : t('chat.planRejected') }}
-                </ElTag>
-                <NText
-                  v-if="getSubmitPlanView(section)!.result!.itemCount !== undefined"
-                  depth="3"
-                >
-                  {{ t('chat.planItems', { n: getSubmitPlanView(section)!.result!.itemCount }) }}
-                </NText>
-                <NText
-                  v-if="getSubmitPlanView(section)!.result!.reason"
-                  depth="3"
-                  class="plan-tool-result-reason"
-                >
-                  {{ getSubmitPlanView(section)!.result!.reason }}
-                </NText>
-              </div>
-            </template>
-            <pre
-              v-else-if="section.result"
-              class="tool-result"
-            >{{ section.result }}</pre>
           </div>
           <div
             v-else-if="section.type === 'call' && isAskUserTool(section.name)"

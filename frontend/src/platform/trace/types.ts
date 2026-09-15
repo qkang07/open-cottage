@@ -3,7 +3,6 @@ import type {
   CottageModelRuntimeIdentity,
   CottageModelUsage,
 } from '../../agent/runtime/model';
-import type { PlanBudget } from '../plan';
 
 /**
  * 全链路 trace 事件模型。
@@ -50,15 +49,6 @@ export interface TraceToolCallEvent {
   parentCallId?: string;
 }
 
-export interface TracePlanEvent {
-  type: 'plan';
-  at: number;
-  goal: string;
-  itemCount: number;
-  budget?: PlanBudget;
-  approved?: boolean;
-}
-
 export interface TraceVerifyEvent {
   type: 'verify';
   at: number;
@@ -71,7 +61,7 @@ export interface TraceVerifyEvent {
 export interface TraceTurnStartEvent {
   type: 'turn_start';
   at: number;
-  mode: 'chat' | 'task' | 'plan' | 'spec';
+  mode: 'chat' | 'task' | 'plan';
   promptChars: number;
 }
 
@@ -125,7 +115,6 @@ export interface TraceCompactionEvent {
 
 export type TraceEvent =
   | TraceToolCallEvent
-  | TracePlanEvent
   | TraceVerifyEvent
   | TraceTurnStartEvent
   | TraceTurnEndEvent

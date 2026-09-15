@@ -1,6 +1,6 @@
 import { CottageDynamicTool, type CottageTool } from '@/agent/runtime/tool';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { z } from 'zod';
+import { zodToToolJsonSchema } from './toolJsonSchema';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -9,12 +9,7 @@ const isRecord = (v: unknown): v is JsonRecord =>
 
 /** Moonshot 要求 $ref 以 #/$defs/ 开头，且不接受根级 $schema */
 export const moonshotParametersFromZod = (schema: z.ZodTypeAny): JsonRecord => {
-  const json = zodToJsonSchema(schema, {
-    $refStrategy: 'none',
-    target: 'openApi3',
-  }) as JsonRecord;
-
-  delete json.$schema;
+  const json = zodToToolJsonSchema(schema, { $refStrategy: 'none' });
   return sanitizeMoonshotJsonSchema(json);
 };
 

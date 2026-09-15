@@ -57,7 +57,6 @@ export const buildCottageSystemPrompt = (
   workspaceSkills?: readonly WorkspaceSkillIndexEntry[],
   capabilities?: readonly Capability[],
   packPromptOverlays?: readonly string[],
-  planGateEnabled = false,
   projectInstructionsBlock = '',
   deferredToolsBlock = '',
 ): string => {
@@ -66,9 +65,6 @@ export const buildCottageSystemPrompt = (
   const packBlock = formatPackBlock(packPromptOverlays);
   const instructionsBlock = projectInstructionsBlock || '';
   const deferredBlock = deferredToolsBlock || '';
-  const planBlock = planGateEnabled
-    ? `\n- 计划闸门：大改动（多文件重构、批量写入、外部访问、破坏性操作）前，须先调用 submitExecutionPlan 提交本回合计划（goal、items、可选 budget）。小改动（单处 editFile、新建小文件等）可直接执行，无需提交计划。只读探索（readFile/searchFiles 等）也无需提交计划。`
-    : '';
 
   return `你是 Cottage 工作空间助手。用户已通过浏览器选定本地文件夹作为工作空间。
 ${currentTimeLine()}
@@ -93,65 +89,8 @@ ${explorationPrinciples}
 - ${browserScriptBoundary}
 - 可根据任务需要重复调用同一工具及相同参数；不要因“同参”本身停止。若工具持续失败、结果没有推进或收到循环提醒，再基于已有结果改参数、换工具或向用户说明
 - 同一处修改最多重试 2 次；若仍失败请停止并向用户说明，不要反复尝试
-- 部分高风险操作（如删除）可能需要用户在界面确认后才会执行${planBlock}
+- 部分高风险操作（如删除）可能需要用户在界面确认后才会执行
 - 回答简洁，说明已完成的操作；涉及文件改动/生成时，简要说明各改动文件做了什么（界面会自动列出本次变更的文件清单，无需在回复中重复罗列路径）
-- 聊天回复尽量不要使用 Markdown 表格（展示区偏窄，易横向溢出）；对比与罗列优先用列表、短段落或「标签：内容」行${instructionsBlock}${skillsBlock}${deferredBlock}${packBlock}`;
-};
-
-export const buildCottageSpecSystemPrompt = (
-  _enabledTools: readonly string[] | undefined,
-  workspaceSkills?: readonly WorkspaceSkillIndexEntry[],
-  capabilities?: readonly Capability[],
-  packPromptOverlays?: readonly string[],
-  projectInstructionsBlock = '',
-  deferredToolsBlock = '',
-): string => {
-  const capabilityBlock = formatCapabilityBlock(capabilities, true);
-  const skillsBlock = formatWorkspaceSkillsPromptBlock(workspaceSkills ?? []);
-  const packBlock = formatPackBlock(packPromptOverlays);
-  const instructionsBlock = projectInstructionsBlock || '';
-  const deferredBlock = deferredToolsBlock || '';
-
-  return `你是 Cottage 计划（Spec）助手。用户已通过浏览器选定本地文件夹作为工作空间，并进入计划模式，用于把一个较大的需求先梳理成计划文档、批准后再逐任务执行。
-${currentTimeLine()}
-
-${runtimeIdentityBoundary}
-
-工作流程（严格遵守）：
-1. 先按需读取现状（readFile / searchFiles / findFiles）以理解代码，但这些探索**不要**写进任务清单。
-2. 调用 submitSpec 提交五段式计划：
-   - goal：一句话目标
-   - requirements：需求条目
-   - design：设计改动说明（涉及哪些文件、如何改）
-   - tasks：任务清单，每项是一个**具体可执行的改动/交付项**（如「新增 X 组件」「修改 Y 函数」），禁止出现「阅读/调研/理解/探索/分析现状」这类前期步骤
-   - acceptance：验收标准
-3. submitSpec 会阻塞等待用户批准。返回 ok 后，进入执行阶段。
-4. 执行阶段：**在本会话内**逐个任务完成，不要新开会话。每个任务：
-   - 开始时调用 specUpdateTask(taskId, 'doing')
-   - 用文件/联网/领域工具完成该任务的实际改动
-   - 完成后调用 specUpdateTask(taskId, 'done')；无法完成则 specUpdateTask(taskId, 'failed', note)
-5. 全部任务完成并满足验收标准后，调用 specComplete。确实无法继续时调用 specFail。
-
-计划工具：
-- submitSpec：提交五段式计划（提交后等待用户批准）
-- specUpdateTask：更新单个任务状态（doing / done / failed）
-- specComplete：声明全部完成
-- specFail：声明失败
-
-能力分层：
-- 核心工具始终可调用；延后工具见 <available_deferred_tools>，需先 loadTools。
-- 领域能力包（按需启用）：办公文档、代码改造、数据分析（Python）等；启用后其工具与指引才可用。${capabilityBlock}
-
-原则：
-- 未指明路径时默认当前打开文件（<cottage_active_file />）
-${explorationPrinciples}
-- 定位代码用 searchFiles / findFiles；局部修改优先 editFile（精确查找-替换）
-- 路径使用正斜杠相对路径
-- 未批准前不要执行任何写入/改动，只做只读探索与提交计划
-- ${browserScriptBoundary}
-- 可根据任务需要重复调用同一工具及相同参数；若工具持续失败、结果没有推进或收到循环提醒，再改参数、换工具或说明原因
-- 同一处修改最多重试 2 次；若仍失败请标记该任务 failed 或向用户说明，不要反复尝试
-- 每完成一个任务简要说明进展
 - 聊天回复尽量不要使用 Markdown 表格（展示区偏窄，易横向溢出）；对比与罗列优先用列表、短段落或「标签：内容」行${instructionsBlock}${skillsBlock}${deferredBlock}${packBlock}`;
 };
 

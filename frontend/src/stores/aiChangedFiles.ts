@@ -7,6 +7,11 @@ import {
 } from '../platform/staging/stagedApprovalGate';
 import { workspace } from '../workspace/FileSystemWorkspace';
 import { useWorkspaceStore } from './workspace';
+import {
+  loadAiChangeRecords,
+  readAiChangeBaselineBytes,
+  removeAiChangeRecord,
+} from '../chat/aiChangeBaseline';
 
 const HANDLED_CHANGES_STORAGE_KEY = 'open-cottage.ai-changed-files.handled.v1';
 const DEFAULT_SCOPE_KEY = '__default__';
@@ -28,24 +33,58 @@ const loadHandledChanges = (): HandledChangesByScope => {
 
 /**
  * AI 改动标记。
- * 记录当前会话中由 AI 工具改动/生成/删除的文件路径，
- * 供文件树/管理器展示状态，并恢复会话内首次改动前的基线。
+ * 记录当前工作区中由 AI 工具改动/生成/删除的文件路径，
+ * 供文件树/管理器展示状态，并恢复本地文件历史中的改动前版本。
  */
 export const useAiChangedFilesStore = defineStore('aiChangedFiles', () => {
   const workspaceStore = useWorkspaceStore();
   const changed = ref<MessageChangedFile[]>([]);
   const scopeId = ref<string | null>(null);
+  const messageEntries = ref<MessageChangedFile[]>([]);
   const handledChangesByScope = ref<HandledChangesByScope>(loadHandledChanges());
+  const reviewRequest = ref<{
+    path: string;
+    mode: 'current' | 'changes' | 'before';
+    nonce: number;
+  } | null>(null);
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('cottage:ai-changes-updated', () => {
+      void refreshFromWorkspace();
+    });
+    window.addEventListener('cottage:workspace-attached', () => {
+      void refreshFromWorkspace();
+    });
+  }
 
   const pathSet = computed(() => new Set(changed.value.map((f) => f.path)));
 
   /** 用最新推导结果整体替换（空列表即清空）；内容一致时不触发更新 */
-  function sync(files: MessageChangedFile[], nextScopeId: string | null = null) {
+  async function sync(files: MessageChangedFile[], nextScopeId: string | null = null) {
     scopeId.value = nextScopeId;
-    const handled = handledChangesByScope.value[nextScopeId ?? DEFAULT_SCOPE_KEY] ?? {};
-    const visible = files.filter(
-      (file) => handled[file.path] !== (file.changeId ?? ''),
+    messageEntries.value = files;
+    await refreshFromWorkspace();
+  }
+
+  async function refreshFromWorkspace(): Promise<void> {
+    const records = await loadAiChangeRecords();
+    const active = records.map<MessageChangedFile>((record) => ({
+      path: record.path,
+      kind: record.kind,
+      changeId: String(record.updatedAt),
+      reset:
+        record.baseline.kind === 'missing'
+          ? { kind: 'delete' }
+          : record.baseline.kind === 'stored'
+            ? { kind: 'restoreBytes', baseline: record.baseline }
+            : undefined,
+    }));
+    const pending = messageEntries.value.filter((file) =>
+      getPendingStagedApproval(scopeId.value)?.store.has(file.path),
     );
+    const visible = [...active, ...pending.filter(
+      (file) => !active.some((item) => item.path === file.path),
+    )];
     const key = visible
       .map((f) => `${f.path}\0${f.kind}\0${f.changeId ?? ''}`)
       .join('\n');
@@ -67,6 +106,18 @@ export const useAiChangedFilesStore = defineStore('aiChangedFiles', () => {
   function kindOf(path: string): MessageChangedFile['kind'] | null {
     const found = changed.value.find((f) => f.path === path);
     return found ? found.kind : null;
+  }
+
+  function fileOf(path: string): MessageChangedFile | null {
+    return changed.value.find((item) => item.path === path) ?? null;
+  }
+
+  async function openReview(
+    path: string,
+    mode: 'current' | 'changes' | 'before' = 'current',
+  ): Promise<void> {
+    await workspaceStore.selectFile(path);
+    reviewRequest.value = { path, mode, nonce: Date.now() };
   }
 
   function canReset(path: string): boolean {
@@ -96,6 +147,7 @@ export const useAiChangedFilesStore = defineStore('aiChangedFiles', () => {
     } catch {
       // 浏览器禁用存储时仍保留当前运行期状态。
     }
+    void removeAiChangeRecord(file.path);
     changed.value = changed.value.filter((item) => item.path !== file.path);
   };
 
@@ -110,7 +162,7 @@ export const useAiChangedFilesStore = defineStore('aiChangedFiles', () => {
     for (const file of [...changed.value]) markHandled(file);
   }
 
-  /** 恢复会话内首次 AI 改动前的文件内容；新建文件则删除。 */
+  /** 恢复本地文件历史中的改动前内容；新建文件则删除。 */
   async function resetOne(path: string): Promise<void> {
     const file = changed.value.find((item) => item.path === path);
     if (!file) throw new Error('未找到该文件的 AI 改动记录');
@@ -129,12 +181,20 @@ export const useAiChangedFilesStore = defineStore('aiChangedFiles', () => {
       if ((await workspace.getEntryKind(path)) !== null) {
         await workspaceStore.deletePaths([path]);
       }
-    } else {
+    } else if (file.reset.kind === 'restoreText') {
       await workspace.writeFile(path, file.reset.content);
       if (workspaceStore.selectedPath === path) {
         await workspaceStore.selectFile(path);
       }
+    } else {
+      const bytes = await readAiChangeBaselineBytes(file.reset.baseline);
+      if (!bytes) throw new Error('改动前版本已不可用');
+      await workspace.writeFileBytes(path, bytes);
+      if (workspaceStore.selectedPath === path) {
+        await workspaceStore.selectFile(path);
+      }
     }
+    await removeAiChangeRecord(file.path);
     markHandled(file);
   }
 
@@ -150,11 +210,17 @@ export const useAiChangedFilesStore = defineStore('aiChangedFiles', () => {
     return { failed };
   }
 
+  void refreshFromWorkspace();
+
   return {
     changed,
+    reviewRequest,
     sync,
+    refreshFromWorkspace,
     isTouched,
     kindOf,
+    fileOf,
+    openReview,
     canReset,
     acknowledgeOne,
     acknowledgeAll,

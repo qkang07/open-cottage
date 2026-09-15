@@ -107,7 +107,6 @@ function buildGlobalToolList(): DebugToolInfo[] {
     ...BASE_TOOL_NAMES,
     ...OPTIONAL_TOOL_NAMES.filter((n) => enabled.includes(n)),
     'askUser',
-    'submitExecutionPlan',
     'searchWorkspaceSemantic',
   ];
   const unique = [...new Set(names)];
@@ -123,7 +122,6 @@ function buildGlobalSystemPrompt(): string {
     undefined,
     undefined,
     undefined,
-    Boolean(getCottageConfig().platform?.planGate?.enabled),
   );
 }
 

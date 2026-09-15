@@ -15,7 +15,6 @@ vi.mock('../platform/policy/policyEngine', () => ({
 }));
 
 import { createUnifiedToolExecutor } from './toolInvocation';
-import { createPlanGate, PlanSession, recordPlanToolOutcome } from '../platform/plan';
 import { resetCapabilityRegistry } from '../platform/capabilities/registry';
 import { BUILTIN_CAPABILITIES } from '../platform/capabilities/builtins';
 import type { TraceRecorder } from '../platform/trace';
@@ -195,53 +194,6 @@ describe('createUnifiedToolExecutor', () => {
     const event = append.mock.calls[0]![0];
     expect(event.source).toBe('manual');
     expect(event.round).toBe(0);
-  });
-
-  it('script 子调用计入 plan 预算，runScript 宿主防双计', async () => {
-    const { tool } = makeTool('writeFile');
-    const session = new PlanSession();
-    session.submit({
-      goal: '批量改',
-      items: [{ requirement: '改文件' }],
-      submittedAt: Date.now(),
-    });
-    const planGate = createPlanGate(session, { enabled: true });
-    const executor = createUnifiedToolExecutor({
-      getTool: () => tool,
-      getPlanGate: () => planGate ?? undefined,
-      getPlanSession: () => session,
-    });
-    const outcome = await executor.invoke({
-      toolName: 'writeFile',
-      args: { path: 'a.txt', content: 'x' },
-      source: 'script',
-      parentCallId: 'agent:run-1',
-    });
-    expect(outcome.status).toBe('ok');
-    expect(session.counters.files).toBe(1);
-    // 宿主 runScript 自身不重复计数
-    recordPlanToolOutcome(session, 'runScript');
-    expect(session.counters.files).toBe(1);
-  });
-
-  it('planGate 阻断时返回 blocked_plan 并记录原因', async () => {
-    const { tool, invoke } = makeTool('writeFile');
-    const session = new PlanSession();
-    const planGate = createPlanGate(session, { enabled: true });
-    const executor = createUnifiedToolExecutor({
-      getTool: () => tool,
-      getPlanGate: () => planGate ?? undefined,
-      getPlanSession: () => session,
-    });
-    const outcome = await executor.invoke({
-      toolName: 'writeFile',
-      args: { path: 'a.txt', content: 'x' },
-      source: 'script',
-    });
-    expect(outcome.status).toBe('blocked_plan');
-    expect(outcome.resultText).toContain('计划闸门');
-    expect(session.lastBlockedReason).toBeTruthy();
-    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('相同工具和参数的多次调用均正常执行，不触发循环确认', async () => {

@@ -17,7 +17,7 @@ const WEB_AUTOMATION_PROMPT = `【网页自动化能力包已启用】
 
 ## 使用纪律
 - 只需读取内容时优先 extractPage，不要滥用交互会话。
-- 交互操作（点击/输入/选择/跳转）属外部站点操作，涉及风险时先 submitExecutionPlan 说明要做什么。
+- 多步或高风险网页操作先调用 suggestPlanMode 请求进入计划模式；进入后用 submitPlan 提交范围、步骤与预算供批准。
 - 每次 openBrowserPage 后务必在结束时 closeBrowserPage；会话空闲 5 分钟会自动关闭。
 - 选择器优先用稳定的 CSS（id / name / data-* 属性），避免脆弱的层级选择器；定位失败再用 text 兜底。
 - 填表/点击后若页面跳转或动态加载，可 captureBrowserPage 或 extractPage 确认结果再继续。`;

@@ -20,7 +20,7 @@
 重写 `CODING_PACK.promptOverlay`，把五条纪律编码为默认行为：
 
 1. **有界探索**：明确停止条件（已定位入口符号 + 已用 `analyzeImpact` 量化影响面即可动手）；探索阶段不写进 todo / plan items
-2. **任务分级**：按 `analyzeImpact` 的 fileCount/referenceCount 分微改 / 小改 / 大改，只有大改才 `submitExecutionPlan`
+2. **任务分级**：按 `analyzeImpact` 的 fileCount/referenceCount 分微改 / 小改 / 大改，只有大改才建议进入 Plan Mode 并用 `submitPlan` 提交完整范围
 3. **最小改动**：优先 `editFile`，结构性改动优先 `astEdit`，不整文件覆盖、不顺手重构
 4. **改前自检**：动手前确认影响面与是否波及 public API / props / 路由 / store
 5. **改后 DoD 自检**：引用同步、export/注册、props/类型一致、无遗留调试代码
@@ -37,7 +37,7 @@
 
 ### 顺带修复
 
-`coding.semantic.retrieve` 能力原错配到 RAG 工具 `searchWorkspaceSemantic`，导致 `searchSymbol`/`findReferences` 没有 capability 映射、Plan Gate/Policy 看不到它们。现拆分为三个清晰能力：
+`coding.semantic.retrieve` 能力原错配到 RAG 工具 `searchWorkspaceSemantic`，导致 `searchSymbol`/`findReferences` 没有 capability 映射、Plan Mode/Policy 看不到它们。现拆分为三个清晰能力：
 
 | 能力 id | 工具 | 风险 |
 |---|---|---|
@@ -85,7 +85,7 @@
 
 - `astEdit` 默认 `dryRun: true`，仅返回 diff；`dryRun: false` 才落盘
 - 解析失败 / 未命中 → `applied: 0` + note，提示回退 `editFile`
-- `astEdit` 是 write，触发 Plan Gate 的 `submitExecutionPlan`
+- `astEdit` 是 write；Plan Mode 中受已批准路径范围、步骤预算与 Mutation Journal 约束
 - 产出 unified diff（行级 LCS），便于人审与 trace
 
 ## 4. 涉及文件

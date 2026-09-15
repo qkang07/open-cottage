@@ -95,17 +95,11 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
   // 对话编排与任务
   askUser: '向用户提问并等待用户选择或文字回答。',
-  submitExecutionPlan: '提交本回合执行计划（满足计划闸门后才可继续高风险工具）。',
   taskSetPlan: '更新任务执行计划步骤。',
   taskComplete: '声明任务完成并提交交付清单。',
   submitDeliverableCanvas: '提交结构化 canvas 交付物（表格/待办/Markdown）。',
   taskFail: '声明任务无法完成并说明原因。',
   cottage_startOrchestration: '启动编排模式，将复杂目标拆分为多步骤执行。',
-  suggestSpec: '建议进入计划模式，先制定可批准计划再逐任务执行。',
-  submitSpec: '提交五段式计划文档供用户批准。',
-  specUpdateTask: '更新计划任务清单中某项的状态。',
-  specComplete: '标记计划全部任务完成。',
-  specFail: '声明计划执行失败并说明原因。',
   suggestPlanMode: '建议用户确认切换到统一计划模式。',
   submitPlan: '提交版本化计划、路径范围与验收标准供用户批准。',
   completePlanStep: '提交计划步骤的实现证据并运行可用验证器。',
@@ -223,7 +217,6 @@ export const TOOL_LOCALE_ALIASES: Record<string, string> = {
 
   // 历史与交互
   askUser: '询问用户',
-  submitExecutionPlan: '提交执行计划',
 
   // 任务
   taskSetPlan: '设置任务计划',
@@ -233,11 +226,6 @@ export const TOOL_LOCALE_ALIASES: Record<string, string> = {
 
   // 编排
   cottage_startOrchestration: '启动编排',
-  suggestSpec: '建议计划模式',
-  submitSpec: '提交计划',
-  specUpdateTask: '更新计划任务',
-  specComplete: '计划完成',
-  specFail: '计划失败',
   suggestPlanMode: '建议计划模式',
   submitPlan: '提交计划版本',
   completePlanStep: '完成计划步骤',

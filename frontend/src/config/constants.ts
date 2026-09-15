@@ -225,21 +225,6 @@ export interface PlatformConfig {
       'read' | 'write' | 'external' | 'destructive'
     >;
   };
-  planGate?: {
-    enabled?: boolean;
-    /** 须先提交计划才可执行的风险级别 */
-    requirePlanFor?: Array<'read' | 'write' | 'external' | 'destructive'>;
-    defaultBudget?: {
-      maxFiles?: number;
-      maxApiCalls?: number;
-      maxTurns?: number;
-    };
-    /** 提交计划后须用户在 UI 批准才放行，默认 true */
-    requireApproval?: boolean;
-    /** 小改动（估算 token 低于阈值）可豁免计划闸门 */
-    microEditExempt?: boolean;
-    microEditMaxTokens?: number;
-  };
   /** 执行后缓冲审阅：写工具先落内存暂存区，回合末批量审阅真实 diff 后合并落盘 */
   stagingReview?: {
     enabled?: boolean;
@@ -481,7 +466,7 @@ export interface ChatSessionRuntimeMeta {
   systemPrompt: string;
   tools: ChatSessionToolMeta[];
   enabledTools?: string[];
-  mode?: 'chat' | 'task' | 'plan' | 'spec';
+  mode?: 'chat' | 'task' | 'plan';
   /** 落盘时该会话是否仍有回合进行中（刷新/关闭前未完成）；true 表示展示时应标记“已中断” */
   inFlight?: boolean;
   /** 最后一次回合开始时间戳 */
@@ -645,17 +630,6 @@ export const DEFAULT_COTTAGE_CONFIG: Required<
     },
     governance: {
       requireApprovalFor: ['destructive'],
-    },
-    planGate: {
-      enabled: false,
-      requirePlanFor: ['write', 'external', 'destructive'],
-      defaultBudget: {
-        maxFiles: 20,
-        maxApiCalls: 10,
-        maxTurns: 25,
-      },
-      microEditExempt: true,
-      microEditMaxTokens: 256,
     },
     stagingReview: {
       enabled: true,

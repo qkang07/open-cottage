@@ -740,7 +740,7 @@ const formatDate = (ts: number) => new Date(ts).toLocaleString();
           <NText depth="3" class="capability-packs-hint">
             {{ t('settings.stagingReviewHint') }}
           </NText>
-          <div class="capability-packs-plan-gate settings-toggle-row" style="margin-top: 10px">
+          <div class="capability-packs-staging-review settings-toggle-row" style="margin-top: 10px">
             <NText class="settings-field-label">{{ t('settings.enableStagingReview') }}</NText>
             <ElSwitch
               :model-value="stagingReviewEnabled"
@@ -1158,7 +1158,7 @@ const formatDate = (ts: number) => new Date(ts).toLocaleString();
   gap: 16px;
 }
 
-.capability-packs-plan-gate,
+.capability-packs-staging-review,
 .settings-toggle-row {
   display: flex;
   align-items: center;
@@ -1170,20 +1170,20 @@ const formatDate = (ts: number) => new Date(ts).toLocaleString();
   transition: background-color 0.15s ease;
 }
 
-.capability-packs-plan-gate:hover,
+.capability-packs-staging-review:hover,
 .settings-toggle-row:hover {
   background: var(--cottage-accent-bg);
 }
 
 .settings-toggle-row .settings-field-label,
-.capability-packs-plan-gate .settings-field-label {
+.capability-packs-staging-review .settings-field-label {
   pointer-events: none;
   user-select: none;
   font-size: var(--cottage-font-sm);
   color: var(--cottage-muted);
 }
 
-.capability-packs-plan-gate .el-switch,
+.capability-packs-staging-review .el-switch,
 .settings-toggle-row .el-switch {
   width: fit-content;
   flex-shrink: 0;
