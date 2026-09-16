@@ -97,12 +97,14 @@ export async function captureAiChangeBeforeMutation(
   let captured: CapturedBaseline;
   try {
     const snapshot = await read();
-    if (snapshot.kind === 'missing') captured = { kind: 'missing' };
-    else if (snapshot.kind === 'directory') captured = { kind: 'unavailable', reason: 'directory' };
-    else if (snapshot.kind === 'file') {
+    if (snapshot.kind === 'file') {
       captured = snapshot.size > MAX_BASELINE_BYTES
         ? { kind: 'unavailable', reason: 'oversize' }
         : { kind: 'stored', bytes: snapshot.bytes };
+    } else if (snapshot.kind === 'missing') {
+      captured = { kind: 'missing' };
+    } else {
+      captured = { kind: 'unavailable', reason: 'directory' };
     }
   } catch {
     captured = { kind: 'unavailable', reason: 'read-error' };
